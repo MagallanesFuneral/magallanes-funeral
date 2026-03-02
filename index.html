@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Magallanes Funeral</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-title">Magallanes Funeral</div>
+        <div class="brand-subtitle">Contracts • Transactions • Daily Report</div>
+      </div>
+
+      <div class="header-right">
+        <div class="theme-picker">
+          <label for="themeSelect" class="theme-label">Style</label>
+          <select id="themeSelect" class="select" title="Change the look of the app">
+            <option value="midnight">Midnight Professional</option>
+            <option value="slate">Slate Modern</option>
+            <option value="royal">Royal Blue</option>
+            <option value="emerald">Emerald Clean</option>
+            <option value="forest">Forest Executive</option>
+            <option value="sand">Sand Ledger</option>
+            <option value="graphite">Graphite Minimal</option>
+            <option value="lavender">Lavender Soft</option>
+            <option value="rose">Rose Accent</option>
+            <option value="classic">Classic Office</option>
+            <option value="sunset">Sunset Pop</option>
+            <option value="tropical">Tropical Neon</option>
+            <option value="aqua">Aqua Splash</option>
+            <option value="citrus">Citrus Punch</option>
+            <option value="galaxy">Galaxy Vivid</option>
+            <option value="coral">Coral Bright</option>
+            <option value="sky">Sky Blue Bright</option>
+            <option value="mint">Mint Fresh</option>
+            <option value="sunflower">Sunflower Bold</option>
+            <option value="candy">Candy Pop</option>
+            <option value="neonPulse">Neon Pulse</option>
+            <option value="electricLime">Electric Lime</option>
+            <option value="aquaVibe">Aqua Vibe</option>
+            <option value="pinkRush">Pink Rush</option>
+            <option value="ultraViolet">Ultra Violet</option>
+            <option value="premiumGlass">Premium Glass</option>
+          </select>
+        </div>
+
+        <!-- ── Display Controls ── -->
+        <div class="display-controls" id="displayControls">
+          <button class="btn btn-secondary" id="btnDisplayPanel" title="Display / zoom settings" style="padding:5px 10px; font-size:11px;">⚙ Display</button>
+          <div class="display-panel" id="displayPanel" style="display:none;">
+            <div class="display-panel-title">Display Settings</div>
+
+            <div class="display-row">
+              <span class="display-label">Device</span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="display-preset-btn" data-preset="desktop" title="Desktop">🖥 Desktop</button>
+                <button class="display-preset-btn" data-preset="tablet" title="Tablet">📱 Tablet</button>
+                <button class="display-preset-btn" data-preset="mobile" title="Mobile">📲 Mobile</button>
+              </div>
+            </div>
+
+            <div class="display-row">
+              <label class="display-label" for="sliderFontSize">Font Size <span id="valFontSize"></span></label>
+              <input type="range" id="sliderFontSize" min="70" max="140" step="5" value="100" class="display-slider" />
+            </div>
+
+            <div class="display-row">
+              <label class="display-label" for="sliderSpacing">Spacing <span id="valSpacing"></span></label>
+              <input type="range" id="sliderSpacing" min="50" max="150" step="10" value="100" class="display-slider" />
+            </div>
+
+            <div class="display-row">
+              <label class="display-label" for="sliderTableSize">Table Rows <span id="valTableSize"></span></label>
+              <input type="range" id="sliderTableSize" min="70" max="130" step="5" value="100" class="display-slider" />
+            </div>
+
+            <div class="display-row" style="justify-content:space-between; margin-top:4px;">
+              <button class="display-reset-btn" id="btnDisplayReset">↺ Reset</button>
+              <span id="displayDeviceLabel" style="font-size:10px; opacity:0.5;"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="userBadge" style="display:none; align-items:center; gap:8px; margin-left:16px;">
+          <span id="userEmail" style="font-size:12px; opacity:0.7;"></span>
+          <button id="btnSignOut" class="btn btn-secondary" style="padding:4px 12px; font-size:11px;">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ── Login Overlay ── -->
+  <div id="loginOverlay" style="
+    position:fixed; inset:0; z-index:9999;
+    background:var(--bg, #0e0e0e);
+    display:flex; align-items:center; justify-content:center;
+  ">
+    <div style="
+      background:var(--surface, #1a1a2e);
+      border:1px solid var(--border, #2a2a4a);
+      border-radius:12px;
+      padding:40px 48px;
+      width:100%; max-width:400px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.5);
+    ">
+      <div style="text-align:center; margin-bottom:28px;">
+        <div style="font-size:22px; font-weight:900; letter-spacing:1px;">MAGALLANES FUNERAL</div>
+        <div style="font-size:12px; opacity:0.5; margin-top:4px;">Sign in to continue</div>
+      </div>
+
+      <div id="loginError" style="
+        display:none; background:#ff4444; color:#fff;
+        border-radius:6px; padding:10px 14px;
+        font-size:12px; margin-bottom:16px;
+      "></div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px; opacity:0.7; display:block; margin-bottom:4px;">Email</label>
+        <input id="loginEmail" type="email" class="input" placeholder="your@email.com"
+          style="width:100%; box-sizing:border-box;" autocomplete="email" />
+      </div>
+      <div style="margin-bottom:24px;">
+        <label style="font-size:12px; opacity:0.7; display:block; margin-bottom:4px;">Password</label>
+        <input id="loginPassword" type="password" class="input" placeholder="••••••••"
+          style="width:100%; box-sizing:border-box;" autocomplete="current-password" />
+      </div>
+
+      <button id="btnLogin" class="btn" style="width:100%; padding:12px; font-size:14px; font-weight:700;">
+        Sign In
+      </button>
+
+      <div id="loginSpinner" style="display:none; text-align:center; margin-top:14px; opacity:0.5; font-size:12px;">
+        Signing in…
+      </div>
+    </div>
+  </div>
+
+  <main class="app">
+    <nav class="tabs" role="tablist" aria-label="Main tabs">
+      <button class="tab is-active" role="tab" aria-selected="true" data-tab="contracts">Contracts</button>      <button class="tab" role="tab" aria-selected="false" data-tab="transactions">Transactions</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="dailyreport">Daily Report</button>
+    </nav>
+
+    <!-- CONTRACTS TAB -->
+    <section class="panel is-active" id="panel-contracts" role="tabpanel">
+      <div class="panel-toolbar">
+        <div class="toolbar-left">
+          <h2>Contracts</h2>
+          <span class="hint">Click a row to select. Double‑click to edit. Totals auto‑calc.</span>
+        </div>
+      </div>
+
+      <div class="actions-row" role="toolbar" aria-label="Contracts actions">
+        <button class="btn" id="btnAddContract">Add Contract</button>
+        <button class="btn btn-secondary" id="btnEditSelected">Edit Selected</button>
+        <button class="btn btn-danger" id="btnDeleteSelected">Delete Selected</button>
+        <button class="btn btn-secondary" id="btnImportExcel">Import from Excel</button>
+        <button class="btn" id="btnExportExcel">Export to Excel</button>
+        <button class="btn btn-secondary" id="btnRefresh">Refresh</button>
+        <div class="actions-spacer"></div>
+        <button class="btn" id="btnSaveData" title="Download a JSON backup file">Save Data</button>
+        <button class="btn btn-secondary" id="btnLoadData" title="Load a previously saved JSON file">Load Data</button>
+        <input type="file" id="fileLoadJson" accept=".json,application/json" style="display:none" />
+
+        <input type="file" id="fileImport" accept=".csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx" style="display:none" />
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-row" aria-label="Contracts filter">
+        <div class="filter-left">
+          <span class="filter-title">Filter</span>
+
+          <label class="filter-field">
+            <span class="filter-label">Category</span>
+            <select id="filterCategory" class="select select-small">
+              <option value="date">Date</option>
+              <option value="contract">Contract #</option>
+              <option value="deceased">Deceased</option>
+              <option value="casket">Casket</option>
+              <option value="address">Address</option>
+              <option value="amount">Amount</option>
+            </select>
+          </label>
+
+          <!-- Date options -->
+          <div id="filterDateBox" class="filter-box">
+            <label class="filter-field">
+              <span class="filter-label">Mode</span>
+              <select id="filterDateMode" class="select select-small">
+                <option value="monthYear">Month + Year</option>
+                <option value="month">Month only</option>
+                <option value="year">Year only</option>
+              </select>
+            </label>
+
+            <label class="filter-field" id="filterMonthField">
+              <span class="filter-label">Month</span>
+              <select id="filterMonth" class="select select-small">
+                <option value="">Any</option>
+                <option value="1">January</option><option value="2">February</option><option value="3">March</option><option value="4">April</option>
+                <option value="5">May</option><option value="6">June</option><option value="7">July</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">October</option><option value="11">November</option><option value="12">December</option>
+              </select>
+            </label>
+
+            <label class="filter-field" id="filterYearField">
+              <span class="filter-label">Year</span>
+              <input id="filterYear" class="input input-small" type="number" placeholder="e.g., 2026" />
+            </label>
+          </div>
+
+          <!-- Text filter -->
+          <div id="filterTextBox" class="filter-box" style="display:none">
+            <label class="filter-field">
+              <span class="filter-label">Contains</span>
+              <input id="filterText" class="input input-small" type="text" placeholder="type to match..." />
+            </label>
+          </div>
+
+          <!-- Amount range -->
+          <div id="filterAmountBox" class="filter-box" style="display:none">
+            <label class="filter-field">
+              <span class="filter-label">Min</span>
+              <input id="filterMin" class="input input-small" type="number" step="0.01" placeholder="0.00" />
+            </label>
+            <label class="filter-field">
+              <span class="filter-label">Max</span>
+              <input id="filterMax" class="input input-small" type="number" step="0.01" placeholder="999999.99" />
+            </label>
+          </div>
+        </div>
+
+        <div class="filter-right">
+          <button class="btn" id="btnApplyFilter">Apply Filter</button>
+          <button class="btn btn-secondary" id="btnClearFilter">Clear Filter</button>
+        </div>
+      </div>
+
+</div>
+
+      <div class="grid-wrap">
+        <table class="grid" id="contractsTable" aria-label="Contracts table">
+          <thead>
+            <tr>
+              <th style="min-width:110px">Date</th>
+              <th style="min-width:120px">Contract #</th>
+              <th style="min-width:180px">Deceased</th>
+              <th style="min-width:160px">Casket</th>
+              <th style="min-width:220px">Address</th>
+              <th style="min-width:120px">Amount</th>
+              <th style="min-width:110px">INHAUS</th>
+              <th style="min-width:100px">BAI</th>
+              <th style="min-width:90px">GL</th>
+              <th style="min-width:110px">GCASH</th>
+              <th style="min-width:110px">CASH</th>
+              <th style="min-width:110px">Discount</th>
+              <th style="min-width:120px">Total Paid</th>
+              <th style="min-width:130px">Last Payment</th>
+              <th style="min-width:120px">Remaining</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-row-type="data">
+              <td>02/20/2026</td>
+              <td>MC-0001</td>
+              <td>Sample Name</td>
+              <td>Sample Casket</td>
+              <td>Sample Address</td>
+
+              <td class="num" data-col="amount">0.00</td>
+              <td class="num" data-col="inhaus">0.00</td>
+              <td class="num" data-col="bai">0.00</td>
+              <td class="num" data-col="gl">0.00</td>
+              <td class="num" data-col="gcash">0.00</td>
+              <td class="num" data-col="cash">0.00</td>
+              <td class="num" data-col="discount">0.00</td>
+
+              <td class="num computed" data-col="totalPaid" title="Auto-calculated">0.00</td>
+              <td data-col="lastPayment">—</td>
+              <td class="num computed" data-col="remaining" title="Auto-calculated">0.00</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel-footer">
+        <div class="footer-left">
+          <span class="pill" id="contractsRowCount">Rows: 1</span>
+          <span class="pill" id="contractsSelected">Selected: —</span>
+        </div>
+        <div class="footer-right">
+          <span class="hint">Import supports CSV + XLSX. Export uses CSV (opens in Excel).</span>
+        </div>
+      </div>
+    </section>
+    
+<section class="panel" id="panel-transactions" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h2>Transactions</h2>
+      <span class="hint">Choose a sub-tab below (we’ll build each ledger step-by-step).</span>
+    </div>
+  </div>
+
+  <nav class="subtabs" role="tablist" aria-label="Transactions sub-tabs">
+    <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="cashReceived">Cash Received</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="cashExpense">Cash Expense</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="bankReceived">Bank Received</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="bankExpense">Bank Expense</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Deposit</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
+  </nav>
+
+  
+<div class="subpanel is-active" id="subpanel-cashReceived" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Cash Received</h3>
+      <span class="hint">Ledger for cash receipts (we’ll connect this to Contracts next).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="cashReceivedRowCount">Rows: 0</span>
+      <span class="kpi" id="cashReceivedSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Cash Received actions">
+    <button class="btn" id="btnCashAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnCashEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnCashDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnCashImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnCashExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnCashRefresh">Refresh</button>
+    <input type="file" id="fileCashImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  
+  <div class="filter-row" id="cashFilterRow" aria-label="Cash Received filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="cashFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="contract">Contract #</option>
+          <option value="receipt">Receipt #</option>
+          <option value="client">Name of Client</option>
+          <option value="particular">Particular</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+
+      <div id="cashFilterInputs" class="filter-inputs">
+        <!-- inputs injected by JS -->
+      </div>
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnCashApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnCashClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="cashReceivedTable" aria-label="Cash Received table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Contract #</th>
+            <th>Receipt #</th>
+            <th>Name of Client</th>
+            <th>Particular</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-type="data">
+            <td>06/01/2025</td>
+            <td>13566</td>
+            <td>R-0001</td>
+            <td>Pablito De Juan</td>
+            <td>Initial payment</td>
+            <td class="num">1,000.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  
+<div class="subpanel" id="subpanel-cashExpense" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Cash Expense</h3>
+      <span class="hint">Ledger for cash expenses (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="cashExpenseRowCount">Rows: 0</span>
+      <span class="kpi" id="cashExpenseSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Cash Expense actions">
+    <button class="btn" id="btnCashExpAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnCashExpEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnCashExpDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnCashExpImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnCashExpExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnCashExpRefresh">Refresh</button>
+    <input type="file" id="fileCashExpImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="cashExpFilterRow" aria-label="Cash Expense filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="cashExpFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="particular">Particular</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+      <div id="cashExpFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnCashExpApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnCashExpClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="cashExpenseTable" aria-label="Cash Expense table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Particular</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-type="data">
+            <td>06/01/2025</td>
+            <td>Office supplies</td>
+            <td class="num">250.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  
+<div class="subpanel" id="subpanel-bankReceived" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Bank Received</h3>
+      <span class="hint">Ledger for GCASH / Bank Transfer receipts (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="bankReceivedRowCount">Rows: 0</span>
+      <span class="kpi" id="bankReceivedSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Bank Received actions">
+    <button class="btn" id="btnBankAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnBankEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnBankDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnBankImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnBankExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnBankRefresh">Refresh</button>
+    <input type="file" id="fileBankImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="bankFilterRow" aria-label="Bank Received filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="bankFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="contract">Contract #</option>
+          <option value="type">Gcash/Bank Transfer</option>
+          <option value="client">Name of Client</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+
+      <div id="bankFilterInputs" class="filter-inputs"></div>
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnBankApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnBankClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="bankReceivedTable" aria-label="Bank Received table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Contract #</th>
+            <th>Gcash/Bank Transfer</th>
+            <th>Name of Client</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-type="data">
+            <td>06/02/2025</td>
+            <td>13566</td>
+            <td>GCASH</td>
+            <td>Juan Dela Cruz</td>
+            <td class="num">1,000.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  
+<div class="subpanel" id="subpanel-bankExpense" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Bank Expense</h3>
+      <span class="hint">Ledger for bank withdrawals / checks (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="bankExpenseRowCount">Rows: 0</span>
+      <span class="kpi" id="bankExpenseSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Bank Expense actions">
+    <button class="btn" id="btnBankExpAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnBankExpEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnBankExpDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnBankExpImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnBankExpExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnBankExpRefresh">Refresh</button>
+    <input type="file" id="fileBankExpImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="bankExpFilterRow" aria-label="Bank Expense filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="bankExpFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="cv">CV</option>
+          <option value="check">Check #</option>
+          <option value="particular">Particular</option>
+          <option value="withdraw">Withdraw Range</option>
+        </select>
+      </label>
+
+      <div id="bankExpFilterInputs" class="filter-inputs"></div>
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnBankExpApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnBankExpClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="bankExpenseTable" aria-label="Bank Expense table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>CV</th>
+            <th>Check #</th>
+            <th>Particular</th>
+            <th class="num">Withdraw</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-type="data">
+            <td>06/03/2025</td>
+            <td>CV-001</td>
+            <td>100245</td>
+            <td>Supplier Payment</td>
+            <td class="num">5,000.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  
+<div class="subpanel" id="subpanel-pnbDeposit" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>PNB Deposit</h3>
+      <span class="hint">Ledger for PNB deposits (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="pnbDepositRowCount">Rows: 0</span>
+      <span class="kpi" id="pnbDepositSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="PNB Deposit actions">
+    <button class="btn" id="btnPnbAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnPnbEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnPnbDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnPnbImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnPnbExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnPnbRefresh">Refresh</button>
+    <input type="file" id="filePnbImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="pnbFilterRow" aria-label="PNB Deposit filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="pnbFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+
+      <div id="pnbFilterInputs" class="filter-inputs"></div>
+    </div>
+
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnPnbApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnPnbClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="pnbDepositTable" aria-label="PNB Deposit table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-row-type="data">
+            <td>06/04/2025</td>
+            <td class="num">10,000.00</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+  
+<div class="subpanel" id="subpanel-settings" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Settings</h3>
+      <span class="hint">Set starting balances and Daily Report signature personnel (saved to shared database).</span>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <form id="settingsForm" class="form">
+      <div class="form-grid">
+        <label class="field">
+          <span>Cash Received Balance</span>
+          <input class="input" id="setCashBalance" type="number" step="0.01" value="0.00" />
+        </label>
+
+        <label class="field">
+          <span>Bank Received Balance</span>
+          <input class="input" id="setBankBalance" type="number" step="0.01" value="0.00" />
+        </label>
+      </div>
+
+      <div style="margin:18px 0 8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7;">Daily Report — Signature Personnel</div>
+      <div class="form-grid">
+        <label class="field">
+          <span>Finance Clerk (Prepared by)</span>
+          <input class="input" id="setSigFinanceClerk" type="text" placeholder="e.g., Jennifer F. Landicho" />
+        </label>
+
+        <label class="field">
+          <span>Accountant (Check by)</span>
+          <input class="input" id="setSigAccountant" type="text" placeholder="e.g., Ranni V. Dalisay" />
+        </label>
+
+        <label class="field">
+          <span>Finance Manager (Noted by)</span>
+          <input class="input" id="setSigFinanceManager" type="text" placeholder="e.g., June Lizette M. Quizon" />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn">Save Settings</button>
+      </div>
+    </form>
+
+    <!-- ── Backup & Restore ── -->
+    <div style="margin-top:28px; padding-top:22px; border-top:1px solid var(--border,#333);">
+      <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7; margin-bottom:6px;">Backup &amp; Restore</div>
+      <div style="font-size:12px; opacity:0.6; margin-bottom:16px; line-height:1.6;">
+        <strong>Create Backup</strong> downloads a complete snapshot of all data from the database to a <code>.json</code> file on your computer.<br>
+        <strong>Restore from Backup</strong> uploads a previously saved backup file and replaces all current database data with it.
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <button class="btn" id="btnCreateBackup" type="button">⬇ Create Backup</button>
+        <button class="btn btn-secondary" id="btnRestoreBackup" type="button">⬆ Restore from Backup</button>
+        <input type="file" id="fileRestoreBackup" accept=".json,application/json" style="display:none" />
+      </div>
+
+      <div id="backupStatus" style="display:none; margin-top:12px; font-size:12px; padding:10px 14px; border-radius:6px;"></div>
+    </div>
+  </div>
+</div>
+
+  </div>
+</section>
+
+
+    <section class="panel" id="panel-dailyreport" role="tabpanel">
+      <div class="panel-toolbar"><div class="toolbar-left"><h2>Daily Report</h2></div></div>
+      
+  <div class="dailyreport-toolbar" aria-label="Daily report date selector">
+    <div class="dr-date-row">
+      <span class="dr-date-label">Select Date</span>
+      <input type="date" id="reportDatePicker" class="dr-date-input" />
+      <button class="btn btn-secondary" id="btnDailyReportRefresh" type="button">Refresh</button>
+      <button class="btn" id="btnExportDailyReportPdf" type="button">⬇ Export PDF</button>
+    </div>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+<div class="dailyreport-header" id="dailyReportHeader"><div class="dr-title">Magallanes Funeral Services</div><div class="dr-subtitle">Daily Collection / Expense Report</div><div class="dr-asof">As of <span id="drAsOfDate">—</span></div></div>
+
+  <div id="dailyReportContent" class="dailyreport-content"></div></div>
+    </section>
+</div>
+    <footer class="app-footer">
+      <span>Magallanes Funeral • Local-only Prototype v115</span>
+    </footer>
+  </main>
+
+  <!-- Add/Edit Contract Modal -->
+  <div class="modal-overlay" id="contractOverlay" aria-hidden="true"></div>
+  <div class="modal" id="contractModal" role="dialog" aria-modal="true" aria-labelledby="contractTitle" aria-hidden="true">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="contractTitle">Add Contract</div>
+        <div class="modal-subtitle" id="contractSubtitle">Enter contract details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseContract" title="Close" aria-label="Close">✕</button>
+    </div>
+
+    <form class="modal-body" id="contractForm">
+      <div class="form-grid">
+        <label class="field">
+          <span class="field-label">Date</span>
+          <input class="input" type="date" id="cDate" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Contract Number</span>
+          <input class="input" type="text" id="cContractNo" placeholder="e.g., MC-0105" required />
+        </label>
+
+        <label class="field field-wide">
+          <span class="field-label">Deceased</span>
+          <input class="input" type="text" id="cDeceased" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Casket</span>
+          <input class="input" type="text" id="cCasket" />
+        </label>
+
+        <label class="field field-wide">
+          <span class="field-label">Address</span>
+          <input class="input" type="text" id="cAddress" />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Contract Amount</span>
+          <input class="input" type="number" id="cAmount" min="0" step="0.01" value="0.00" required />
+        </label>
+
+        <label class="field">
+          <span class="field-label">Discount</span>
+          <input class="input" type="number" id="cDiscount" min="0" step="0.01" value="0.00" />
+        </label>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btnCancelContract">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitContract">Add Contract</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Cash Received Modal -->
+  <div class="overlay" id="cashOverlay" aria-hidden="true"></div>
+  <div class="modal" id="cashModal" role="dialog" aria-modal="true" aria-labelledby="cashTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="cashTitle">Add Entry</div>
+        <div class="modal-subtitle" id="cashSubtitle">Cash received entry (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseCash" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="cashForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="crDate" type="date" required />
+        </label>
+        <label class="field">
+          <span>Contract #</span>
+          <input class="input" id="crContract" type="text" placeholder="e.g., 13566" />
+        </label>
+        <label class="field">
+          <span>Receipt #</span>
+          <input class="input" id="crReceipt" type="text" placeholder="e.g., R-0001 (optional)" />
+        </label>
+        <label class="field">
+          <span>Name of Client</span>
+          <input class="input" id="crClient" type="text" placeholder="Client name" required />
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Particular</span>
+          <input class="input" id="crParticular" list="crParticularList" type="text" placeholder="e.g., CASH / GCASH / BAI (choose or type)" />
+          <datalist id="crParticularList">
+            <option value="CASH"></option>
+            <option value="GCASH"></option>
+            <option value="G-CASH"></option>
+            <option value="G CASH"></option>
+            <option value="INHAUS"></option>
+            <option value="IN-HOUSE"></option>
+            <option value="BAI"></option>
+            <option value="BANK"></option>
+            <option value="GL"></option>
+            <option value="G/L"></option>
+            <option value="DEPOSIT"></option>
+            <option value="PNB"></option>
+          </datalist>
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="crAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelCash">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitCash">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  
+  <!-- Cash Expense Modal -->
+  <div class="overlay" id="cashExpOverlay" aria-hidden="true"></div>
+  <div class="modal" id="cashExpModal" role="dialog" aria-modal="true" aria-labelledby="cashExpTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="cashExpTitle">Add Entry</div>
+        <div class="modal-subtitle" id="cashExpSubtitle">Cash expense entry (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseCashExp" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="cashExpForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="ceDate" type="date" required />
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Particular</span>
+          <input class="input" id="ceParticular" list="ceParticularList" type="text" placeholder="e.g., Gas, Supplies, Fare (choose or type)" />
+          <datalist id="ceParticularList">
+            <option value="GAS"></option>
+            <option value="SUPPLIES"></option>
+            <option value="FARE"></option>
+            <option value="FOOD"></option>
+            <option value="ALLOWANCE"></option>
+            <option value="REPAIR"></option>
+            <option value="UTILITIES"></option>
+            <option value="OFFICE"></option>
+            <option value="MISC"></option>
+          </datalist>
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="ceAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelCashExp">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitCashExp">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+
+  
+  <!-- Bank Received Modal -->
+  <div class="overlay" id="bankOverlay" aria-hidden="true"></div>
+  <div class="modal" id="bankModal" role="dialog" aria-modal="true" aria-labelledby="bankTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="bankTitle">Add Entry</div>
+        <div class="modal-subtitle" id="bankSubtitle">Enter bank received details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseBank" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="bankForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="brDate" type="date" required />
+        </label>
+
+        <label class="field">
+          <span>Contract #</span>
+          <input class="input" id="brContract" type="text" placeholder="(optional)" />
+        </label>
+
+        <label class="field">
+          <span>Gcash/Bank Transfer</span>
+          <select class="select" id="brType" required>
+            <option value="GCASH">GCASH</option>
+            <option value="BANK TRANSFER">BANK TRANSFER</option>
+          </select>
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Name of Client</span>
+          <input class="input" id="brClient" type="text" placeholder="e.g., Juan Dela Cruz" required />
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="brAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelBank">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitBank">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+
+  
+  <!-- Bank Expense Modal -->
+  <div class="overlay" id="bankExpOverlay" aria-hidden="true"></div>
+  <div class="modal" id="bankExpModal" role="dialog" aria-modal="true" aria-labelledby="bankExpTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="bankExpTitle">Add Entry</div>
+        <div class="modal-subtitle" id="bankExpSubtitle">Enter bank expense details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseBankExp" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="bankExpForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="beDate" type="date" required />
+        </label>
+
+        <label class="field">
+          <span>CV</span>
+          <input class="input" id="beCV" type="text" placeholder="e.g., CV-001" />
+        </label>
+
+        <label class="field">
+          <span>Check #</span>
+          <input class="input" id="beCheck" type="text" placeholder="(optional)" />
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Particular</span>
+          <input class="input" id="beParticular" type="text" placeholder="e.g., Supplier, Utilities, Rent" required />
+        </label>
+
+        <label class="field">
+          <span>Withdraw</span>
+          <input class="input" id="beWithdraw" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelBankExp">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitBankExp">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+
+  
+  <!-- PNB Deposit Modal -->
+  <div class="overlay" id="pnbOverlay" aria-hidden="true"></div>
+  <div class="modal" id="pnbModal" role="dialog" aria-modal="true" aria-labelledby="pnbTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="pnbTitle">Add Entry</div>
+        <div class="modal-subtitle" id="pnbSubtitle">Enter PNB deposit details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnClosePnb" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="pnbForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="pdDate" type="date" required />
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="pdAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelPnb">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitPnb">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+
+  <!-- SheetJS (XLSX support) via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase adapter (must load before app.js) -->
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

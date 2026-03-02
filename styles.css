@@ -1,0 +1,1266 @@
+/* Magallanes Funeral — Local Prototype v5 */
+
+:root{
+  --bg: #0b0d10;
+  --panel: #12161c;
+  --panel2: #0f1318;
+  --text: #eef2f7;
+  --muted: #9aa7b5;
+  --line: rgba(255,255,255,.10);
+  --line2: rgba(255,255,255,.14);
+  --accent: #4ea1ff;
+  --danger: #ff4d6d;
+  --shadow: 0 10px 35px rgba(0,0,0,.35);
+  --radius: 14px;
+  --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+html,body{ height: 100%; }
+body{
+  margin:0;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(1100px 650px at 18% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 55%),
+    radial-gradient(900px 580px at 86% 18%, color-mix(in oklab, var(--danger) 14%, transparent), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+*{ box-sizing:border-box; }
+
+.app-header{
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(10px);
+  background: color-mix(in oklab, var(--bg) 72%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.header-inner{
+  max-width: 100%;
+  margin: 0;
+  padding: 16px 18px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.brand-title{
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: .2px;
+}
+.brand-subtitle{
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.header-right{ display:flex; align-items:center; gap: 10px; }
+.theme-picker{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow);
+}
+.theme-label{
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 750;
+  letter-spacing: .2px;
+}
+.select{
+  border: 1px solid var(--line2);
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 10px;
+  outline: none;
+  font-weight: 650;
+}
+
+.app{
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 14px 18px 14px;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.tabs{
+  flex: 0 0 auto;
+  display:flex;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  box-shadow: var(--shadow);
+}
+.tab{
+  appearance:none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 750;
+  transition: background .15s ease, border-color .15s ease, color .15s ease, transform .05s ease;
+}
+.tab:hover{
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-color: var(--line);
+  color: var(--text);
+}
+.tab:active{ transform: translateY(1px); }
+.tab.is-active{
+  background: color-mix(in oklab, var(--accent) 16%, var(--panel2));
+  border-color: color-mix(in oklab, var(--accent) 35%, var(--line2));
+  color: var(--text);
+}
+
+.panel{
+  display:none;
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in oklab, var(--panel) 94%, transparent);
+  box-shadow: var(--shadow);
+  overflow:hidden;
+}
+.panel.is-active{ display:flex; flex-direction: column; }
+
+.panel-toolbar{
+  flex: 0 0 auto;
+  padding: 12px 12px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 94%, transparent);
+}
+.toolbar-left{
+  display:flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar-left h2{
+  margin:0;
+  font-size: 16px;
+  letter-spacing: .2px;
+}
+.hint{ color: var(--muted); font-size: 12.5px; }
+
+.actions-row{
+  flex: 0 0 auto;
+  display:flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel) 94%, transparent);
+}
+
+.btn{
+  border: 1px solid color-mix(in oklab, var(--accent) 35%, var(--line2));
+  background: color-mix(in oklab, var(--accent) 14%, var(--panel2));
+  color: var(--text);
+  padding: 9px 11px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 750;
+}
+.btn:hover{ filter: brightness(1.06); }
+.btn:active{ transform: translateY(1px); }
+.btn-secondary{
+  border-color: var(--line2);
+  background: transparent;
+}
+.btn-danger{
+  border-color: color-mix(in oklab, var(--danger) 55%, var(--line2));
+  background: color-mix(in oklab, var(--danger) 14%, var(--panel2));
+}
+
+.input{
+  border: 1px solid var(--line2);
+  background: color-mix(in oklab, var(--panel2) 90%, transparent);
+  color: var(--text);
+  padding: 10px 10px;
+  border-radius: 12px;
+  outline: none;
+  width: 100%;
+}
+.input::placeholder{ color: color-mix(in oklab, var(--muted) 85%, transparent); }
+
+.grid-wrap{
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.grid{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.grid thead th{
+  position: sticky;
+  top: 0;
+  background: color-mix(in oklab, var(--panel2) 96%, transparent);
+  border-bottom: 1px solid var(--line2);
+  padding: 10px 10px;
+  text-align:left;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.grid td{
+  border-bottom: 1px solid var(--line);
+  padding: 9px 10px;
+  vertical-align: middle;
+}
+.grid tbody tr:hover td{
+  background: color-mix(in oklab, var(--accent) 9%, transparent);
+}
+.grid tbody tr.is-selected td{
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.grid td[contenteditable="true"]{ outline:none; border-radius: 8px; }
+.grid td[contenteditable="true"]:focus{
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);
+}
+.grid td.num{ text-align:right; font-family: var(--mono); }
+.grid td.computed{
+  font-weight: 900;
+  color: color-mix(in oklab, var(--text) 92%, var(--accent));
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.panel-footer{
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  display:flex;
+  justify-content: space-between;
+  align-items:center;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 94%, transparent);
+}
+.pill{
+  display:inline-flex;
+  align-items:center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  color: var(--muted);
+  font-size: 12px;
+}
+.empty-state{ padding: 18px 12px; color: var(--muted); overflow: auto; }
+.app-footer{
+  flex: 0 0 auto; margin-top: 12px; color: var(--muted); font-size: 12px; padding: 10px 2px 0; }
+
+/* Modal */
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: none;
+  z-index: 50;
+}
+.modal{
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(.98);
+  width: min(720px, calc(100vw - 28px));
+  background: color-mix(in oklab, var(--panel) 96%, transparent);
+  border: 1px solid var(--line2);
+  border-radius: calc(var(--radius) + 2px);
+  box-shadow: 0 22px 80px rgba(0,0,0,.55);
+  display: none;
+  z-index: 60;
+  overflow: hidden;
+}
+.modal.is-open{ display:block; }
+.modal-overlay.is-open{ display:block; }
+
+.modal-header{
+  display:flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+}
+.modal-title{
+  font-weight: 950;
+  font-size: 16px;
+  letter-spacing: .2px;
+}
+.modal-subtitle{
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.icon-btn{
+  border: 1px solid var(--line2);
+  background: transparent;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.modal-body{ padding: 14px; }
+.form-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field{ display:flex; flex-direction: column; gap: 6px; }
+.field-wide{ grid-column: 1 / -1; }
+.field-label{
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+.modal-footer{
+  display:flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+}
+
+@media (max-width: 900px){
+  .header-inner{ flex-direction: column; align-items: stretch; }
+  .header-right{ justify-content: flex-start; }
+  .form-grid{ grid-template-columns: 1fr; }
+}
+
+/* Month grouping rows */
+.grid tr.group-row td{
+  background: color-mix(in oklab, var(--accent) 14%, var(--panel2));
+  border-bottom: 1px solid var(--line2);
+  font-weight: 950;
+  letter-spacing: .2px;
+}
+.grid tr.group-row td .group-chip{
+  display:inline-flex;
+  align-items:center;
+  gap: 8px;
+}
+.grid tr.group-row td .dot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+.grid tr.total-row td{
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-top: 1px solid var(--line2);
+  border-bottom: 1px solid var(--line2);
+  font-weight: 900;
+}
+.grid tr.total-row td.total-label{
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 12px;
+  color: color-mix(in oklab, var(--text) 82%, var(--muted));
+}
+.grid tr.total-row td.num{
+  font-family: var(--mono);
+}
+
+/* Non-editable grid feel (editing happens via Edit form) */
+.grid tbody tr[data-row-type="data"] td{
+  cursor: default;
+}
+.grid tbody tr[data-row-type="data"] td.num{
+  cursor: default;
+}
+
+/* Grand total row */
+.grid tr.spacer-row td{
+  background: transparent;
+  border: none;
+  height: 10px;
+  padding: 0;
+}
+.grid tr.grand-total-row td{
+  background: color-mix(in oklab, var(--danger) 12%, color-mix(in oklab, var(--accent) 10%, var(--panel2)));
+  border-top: 2px solid color-mix(in oklab, var(--accent) 35%, var(--line2));
+  border-bottom: 2px solid color-mix(in oklab, var(--accent) 35%, var(--line2));
+  font-weight: 950;
+}
+.grid tr.grand-total-row td.total-label{
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  font-size: 12px;
+}
+
+/* Filter bar */
+.filter-row{
+  display:flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 90%, transparent);
+}
+.filter-left{
+  display:flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.filter-title{
+  font-weight: 900;
+  letter-spacing: .2px;
+  color: var(--text);
+  padding: 0 6px 6px 0;
+}
+.filter-field{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 140px;
+}
+.filter-label{
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 800;
+  letter-spacing: .2px;
+}
+.filter-box{
+  display:flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+.filter-right{
+  display:flex;
+  gap: 8px;
+  align-items:center;
+  flex: 0 0 auto;
+}
+.select-small{ padding: 7px 10px; font-size: 13px; }
+.input-small{ padding: 9px 10px; font-size: 13px; min-width: 160px; }
+@media (max-width: 900px){
+  .filter-row{ align-items: stretch; flex-direction: column; }
+  .filter-right{ justify-content: flex-start; }
+}
+
+/* Push Save/Load to the right side of the actions row */
+.actions-spacer{ flex: 1 1 auto; }
+
+/* Transactions sub-tabs */
+.subtabs{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+}
+.subtab{
+  border: 1px solid var(--line2);
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+  color: var(--text);
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .08s ease, background .15s ease, border-color .15s ease;
+}
+.subtab:hover{ transform: translateY(-1px); }
+.subtab.is-active{
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line2));
+  background: color-mix(in oklab, var(--accent) 16%, var(--panel));
+}
+.subpanel{ display:none; flex: 1; min-height: 0; overflow:auto; }
+.subpanel.is-active{ display:flex; flex-direction: column; }
+
+/* Header toggles */
+.ui-toggles{
+  display:flex;
+  gap: 10px;
+  align-items:center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.toggle{
+  display:inline-flex;
+  gap: 8px;
+  align-items:center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel) 86%, transparent);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 12px;
+  user-select:none;
+}
+.toggle input{ width: 14px; height: 14px; accent-color: var(--accent); }
+
+/* Gradient header mode */
+html.header-gradient .app-header{
+  background: linear-gradient(135deg,
+    color-mix(in oklab, var(--accent) 22%, var(--panel)),
+    color-mix(in oklab, var(--danger) 12%, var(--panel2))
+  );
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 25%, var(--line));
+}
+html.header-gradient .brand h1{
+  text-shadow: 0 6px 26px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+
+/* Glow effects mode */
+html.glow-on .btn,
+html.glow-on .tab.is-active,
+html.glow-on .subtab.is-active{
+  box-shadow: 0 10px 30px color-mix(in oklab, var(--accent) 18%, transparent);
+}
+html.glow-on .btn:hover{
+  box-shadow: 0 14px 38px color-mix(in oklab, var(--accent) 24%, transparent);
+}
+html.glow-on .grid tbody tr[data-row-type="data"]:hover td{
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+html.glow-on .panel{
+  box-shadow: 0 20px 60px rgba(0,0,0,.25);
+}
+
+/* Glassmorphism mode */
+html.glass-on{
+  --glass: rgba(255,255,255,.08);
+  --glass2: rgba(255,255,255,.05);
+}
+html.glass-on body{
+  background-image:
+    radial-gradient(800px 500px at 20% 10%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 65%),
+    radial-gradient(900px 600px at 80% 20%, color-mix(in oklab, var(--danger) 14%, transparent), transparent 60%),
+    radial-gradient(900px 650px at 60% 90%, color-mix(in oklab, var(--accent) 10%, transparent), transparent 62%);
+}
+html.glass-on .app-header{
+  background: color-mix(in oklab, var(--panel) 45%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+html.glass-on .panel,
+html.glass-on .tabs,
+html.glass-on .filter-row,
+html.glass-on .subtabs{
+  background: color-mix(in oklab, var(--panel) 55%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+html.glass-on .grid th{
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+html.glass-on .modal{
+  background: color-mix(in oklab, var(--panel) 55%, transparent);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Subpanel grid layout */
+.subpanel .actions-row{ border-bottom: 1px solid var(--line); }
+.subpanel .grid-wrap{ flex: 1; min-height: 0; }
+
+
+/* Contracts: center column headers */
+#contractsTable thead th{ text-align: center; }
+
+/* Contracts: monthly group header row (repeated column headers inside each month) */
+.grid tbody tr.group-cols td{
+  position: sticky; /* helps when scrolling within month section */
+  top: 0;
+  z-index: 1;
+  background: color-mix(in oklab, var(--panel2) 92%, var(--panel));
+  font-weight: 900;
+  text-align: center;
+  border-top: 1px solid var(--line2);
+  border-bottom: 1px solid var(--line2);
+}
+
+/* Ensure grid lines are visible through month blocks */
+.grid tbody tr.monthHeader td{
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+.grid tbody tr.monthTotal td{
+  border-top: 2px solid var(--line2);
+}
+
+/* Cash Received modal: spacing closer to Add Contract form */
+#cashModal.modal{
+  padding: 18px 18px 14px 18px;
+}
+#cashModal .form-grid{
+  gap: 14px;
+}
+#cashModal .field span{
+  margin-bottom: 6px;
+}
+#cashModal .input{
+  padding: 10px 12px;
+}
+#cashModal .modal-actions{
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+
+/* Cash Received: center column headers */
+#cashReceivedTable thead th{
+  text-align: center;
+}
+
+/* Stronger grid lines for Cash Received table */
+#cashReceivedTable th,
+#cashReceivedTable td{
+  border: 1px solid var(--line2);
+}
+
+/* Ensure grid visibility inside scroll container */
+#cashReceivedTable{
+  border-collapse: collapse;
+}
+
+#cashReceivedTable tbody tr td{
+  border-bottom: 1px solid var(--line2);
+}
+
+#cashReceivedTable tbody tr:last-child td{
+  border-bottom: 1px solid var(--line2);
+}
+
+
+/* Cash Received: month grouping rows */
+#cashReceivedTable tbody tr.cashMonthHeader td{
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: .14em;
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#cashReceivedTable tbody tr.cashGroupCols td{
+  font-weight: 900;
+  text-align: center;
+  background: color-mix(in oklab, var(--panel) 92%, transparent);
+}
+#cashReceivedTable tbody tr.cashMonthTotal td{
+  font-weight: 900;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-top: 2px solid var(--line2);
+}
+#cashReceivedTable tbody tr.cashMonthTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+#cashReceivedTable tbody tr.cashGrandTotal td{
+  font-weight: 950;
+  background: color-mix(in oklab, var(--danger) 18%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#cashReceivedTable tbody tr.cashGrandTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+
+#cashReceivedTable thead tr{ position: static !important; }
+
+/* Cash Received filter row */
+#cashFilterRow{
+  padding-left: 12px;
+  padding-right: 12px;
+}
+#cashFilterRow .filter-inputs{
+  display:flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+#cashFilterRow .field.inline{
+  display:flex;
+  gap: 10px;
+  align-items: center;
+}
+#cashFilterRow .field.inline span{
+  min-width: 70px;
+}
+
+
+
+/* Cash Expense: grid lines + grouping */
+#cashExpenseTable th, #cashExpenseTable td{ border: 1px solid var(--line2); }
+#cashExpenseTable{ border-collapse: collapse; }
+#cashExpenseTable tbody tr.cashExpMonthHeader td{
+  font-weight: 900; text-align:center; letter-spacing:.14em;
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-top:2px solid var(--line2); border-bottom:2px solid var(--line2);
+}
+#cashExpenseTable tbody tr.cashExpMonthTotal td{
+  font-weight:900; background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-top:2px solid var(--line2);
+}
+#cashExpenseTable tbody tr.cashExpMonthTotal td.label{ text-align:center; letter-spacing:.12em; }
+#cashExpenseTable tbody tr.cashExpGrandTotal td{
+  font-weight:950; background: color-mix(in oklab, var(--danger) 18%, transparent);
+  border-top:2px solid var(--line2); border-bottom:2px solid var(--line2);
+}
+#cashExpenseTable tbody tr.cashExpGrandTotal td.label{ text-align:center; letter-spacing:.12em; }
+#cashExpenseTable tbody tr.spacer td{ border:none; height:10px; }
+
+#cashExpFilterRow{ padding-left: 12px; padding-right: 12px; }
+#cashExpFilterRow .filter-inputs{ display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+#cashExpFilterRow .field.inline{ display:flex; gap:10px; align-items:center; }
+#cashExpFilterRow .field.inline span{ min-width: 70px; }
+
+#cashExpModal.modal{ padding:18px 18px 14px 18px; }
+#cashExpModal .form-grid{ gap:14px; }
+#cashExpModal .field span{ margin-bottom:6px; }
+#cashExpModal .input{ padding:10px 12px; }
+#cashExpModal .modal-actions{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+
+/* Cash Expense visible column headers */
+#cashExpenseTable thead th{
+  text-align: center;
+  font-weight: 800;
+  background: color-mix(in oklab, var(--panel2) 85%, transparent);
+  border: 1px solid var(--line2);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* Bank Received: hide thead (month headers shown in tbody) */
+
+#bankReceivedTable th, #bankReceivedTable td{ border: 1px solid var(--line2); }
+#bankReceivedTable{ border-collapse: collapse; }
+#bankReceivedTable tbody tr.bankMonthHeader td{
+  font-weight: 900; text-align:center; letter-spacing:.14em;
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-top:2px solid var(--line2); border-bottom:2px solid var(--line2);
+}
+#bankReceivedTable tbody tr.bankMonthTotal td{
+  font-weight:900; background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-top:2px solid var(--line2);
+}
+#bankReceivedTable tbody tr.bankMonthTotal td.label{ text-align:center; letter-spacing:.12em; }
+#bankReceivedTable tbody tr.bankGrandTotal td{
+  font-weight:950; background: color-mix(in oklab, var(--danger) 18%, transparent);
+  border-top:2px solid var(--line2); border-bottom:2px solid var(--line2);
+}
+#bankReceivedTable tbody tr.bankGrandTotal td.label{ text-align:center; letter-spacing:.12em; }
+#bankReceivedTable tbody tr.spacer td{ border:none; height:10px; }
+
+#bankFilterRow{ padding-left:12px; padding-right:12px; }
+#bankFilterRow .filter-inputs{ display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+#bankFilterRow .field.inline{ display:flex; gap:10px; align-items:center; }
+#bankFilterRow .field.inline span{ min-width:120px; }
+
+#bankModal.modal{ padding:18px 18px 14px 18px; }
+#bankModal .form-grid{ gap:14px; }
+#bankModal .field span{ margin-bottom:6px; }
+#bankModal .input, #bankModal .select{ padding:10px 12px; }
+#bankModal .modal-actions{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+
+/* Bank Expense: hide thead (month headers shown in tbody) */
+
+#bankExpenseTable th, #bankExpenseTable td{ border: 1px solid var(--line2); }
+#bankExpenseTable{ border-collapse: collapse; }
+
+#bankExpenseTable tbody tr.bankExpMonthHeader td{
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: .14em;
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#bankExpenseTable tbody tr.bankExpMonthTotal td{
+  font-weight: 900;
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  border-top: 2px solid var(--line2);
+}
+#bankExpenseTable tbody tr.bankExpMonthTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+#bankExpenseTable tbody tr.bankExpGrandTotal td{
+  font-weight: 950;
+  background: color-mix(in oklab, var(--danger) 18%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#bankExpenseTable tbody tr.bankExpGrandTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+#bankExpenseTable tbody tr.spacer td{ border:none; height:10px; }
+
+#bankExpFilterRow{ padding-left: 12px; padding-right: 12px; }
+#bankExpFilterRow .filter-inputs{ display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+#bankExpFilterRow .field.inline{ display:flex; gap:10px; align-items:center; }
+#bankExpFilterRow .field.inline span{ min-width: 90px; }
+
+#bankExpModal.modal{ padding: 18px 18px 14px 18px; }
+#bankExpModal .form-grid{ gap: 14px; }
+#bankExpModal .field span{ margin-bottom: 6px; }
+#bankExpModal .input, #bankExpModal .select{ padding: 10px 12px; }
+#bankExpModal .modal-actions{ margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* Visible Column Headers for Bank Received & Bank Expense */
+#bankReceivedTable thead th,
+#bankExpenseTable thead th{
+  text-align: center;
+  font-weight: 800;
+  background: color-mix(in oklab, var(--panel2) 85%, transparent);
+  border: 1px solid var(--line2);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+#bankReceivedTable,
+#bankExpenseTable{
+  border-collapse: collapse;
+}
+
+/* PNB Deposit table styles */
+#pnbDepositTable th, #pnbDepositTable td{ border: 1px solid var(--line2); }
+#pnbDepositTable{ border-collapse: collapse; }
+#pnbDepositTable thead th{
+  text-align:center;
+  font-weight:800;
+  background: color-mix(in oklab, var(--panel2) 85%, transparent);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+#pnbDepositTable tbody tr.pnbMonthHeader td{
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: .14em;
+  background: color-mix(in oklab, var(--panel2) 92%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#pnbDepositTable tbody tr.pnbMonthTotal td{
+  font-weight: 900;
+  background: color-mix(in oklab, var(--accent) 18%, transparent);
+  border-top: 2px solid var(--line2);
+}
+#pnbDepositTable tbody tr.pnbMonthTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+#pnbDepositTable tbody tr.pnbGrandTotal td{
+  font-weight: 950;
+  background: color-mix(in oklab, var(--danger) 22%, transparent);
+  border-top: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+}
+#pnbDepositTable tbody tr.pnbGrandTotal td.label{
+  text-align: center;
+  letter-spacing: .12em;
+}
+#pnbDepositTable tbody tr.spacer td{ border:none; height:10px; }
+
+#pnbFilterRow{ padding-left: 12px; padding-right: 12px; }
+#pnbFilterRow .filter-inputs{ display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
+#pnbFilterRow .field.inline{ display:flex; gap:10px; align-items:center; }
+#pnbFilterRow .field.inline span{ min-width: 90px; }
+
+#pnbModal.modal{ padding: 18px 18px 14px 18px; }
+#pnbModal .form-grid{ gap: 14px; }
+#pnbModal .field span{ margin-bottom: 6px; }
+#pnbModal .input, #pnbModal .select{ padding: 10px 12px; }
+#pnbModal .modal-actions{ margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* Contrast Enhancements (actions row + totals rows) */
+.actions-row{
+  background: color-mix(in oklab, var(--panel2) 78%, var(--accent) 22%);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.actions-row .btn{ box-shadow: 0 1px 0 color-mix(in oklab, var(--text) 10%, transparent); }
+
+/* Totals rows: stronger contrast (works across light/dark themes) */
+tr.monthTotal td, tr.cashMonthTotal td, tr.cashExpMonthTotal td, tr.bankMonthTotal td, tr.bankExpMonthTotal td, tr.pnbMonthTotal td{
+  background: color-mix(in oklab, var(--accent) 22%, transparent) !important;
+  border-top: 2px solid var(--line2) !important;
+}
+tr.grandTotal td, tr.cashGrandTotal td, tr.cashExpGrandTotal td, tr.bankGrandTotal td, tr.bankExpGrandTotal td, tr.pnbGrandTotal td{
+  background: color-mix(in oklab, var(--danger) 26%, transparent) !important;
+  border-top: 2px solid var(--line2) !important;
+  border-bottom: 2px solid var(--line2) !important;
+}
+
+/* Totals contrast overrides for existing specific rows */
+#contractsTable tbody tr.monthTotal td{ background: color-mix(in oklab, var(--accent) 22%, transparent) !important; }
+#contractsTable tbody tr.grandTotal td{ background: color-mix(in oklab, var(--danger) 26%, transparent) !important; }
+
+#cashReceivedTable tbody tr.cashMonthTotal td{ background: color-mix(in oklab, var(--accent) 22%, transparent) !important; }
+#cashReceivedTable tbody tr.cashGrandTotal td{ background: color-mix(in oklab, var(--danger) 26%, transparent) !important; }
+
+#cashExpenseTable tbody tr.cashExpMonthTotal td{ background: color-mix(in oklab, var(--accent) 22%, transparent) !important; }
+#cashExpenseTable tbody tr.cashExpGrandTotal td{ background: color-mix(in oklab, var(--danger) 26%, transparent) !important; }
+
+#bankReceivedTable tbody tr.bankMonthTotal td{ background: color-mix(in oklab, var(--accent) 22%, transparent) !important; }
+#bankReceivedTable tbody tr.bankGrandTotal td{ background: color-mix(in oklab, var(--danger) 26%, transparent) !important; }
+
+#bankExpenseTable tbody tr.bankExpMonthTotal td{ background: color-mix(in oklab, var(--accent) 22%, transparent) !important; }
+#bankExpenseTable tbody tr.bankExpGrandTotal td{ background: color-mix(in oklab, var(--danger) 26%, transparent) !important; }
+
+/* Settings Card */
+.settings-card{
+  max-width: 600px;
+  margin: 20px auto;
+  padding: 20px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--panel2) 85%, transparent);
+  border: 1px solid var(--line2);
+}
+
+/* Daily Report Header (v115) */
+.dailyreport-toolbar{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--panel2) 78%, var(--accent) 22%);
+}
+.dailyreport-header{
+  margin-top: 14px;
+  padding: 18px 16px;
+  border: 1px solid var(--line2);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--panel2) 88%, transparent);
+  text-align:center;
+}
+.dailyreport-header .dr-title{
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: .02em;
+}
+.dailyreport-header .dr-subtitle{
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  opacity: .95;
+}
+.dailyreport-header .dr-asof{
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  opacity: .9;
+}
+
+/* Hidden date picker that still allows showPicker()/click (v115) */
+.date-picker-hidden{
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+/* Daily Report date selector (v115) */
+.dr-date-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.dr-date-label{
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+.dr-date-input{
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line2);
+  background: color-mix(in oklab, var(--panel2) 88%, transparent);
+  color: var(--text);
+  font-weight: 800;
+  min-width: 170px;
+  cursor: pointer;
+}
+.dr-date-input:hover{
+  border-color: color-mix(in oklab, var(--accent) 55%, var(--line2));
+}
+.dr-date-input:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+/* make the calendar icon consistent */
+.dr-date-input::-webkit-calendar-picker-indicator{
+  opacity: .85;
+  cursor: pointer;
+}
+
+/* Daily Report tables (v115) */
+.dailyreport-content{ margin-top: 18px; }
+.dr-section-title{
+  margin-top: 18px;
+  font-weight: 900;
+  font-size: 16px;
+  letter-spacing: .02em;
+  text-align: left;
+}
+.dr-table-wrap{
+  margin-top: 10px;
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.dr-table{
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.dr-table th, .dr-table td{
+  border: 1px solid var(--line2);
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.dr-table th{
+  text-align: center;
+  font-weight: 900;
+  background: color-mix(in oklab, var(--panel2) 88%, transparent);
+}
+.dr-table td{ background: color-mix(in oklab, var(--panel) 92%, transparent); }
+.dr-table td.num{ text-align: right; font-variant-numeric: tabular-nums; }
+.dr-table td.label{ font-weight: 900; }
+.dr-table tr.summary td{
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
+  font-weight: 900;
+}
+.dr-table tr.summary-strong td{
+  background: color-mix(in oklab, var(--danger) 10%, transparent);
+  font-weight: 950;
+}
+
+/* Daily Report refresh button (v115) */
+#btnDailyReportRefresh{
+  padding: 9px 12px;
+  border-radius: 12px;
+}
+
+.dr-section-spacer{ height: 18px; }
+
+.dr-label-right{ text-align:right; font-weight:900; }
+
+.dr-balance-row td{ background: color-mix(in oklab, var(--accent) 12%, transparent); font-weight:800; }
+
+.dr-grand-row td{ font-weight:950; background: color-mix(in oklab, var(--danger) 18%, transparent); }
+
+/* Daily Report final balances block (v115) */
+.dr-summary-block{ margin-top: 0; }
+.dr-summary-table{ width:100%; border-collapse:collapse; margin-top:8px; }
+.dr-summary-table td{ border: 1px solid var(--line2); padding: 8px 10px; }
+.dr-summary-label{ font-weight: 950; }
+
+/* Daily Report signature block (v115) */
+.dr-signature-block{ margin-top: 20px; }
+.dr-signature-table{ width:100%; border-collapse:collapse; margin-top:10px; }
+.dr-signature-table td{ border:1px solid var(--line2); padding:8px 10px; text-align:center; }
+.dr-signature-title{ font-weight:900; }
+
+/* v115: Daily Report aligned 5-col layout */
+#panel-dailyreport .dr-table{ width:100%; table-layout:fixed; }
+#panel-dailyreport .dr-col1{ width:18%; }
+#panel-dailyreport .dr-col2{ width:18%; }
+#panel-dailyreport .dr-col3{ width:26%; }
+#panel-dailyreport .dr-col4{ width:22%; }
+#panel-dailyreport .dr-col5{ width:16%; }
+
+/* ================================================================
+   DISPLAY CONTROLS — device detection & manual scaling
+   ================================================================ */
+
+/* CSS variables controlled by JS sliders */
+:root {
+  --scale-font:    1;
+  --scale-spacing: 1;
+  --scale-table:   1;
+}
+
+/* Apply font scaling globally */
+html { font-size: calc(14px * var(--scale-font)); }
+
+/* Apply spacing scaling to key layout elements */
+.app-header .header-inner { padding: calc(16px * var(--scale-spacing)) calc(18px * var(--scale-spacing)); }
+.tab                       { padding: calc(10px * var(--scale-spacing)) calc(18px * var(--scale-spacing)); }
+.panel-toolbar             { padding: calc(10px * var(--scale-spacing)) calc(12px * var(--scale-spacing)); }
+.actions-row               { padding: calc(8px * var(--scale-spacing)) calc(12px * var(--scale-spacing)); gap: calc(6px * var(--scale-spacing)); }
+.filter-row                { padding: calc(10px * var(--scale-spacing)) calc(12px * var(--scale-spacing)); }
+.subtab                    { padding: calc(9px * var(--scale-spacing)) calc(12px * var(--scale-spacing)); }
+.subtabs                   { padding: calc(10px * var(--scale-spacing)) calc(12px * var(--scale-spacing)); }
+.btn                       { padding: calc(8px * var(--scale-spacing)) calc(14px * var(--scale-spacing)); }
+.input, .select            { padding: calc(8px * var(--scale-spacing)) calc(10px * var(--scale-spacing)); }
+
+/* Apply table row scaling */
+.grid td, .grid th         { padding: calc(9px * var(--scale-table)) calc(10px * var(--scale-table)); font-size: calc(13px * var(--scale-font) * var(--scale-table)); }
+.grid th                   { font-size: calc(11.5px * var(--scale-font) * var(--scale-table)); }
+
+/* ── Display Controls wrapper ── */
+.display-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+}
+
+/* ── Dropdown panel ── */
+.display-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 8000;
+  width: 280px;
+  background: var(--panel2);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+}
+
+.display-panel-title {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+  margin-bottom: 14px;
+}
+
+.display-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.display-label {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.75;
+  display: flex;
+  justify-content: space-between;
+}
+
+.display-label span {
+  opacity: 0.5;
+  font-weight: 500;
+}
+
+.display-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 4px;
+}
+
+/* ── Preset buttons ── */
+.display-preset-btn {
+  background: var(--panel);
+  border: 1px solid var(--line2);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.display-preset-btn:hover,
+.display-preset-btn.is-active {
+  background: color-mix(in oklab, var(--accent) 20%, var(--panel));
+  border-color: var(--accent);
+}
+
+.display-reset-btn {
+  background: transparent;
+  border: 1px solid var(--line2);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.display-reset-btn:hover { border-color: var(--accent); color: var(--text); }
+
+/* ── Mobile / Tablet responsive overrides ── */
+
+/* Tablet preset */
+html.display-tablet .app { font-size: 14px; }
+html.display-tablet .tabs { overflow-x: auto; white-space: nowrap; }
+html.display-tablet .grid-wrap { overflow-x: auto; }
+html.display-tablet .actions-row { flex-wrap: wrap; }
+html.display-tablet .brand-subtitle { display: none; }
+
+/* Mobile preset */
+html.display-mobile .brand-subtitle { display: none; }
+html.display-mobile .tabs { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; }
+html.display-mobile .tab { font-size: 12px; }
+html.display-mobile .grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+html.display-mobile .actions-row { flex-wrap: wrap; gap: 6px; }
+html.display-mobile .filter-row { flex-direction: column; }
+html.display-mobile .header-inner { flex-direction: column; gap: 6px; }
+html.display-mobile .header-right { flex-wrap: wrap; gap: 6px; }
+html.display-mobile .display-panel { width: calc(100vw - 32px); right: auto; left: 0; }
+html.display-mobile .subtabs { gap: 6px; }
+html.display-mobile .modal { width: calc(100vw - 24px); max-width: none; left: 12px; right: 12px; transform: none; top: 12px; }
+
+/* Auto-detected small screen (applied by JS on load) */
+@media (max-width: 768px) {
+  html:not(.display-desktop) .brand-subtitle { display: none; }
+  html:not(.display-desktop) .grid-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  html:not(.display-desktop) .tabs { overflow-x: auto; white-space: nowrap; flex-wrap: nowrap; }
+  html:not(.display-desktop) .actions-row { flex-wrap: wrap; }
+  html:not(.display-desktop) .header-inner { flex-direction: column; gap: 8px; }
+  html:not(.display-desktop) .header-right { flex-wrap: wrap; gap: 6px; }
+  html:not(.display-desktop) .display-panel { width: calc(100vw - 32px); right: auto; left: 0; }
+}
+
+@media (max-width: 480px) {
+  html:not(.display-desktop) .tab { padding: 8px 12px; font-size: 12px; }
+  html:not(.display-desktop) .modal { width: calc(100vw - 20px); max-width: none; left: 10px; right: 10px; transform: none; top: 10px; }
+  html:not(.display-desktop) .subtabs { gap: 5px; }
+  html:not(.display-desktop) .btn { padding: 7px 11px; font-size: 12px; }
+}
