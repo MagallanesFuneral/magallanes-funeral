@@ -182,13 +182,13 @@ window.DB = {
   },
 
   // ── Delete All (Fresh Restart) ────────────────────────────
-  async deleteAllContracts()    { const { error } = await _sb.from(TABLE.contracts).delete().neq("id", 0);    if (error) throw error; },
-  async deleteAllCashReceived() { const { error } = await _sb.from(TABLE.cashReceived).delete().neq("id", 0); if (error) throw error; },
-  async deleteAllCashExpense()  { const { error } = await _sb.from(TABLE.cashExpense).delete().neq("id", 0);  if (error) throw error; },
-  async deleteAllBankReceived() { const { error } = await _sb.from(TABLE.bankReceived).delete().neq("id", 0); if (error) throw error; },
-  async deleteAllBankExpense()  { const { error } = await _sb.from(TABLE.bankExpense).delete().neq("id", 0);  if (error) throw error; },
-  async deleteAllPnbDeposit()   { const { error } = await _sb.from(TABLE.pnbDeposit).delete().neq("id", 0);   if (error) throw error; },
-  async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().neq("id", 0);     if (error) throw error; },
+  async deleteAllContracts()    { const { error } = await _sb.from(TABLE.contracts).delete().gte("id", "00000000-0000-0000-0000-000000000000");    if (error) throw error; },
+  async deleteAllCashReceived() { const { error } = await _sb.from(TABLE.cashReceived).delete().gte("id", "00000000-0000-0000-0000-000000000000"); if (error) throw error; },
+  async deleteAllCashExpense()  { const { error } = await _sb.from(TABLE.cashExpense).delete().gte("id", "00000000-0000-0000-0000-000000000000");  if (error) throw error; },
+  async deleteAllBankReceived() { const { error } = await _sb.from(TABLE.bankReceived).delete().gte("id", "00000000-0000-0000-0000-000000000000"); if (error) throw error; },
+  async deleteAllBankExpense()  { const { error } = await _sb.from(TABLE.bankExpense).delete().gte("id", "00000000-0000-0000-0000-000000000000");  if (error) throw error; },
+  async deleteAllPnbDeposit()   { const { error } = await _sb.from(TABLE.pnbDeposit).delete().gte("id", "00000000-0000-0000-0000-000000000000");   if (error) throw error; },
+  async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().gte("id", "00000000-0000-0000-0000-000000000000");     if (error) throw error; },
 };
 
 // ── Auth UI ───────────────────────────────────────────────────
