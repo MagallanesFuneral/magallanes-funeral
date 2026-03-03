@@ -5182,6 +5182,65 @@ html += `</tr>`;
     }
   });
 
+  // ── Fresh Restart ─────────────────────────────────────────────────────
+  const btnFreshRestart   = document.querySelector("#btnFreshRestart");
+  const freshRestartStatus = document.querySelector("#freshRestartStatus");
+
+  function showFreshRestartStatus(msg, isError = false) {
+    if (!freshRestartStatus) return;
+    freshRestartStatus.textContent = msg;
+    freshRestartStatus.style.display = "block";
+    freshRestartStatus.style.background = isError ? "rgba(255,60,60,0.15)" : "rgba(60,200,100,0.15)";
+    freshRestartStatus.style.color = isError ? "#ff6b6b" : "#5edb8a";
+    freshRestartStatus.style.border = isError ? "1px solid rgba(255,60,60,0.3)" : "1px solid rgba(60,200,100,0.3)";
+    clearTimeout(freshRestartStatus._timer);
+    freshRestartStatus._timer = setTimeout(() => { freshRestartStatus.style.display = "none"; }, 8000);
+  }
+
+  btnFreshRestart?.addEventListener("click", async () => {
+    const first = confirm(
+      "⚠️ FRESH RESTART\n\n" +
+      "This will permanently delete ALL data:\n" +
+      "• Contracts\n• Cash Received\n• Cash Expenses\n• Bank Received\n• Bank Expenses\n• PNB Deposits\n• Settings\n\n" +
+      "This CANNOT be undone.\n\nAre you absolutely sure you want to continue?"
+    );
+    if (!first) return;
+
+    const second = confirm(
+      "Last chance — are you sure?\n\nClick OK to delete everything and start fresh."
+    );
+    if (!second) return;
+
+    btnFreshRestart.disabled = true;
+    btnFreshRestart.textContent = "⏳ Deleting all data…";
+
+    try {
+      await Promise.all([
+        DB.deleteAllContracts?.(),
+        DB.deleteAllCashReceived?.(),
+        DB.deleteAllCashExpense?.(),
+        DB.deleteAllBankReceived?.(),
+        DB.deleteAllBankExpense?.(),
+        DB.deleteAllPnbDeposit?.(),
+        DB.deleteAllSettings?.(),
+      ]);
+
+      // Clear in-memory stores
+      contractsStore = [];
+      selectedContractNo = null;
+
+      // Re-render all views
+      renderContracts?.();
+
+      showFreshRestartStatus("✓ All data deleted. The program has been reset to a fresh start.");
+    } catch (err) {
+      showFreshRestartStatus("✗ Fresh Restart failed: " + (err?.message || err), true);
+    } finally {
+      btnFreshRestart.disabled = false;
+      btnFreshRestart.textContent = "🗑 Fresh Restart the Program";
+    }
+  });
+
 
   
     function drFmtBlankMoneyCR(){ return ''; }
