@@ -1360,20 +1360,15 @@ html += `</tr>`;
 
   function rowToContract(row, headerMap) {
     const ix = (k) => (k in headerMap ? headerMap[k] : -1);
+    // Only import the 6 core columns; payment columns are always zeroed out
+    // and will be computed as transactions are added.
     const date = parseDateAny(getCell(row, ix("date")));
     const contract = String(getCell(row, ix("contract")) ?? "").trim();
     const deceased = String(getCell(row, ix("deceased")) ?? "").trim();
     const casket = String(getCell(row, ix("casket")) ?? "").trim();
     const address = String(getCell(row, ix("address")) ?? "").trim();
     const amount = parseMoney(getCell(row, ix("amount")));
-    const inhaus = parseMoney(getCell(row, ix("inhaus")));
-    const bai = parseMoney(getCell(row, ix("bai")));
-    const gl = parseMoney(getCell(row, ix("gl")));
-    const gcash = parseMoney(getCell(row, ix("gcash")));
-    const cash = parseMoney(getCell(row, ix("cash")));
-    const discount = parseMoney(getCell(row, ix("discount")));
-    const lastPayment = String(getCell(row, ix("lastPayment")) ?? "").trim() || "—";
-    return { date, contract, deceased, casket, address, amount, inhaus, bai, gl, gcash, cash, discount, lastPayment };
+    return { date, contract, deceased, casket, address, amount, inhaus: 0, bai: 0, gl: 0, gcash: 0, cash: 0, discount: 0, lastPayment: "—" };
   }
 
   function detectHeaderRow(rows) {
@@ -1468,13 +1463,8 @@ html += `</tr>`;
               casket: c.casket || existing.casket,
               address: c.address || existing.address,
               amount: Number.isFinite(c.amount) ? c.amount : existing.amount,
-              inhaus: Number.isFinite(c.inhaus) ? c.inhaus : existing.inhaus,
-              bai: Number.isFinite(c.bai) ? c.bai : existing.bai,
-              gl: Number.isFinite(c.gl) ? c.gl : existing.gl,
-              gcash: Number.isFinite(c.gcash) ? c.gcash : existing.gcash,
-              cash: Number.isFinite(c.cash) ? c.cash : existing.cash,
-              discount: Number.isFinite(c.discount) ? c.discount : existing.discount,
-              lastPayment: c.lastPayment || existing.lastPayment
+              // Payment columns are intentionally preserved from existing data
+              // and never overwritten by import — they come from transactions.
             };
             result.updated++;
           } else {
