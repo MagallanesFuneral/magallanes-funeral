@@ -907,6 +907,228 @@ function fmtMoney(n) {
     if (e.key === "Escape" && paymentSummaryModal?.classList.contains("is-open")) closePaymentSummary();
   });
 
+  // ---------------------------
+  // Generate Payment Report PDF
+  // ---------------------------
+  const btnGeneratePaymentReport = $("#btnGeneratePaymentReport");
+
+  btnGeneratePaymentReport?.addEventListener("click", function() {
+    // Gather contract info
+    const contractNo = editingContractKey
+      ? (contractsStore.find(x => normalizeText(x.contract) === editingContractKey)?.contract || editingContractKey)
+      : "";
+    const contract = contractsStore.find(x => normalizeText(x.contract) === normalizeText(contractNo));
+    if (!contract) return alert("Contract data not found.");
+
+    const normKey = normalizeText(contractNo);
+
+    // Gather payment rows
+    const cashEntries = (cashStore || [])
+      .filter(r => normalizeText(r.contract ?? r.contractNumber ?? "") === normKey)
+      .map(r => ({ date: r.date || "", name: r.client ?? r.clientName ?? "", method: r.particular || "Cash", amount: Number(r.amount) || 0 }));
+    const bankEntries = (bankStore || [])
+      .filter(r => normalizeText(r.contract ?? r.contractNumber ?? "") === normKey)
+      .map(r => ({ date: r.date || "", name: r.client ?? r.clientName ?? "", method: r.type || "Bank Deposit", amount: Number(r.amount) || 0 }));
+    const allEntries = [...cashEntries, ...bankEntries].sort((a,b) => a.date > b.date ? 1 : a.date < b.date ? -1 : 0);
+    const totalPaid  = allEntries.reduce((s,r) => s + r.amount, 0);
+    const remaining  = (Number(contract.amount) || 0) - (Number(contract.discount) || 0) - totalPaid;
+
+    const btn = btnGeneratePaymentReport;
+    const origText = btn.textContent;
+    btn.textContent = "⏳ Generating…";
+    btn.disabled = true;
+
+    function loadScript(src, cb) {
+      const existing = document.querySelector(`script[src="${src}"]`);
+      if (existing && existing._mfLoaded) { cb(); return; }
+      if (existing) { existing.addEventListener("load", cb); return; }
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = function() { s._mfLoaded = true; cb(); };
+      s.onerror = function() { btn.textContent = origText; btn.disabled = false; alert("Failed to load PDF library. Check your internet connection."); };
+      document.head.appendChild(s);
+    }
+
+    loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", function() {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+        const PW = 210, PH = 297, ML = 18, MR = 18, MT = 18, MB = 18;
+        const CW = PW - ML - MR;
+        let y = MT;
+
+        function checkNewPage(need) {
+          if (y + need > PH - MB) { doc.addPage(); y = MT; }
+        }
+
+        // ── Header ──
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(30, 30, 30);
+        doc.text("MAGALLANES FUNERAL", PW / 2, y, { align: "center" });
+        y += 7;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        doc.setTextColor(80, 80, 80);
+        doc.text("Contract Payment Report", PW / 2, y, { align: "center" });
+        y += 5;
+        doc.setDrawColor(180, 180, 180);
+        doc.setLineWidth(0.4);
+        doc.line(ML, y, PW - MR, y);
+        y += 8;
+
+        // ── Contract Details Section ──
+        doc.setFillColor(240, 240, 240);
+        doc.rect(ML, y, CW, 7, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text("CONTRACT DETAILS", ML + 3, y + 4.8);
+        y += 10;
+
+        const labelX = ML;
+        const valueX = ML + 48;
+        const col2LabelX = ML + 95;
+        const col2ValueX = ML + 143;
+
+        function detailRow(label1, val1, label2, val2) {
+          checkNewPage(7);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(80, 80, 80);
+          doc.text(label1 + ":", labelX, y);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(0, 0, 0);
+          doc.text(String(val1 || "—"), valueX, y);
+          if (label2 !== undefined) {
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(80, 80, 80);
+            doc.text(label2 + ":", col2LabelX, y);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(0, 0, 0);
+            doc.text(String(val2 || "—"), col2ValueX, y);
+          }
+          y += 6;
+        }
+
+        detailRow("Contract #",    contract.contract,                   "Date",       contract.date);
+        detailRow("Deceased",      contract.deceased,                   "Casket",      contract.casket);
+        detailRow("Address",       contract.address,                    "",            undefined);
+        detailRow("Contract Amt",  fmtMoney(Number(contract.amount)||0),"Discount",    fmtMoney(Number(contract.discount)||0));
+        detailRow("Total Paid",    fmtMoney(totalPaid),                 "Remaining",   fmtMoney(remaining));
+
+        y += 4;
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.line(ML, y, PW - MR, y);
+        y += 8;
+
+        // ── Payment History Section ──
+        doc.setFillColor(240, 240, 240);
+        doc.rect(ML, y, CW, 7, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(0, 0, 0);
+        doc.text("PAYMENT HISTORY", ML + 3, y + 4.8);
+        y += 10;
+
+        // Table columns: Date | Name | Payment Method | Amount
+        const COLS = [28, 58, 62, 26];  // sum = 174 = CW
+
+        function drawRow(cells, opts) {
+          opts = opts || {};
+          const bold    = opts.bold    || false;
+          const fillRGB = opts.fill    || null;
+          const fs      = opts.fs      || 8.5;
+          const padH    = 2, padV = 1.8;
+
+          doc.setFont("helvetica", bold ? "bold" : "normal");
+          doc.setFontSize(fs);
+
+          const wrapped = cells.map(function(cell, i) {
+            return doc.splitTextToSize(String(cell || ""), COLS[i] - padH * 2);
+          });
+          const maxLines = wrapped.reduce(function(m, l) { return Math.max(m, l.length); }, 1);
+          const lineH    = fs * 0.3528 * 1.35;
+          const rowH     = Math.max(6.5, padV * 2 + maxLines * lineH);
+
+          checkNewPage(rowH + 1);
+
+          if (fillRGB) {
+            doc.setFillColor(fillRGB[0], fillRGB[1], fillRGB[2]);
+            doc.rect(ML, y, CW, rowH, "F");
+          }
+          doc.setDrawColor(160, 160, 160);
+          doc.setLineWidth(0.2);
+          doc.rect(ML, y, CW, rowH, "S");
+
+          doc.setFont("helvetica", bold ? "bold" : "normal");
+          doc.setFontSize(fs);
+          doc.setTextColor(0, 0, 0);
+
+          let cx = ML;
+          cells.forEach(function(cell, i) {
+            const cw = COLS[i];
+            const isAmt = i === 3;
+            if (i > 0) {
+              doc.setDrawColor(160, 160, 160);
+              doc.setLineWidth(0.2);
+              doc.line(cx, y, cx, y + rowH);
+            }
+            const lines = wrapped[i];
+            lines.forEach(function(line, li) {
+              const tx = isAmt ? cx + cw - padH : cx + padH;
+              const align = isAmt ? "right" : "left";
+              doc.text(line, tx, y + padV + lineH * (li + 0.75), { align });
+            });
+            cx += cw;
+          });
+          y += rowH;
+        }
+
+        // Header row
+        drawRow(["Date", "Name", "Payment Method", "Amount"], { bold: true, fill: [220, 220, 220], fs: 8.5 });
+
+        if (allEntries.length === 0) {
+          checkNewPage(10);
+          doc.setFont("helvetica", "italic");
+          doc.setFontSize(9);
+          doc.setTextColor(150, 150, 150);
+          doc.text("No payments recorded for this contract yet.", ML + 3, y + 6);
+          y += 10;
+        } else {
+          allEntries.forEach(function(r, idx) {
+            const fill = idx % 2 === 0 ? null : [248, 248, 248];
+            drawRow([r.date, r.name, r.method, fmtMoney(r.amount)], { fill });
+          });
+
+          // Total row
+          drawRow(["", "", "TOTAL PAYMENTS", fmtMoney(totalPaid)], { bold: true, fill: [230, 230, 230] });
+        }
+
+        y += 10;
+        // Footer note
+        checkNewPage(10);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        const now = new Date();
+        doc.text("Generated: " + now.toLocaleDateString() + " " + now.toLocaleTimeString(), ML, y);
+
+        // Save
+        const safeName = (contract.contract || "contract").replace(/[^a-zA-Z0-9_\-]/g, "_");
+        doc.save("PaymentReport_" + safeName + ".pdf");
+
+      } catch(err) {
+        alert("PDF generation failed: " + (err?.message || err));
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+      }
+    });
+  });
+
   btnPaymentSummary?.addEventListener("click", () => {
     if (editingContractKey) openPaymentSummary(
       contractsStore.find(x => normalizeText(x.contract) === editingContractKey)?.contract || editingContractKey
