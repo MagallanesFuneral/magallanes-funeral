@@ -5305,6 +5305,17 @@ html += `</tr>`;
     }
   });
 
+  // Auto-calculate After Tax and DSWD Discount from DSWD Refund
+  function recalcDswdRefund() {
+    const refund   = Number(dwDswdRefund?.value) || 0;
+    const afterTax = refund * 0.0625;
+    const discount = refund - afterTax;
+    if (dwAfterTax)     dwAfterTax.value     = afterTax.toFixed(2);
+    if (dwDswdDiscount) dwDswdDiscount.value = discount.toFixed(2);
+  }
+  dwDswdRefund?.addEventListener("input", recalcDswdRefund);
+  dwDswdRefund?.addEventListener("change", recalcDswdRefund);
+
   // ── Filter ──
   const dswdFilterCategory = $("#dswdFilterCategory");
   const dswdFilterInputs   = $("#dswdFilterInputs");
