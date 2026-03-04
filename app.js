@@ -5308,8 +5308,8 @@ html += `</tr>`;
   // Auto-calculate After Tax and DSWD Discount from DSWD Refund
   function recalcDswdRefund() {
     const refund   = Number(dwDswdRefund?.value) || 0;
-    const afterTax = refund * 0.0625;
-    const discount = refund - afterTax;
+    const discount = refund * 0.0625;
+    const afterTax = refund - discount;
     if (dwAfterTax)     dwAfterTax.value     = afterTax.toFixed(2);
     if (dwDswdDiscount) dwDswdDiscount.value = discount.toFixed(2);
   }
