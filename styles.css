@@ -240,6 +240,14 @@ body{
   background: color-mix(in oklab, var(--accent) 16%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
 }
+/* DSWD status row colors — lower specificity than is-selected so selection always wins */
+.grid tbody tr.dswd-processed td { background: rgba(0,180,80,0.15); }
+.grid tbody tr.dswd-scheduled td { background: rgba(255,200,0,0.18); }
+.grid tbody tr.is-selected.dswd-processed td,
+.grid tbody tr.is-selected.dswd-scheduled td {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
+}
 .grid td[contenteditable="true"]{ outline:none; border-radius: 8px; }
 .grid td[contenteditable="true"]:focus{
   box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 45%, transparent);

@@ -5374,9 +5374,8 @@ html += `</tr>`;
         tr.dataset.rowType = "data";
         tr.dataset.id = dswdKeyFor(r);
         if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
-        // Row background by status
-        if (r.status === "Processed")  tr.style.background = "rgba(0,180,80,0.15)";
-        else if (r.status === "Scheduled") tr.style.background = "rgba(255,210,0,0.18)";
+        if (r.status === "Processed")       tr.classList.add("dswd-processed");
+        else if (r.status === "Scheduled")  tr.classList.add("dswd-scheduled");
         tr.innerHTML = `
           <td>${r.date||""}</td>
           <td>${r.contract||""}</td>
@@ -5405,8 +5404,10 @@ html += `</tr>`;
     const tr = e.target.closest("tr");
     if (!tr || (tr.dataset.rowType||"") !== "data") return;
     dswdSelectedKey = tr.dataset.id || null;
-    // Just update selection highlight without re-rendering the whole table
-    Array.from(dswdTable.tBodies[0].rows).forEach(r => r.classList.toggle("is-selected", r.dataset.id === dswdSelectedKey));
+    // Update selection highlight without re-rendering — preserve status classes
+    Array.from(dswdTable.tBodies[0].rows).forEach(r => {
+      r.classList.toggle("is-selected", r.dataset.id === dswdSelectedKey);
+    });
     if (dswdSelectedEl) dswdSelectedEl.textContent = dswdSelectedKey ? `Selected: ${dswdSelectedKey}` : "Selected: —";
   });
 
