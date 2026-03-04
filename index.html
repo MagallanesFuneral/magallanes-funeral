@@ -814,11 +814,46 @@
         </label>
       </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" id="btnCancelContract">Cancel</button>
-        <button type="submit" class="btn" id="btnSubmitContract">Add Contract</button>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button type="button" class="btn btn-secondary" id="btnPaymentSummary" style="display:none;">💳 Payment Summary</button>
+        <div style="display:flex;gap:8px;">
+          <button type="button" class="btn btn-secondary" id="btnCancelContract">Cancel</button>
+          <button type="submit" class="btn" id="btnSubmitContract">Add Contract</button>
+        </div>
       </div>
     </form>
+  </div>
+
+  <!-- Payment Summary Modal -->
+  <div class="modal-overlay" id="paymentSummaryOverlay" aria-hidden="true" style="z-index:1100;"></div>
+  <div class="modal" id="paymentSummaryModal" role="dialog" aria-modal="true" aria-labelledby="paymentSummaryTitle" aria-hidden="true" style="z-index:1101; max-width:640px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="paymentSummaryTitle">Payment Summary</div>
+        <div class="modal-subtitle" id="paymentSummarySubtitle"></div>
+      </div>
+      <button class="icon-btn" id="btnClosePaymentSummary" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body" id="paymentSummaryBody" style="padding:0 0 16px 0;">
+      <table style="width:100%; border-collapse:collapse; font-size:13px;" id="paymentSummaryTable">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border,#333);">
+            <th style="padding:10px 14px; text-align:left; font-weight:700;">Date</th>
+            <th style="padding:10px 14px; text-align:left; font-weight:700;">Name</th>
+            <th style="padding:10px 14px; text-align:left; font-weight:700;">Payment Method</th>
+            <th style="padding:10px 14px; text-align:right; font-weight:700;">Amount</th>
+          </tr>
+        </thead>
+        <tbody id="paymentSummaryRows"></tbody>
+        <tfoot>
+          <tr style="border-top:2px solid var(--border,#333);">
+            <td colspan="3" style="padding:10px 14px; font-weight:800; text-align:right;">Total Payments:</td>
+            <td id="paymentSummaryTotal" style="padding:10px 14px; font-weight:800; text-align:right;"></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div id="paymentSummaryEmpty" style="display:none; padding:20px 14px; text-align:center; opacity:0.5; font-size:13px;">(No payments recorded for this contract yet.)</div>
+    </div>
   </div>
 
   <!-- Cash Received Modal -->

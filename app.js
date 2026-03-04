@@ -771,6 +771,7 @@ function fmtMoney(n) {
       titleEl.textContent = "Add Contract";
       subtitleEl.textContent = "Enter contract details (local-only). Payments start at 0.";
       submitBtn.textContent = "Add Contract";
+      if (btnPaymentSummary) btnPaymentSummary.style.display = "none";
 
       cDate.value = new Date().toISOString().slice(0,10);
       cContractNo.value = "";
@@ -783,6 +784,11 @@ function fmtMoney(n) {
       titleEl.textContent = "Edit Contract";
       subtitleEl.textContent = "Update contract details. Payments stay in the table (linked later).";
       submitBtn.textContent = "Save Changes";
+      if (btnPaymentSummary) btnPaymentSummary.style.display = "inline-flex";
+
+      // Ensure payment stores are loaded so Payment Summary has fresh data
+      try{ const t = loadCashStore(); if(Array.isArray(t)) cashStore = t; }catch{}
+      try{ const t = loadBankStore(); if(Array.isArray(t)) bankStore = t; }catch{}
 
       const key = String(contractKeyOrNull || "").toLowerCase().trim();
       const found = contractsStore.find(x => normalizeText(x.contract) === key);
@@ -824,6 +830,87 @@ function fmtMoney(n) {
   overlay?.addEventListener("click", closeModal);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && modal.classList.contains("is-open")) closeModal();
+  });
+
+  // ---------------------------
+  // Payment Summary Modal
+  // ---------------------------
+  const paymentSummaryOverlay = $("#paymentSummaryOverlay");
+  const paymentSummaryModal   = $("#paymentSummaryModal");
+  const btnClosePaymentSummary = $("#btnClosePaymentSummary");
+  const paymentSummarySubtitle = $("#paymentSummarySubtitle");
+  const paymentSummaryRows     = $("#paymentSummaryRows");
+  const paymentSummaryTotal    = $("#paymentSummaryTotal");
+  const paymentSummaryEmpty    = $("#paymentSummaryEmpty");
+  const paymentSummaryTable    = $("#paymentSummaryTable");
+  const btnPaymentSummary      = $("#btnPaymentSummary");
+
+  function openPaymentSummary(contractNo) {
+    const normKey = normalizeText(contractNo);
+
+    // Gather all matching cash received entries
+    const cashEntries = (cashStore || [])
+      .filter(r => normalizeText(r.contract ?? r.contractNumber ?? "") === normKey)
+      .map(r => ({
+        date:   r.date || "",
+        name:   r.client ?? r.clientName ?? r.nameOfClient ?? "",
+        method: r.particular || "Cash",
+        amount: Number(r.amount) || 0,
+      }));
+
+    // Gather all matching bank received entries
+    const bankEntries = (bankStore || [])
+      .filter(r => normalizeText(r.contract ?? r.contractNumber ?? "") === normKey)
+      .map(r => ({
+        date:   r.date || "",
+        name:   r.client ?? r.clientName ?? r.nameOfClient ?? "",
+        method: r.type || "Bank Deposit",
+        amount: Number(r.amount) || 0,
+      }));
+
+    const allEntries = [...cashEntries, ...bankEntries]
+      .sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+
+    const total = allEntries.reduce((s, r) => s + r.amount, 0);
+
+    paymentSummarySubtitle.textContent = `Contract: ${contractNo}`;
+
+    if (allEntries.length === 0) {
+      paymentSummaryTable.style.display = "none";
+      paymentSummaryEmpty.style.display = "block";
+    } else {
+      paymentSummaryTable.style.display = "table";
+      paymentSummaryEmpty.style.display = "none";
+      paymentSummaryRows.innerHTML = allEntries.map(r => `
+        <tr style="border-bottom:1px solid var(--border,#333);">
+          <td style="padding:9px 14px;">${escapeHtml(r.date)}</td>
+          <td style="padding:9px 14px;">${escapeHtml(r.name)}</td>
+          <td style="padding:9px 14px;">${escapeHtml(r.method)}</td>
+          <td style="padding:9px 14px; text-align:right;">${fmtMoney(r.amount)}</td>
+        </tr>
+      `).join("");
+      paymentSummaryTotal.textContent = fmtMoney(total);
+    }
+
+    paymentSummaryOverlay.classList.add("is-open");
+    paymentSummaryModal.classList.add("is-open");
+  }
+
+  function closePaymentSummary() {
+    paymentSummaryOverlay.classList.remove("is-open");
+    paymentSummaryModal.classList.remove("is-open");
+  }
+
+  btnClosePaymentSummary?.addEventListener("click", closePaymentSummary);
+  paymentSummaryOverlay?.addEventListener("click", closePaymentSummary);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && paymentSummaryModal?.classList.contains("is-open")) closePaymentSummary();
+  });
+
+  btnPaymentSummary?.addEventListener("click", () => {
+    if (editingContractKey) openPaymentSummary(
+      contractsStore.find(x => normalizeText(x.contract) === editingContractKey)?.contract || editingContractKey
+    );
   });
 
   form?.addEventListener("submit", (e) => {
