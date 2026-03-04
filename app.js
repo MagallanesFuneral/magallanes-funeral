@@ -5400,7 +5400,9 @@ html += `</tr>`;
     const tr = e.target.closest("tr");
     if (!tr || (tr.dataset.rowType||"") !== "data") return;
     dswdSelectedKey = tr.dataset.id || null;
-    renderDswdTable();
+    // Just update selection highlight without re-rendering the whole table
+    Array.from(dswdTable.tBodies[0].rows).forEach(r => r.classList.toggle("is-selected", r.dataset.id === dswdSelectedKey));
+    if (dswdSelectedEl) dswdSelectedEl.textContent = dswdSelectedKey ? `Selected: ${dswdSelectedKey}` : "Selected: —";
   });
 
   dswdTable?.addEventListener("dblclick", (e) => {
