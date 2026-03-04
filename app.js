@@ -5513,7 +5513,12 @@ html += `</tr>`;
 
     if (dswdMode === "add") {
       ensureDswdId(entry);
-      DB.saveDswd(entry).then(saved => { if (saved) entry.id = saved.id; });
+      DB.saveDswd(entry).then(saved => {
+        if (saved) {
+          entry.id = saved.id;
+          renderDswdTable();
+        }
+      });
       dswdStore.push(entry);
     } else {
       const idx = dswdStore.findIndex(x => dswdKeyFor(x) === dswdEditingKey);
