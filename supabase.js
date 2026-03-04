@@ -122,6 +122,7 @@ function dswdToDb(r) {
     date_release: r.dateRelease || null,
     beneficiary: r.beneficiary || null,
     dswd_discount: Number(r.dswdDiscount) || 0,
+    status: r.status || "Waiting",
   };
 }
 function dswdFromDb(r) {
@@ -140,6 +141,7 @@ function dswdFromDb(r) {
     dateRelease: r.date_release || "",
     beneficiary: r.beneficiary || "",
     dswdDiscount: Number(r.dswd_discount) || 0,
+    status: r.status || "Waiting",
   };
 }
 

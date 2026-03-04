@@ -5262,6 +5262,7 @@ html += `</tr>`;
   const dwDateRelease  = $("#dwDateRelease");
   const dwBeneficiary  = $("#dwBeneficiary");
   const dwDswdDiscount = $("#dwDswdDiscount");
+  const dwStatus       = $("#dwStatus");
 
   let dswdStore = [];
   let dswdSelectedKey = null;
@@ -5373,6 +5374,9 @@ html += `</tr>`;
         tr.dataset.rowType = "data";
         tr.dataset.id = dswdKeyFor(r);
         if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
+        // Row background by status
+        if (r.status === "Processed")  tr.style.background = "rgba(0,180,80,0.15)";
+        else if (r.status === "Scheduled") tr.style.background = "rgba(255,210,0,0.18)";
         tr.innerHTML = `
           <td>${r.date||""}</td>
           <td>${r.contract||""}</td>
@@ -5387,6 +5391,7 @@ html += `</tr>`;
           <td>${r.dateRelease||""}</td>
           <td>${r.beneficiary||""}</td>
           <td class="num">${fmtNum(r.dswdDiscount)}</td>
+          <td>${r.status||"Waiting"}</td>
         `;
         tbody.appendChild(tr);
       });
@@ -5444,6 +5449,7 @@ html += `</tr>`;
       dwDswdRefund.value = "0.00"; dwAfterTax.value = "0.00";
       dwDateReceived.value = ""; dwPayable.value = "0.00";
       dwDateRelease.value = ""; dwBeneficiary.value = ""; dwDswdDiscount.value = "0.00";
+      if (dwStatus) dwStatus.value = "Waiting";
     } else {
       dswdTitle.textContent = "Edit DSWD Entry";
       dswdSubtitle.textContent = "Update this DSWD entry.";
@@ -5466,6 +5472,7 @@ html += `</tr>`;
       dwDateRelease.value  = dateInputFromMmddyyyy(found.dateRelease) || "";
       dwBeneficiary.value  = found.beneficiary || "";
       dwDswdDiscount.value = (Number(found.dswdDiscount)||0).toFixed(2);
+      if (dwStatus) dwStatus.value = found.status || "Waiting";
     }
 
     dswdOverlay.classList.add("is-open");
@@ -5511,6 +5518,7 @@ html += `</tr>`;
       dateRelease:  mmddyyyyFromDateInput(dwDateRelease.value) || "",
       beneficiary:  dwBeneficiary.value.trim(),
       dswdDiscount: Number(dwDswdDiscount.value) || 0,
+      status:       dwStatus?.value || "Waiting",
     };
 
     if (dswdMode === "add") {
@@ -5553,12 +5561,12 @@ html += `</tr>`;
   // ── Export to Excel ──
   btnDswdExport?.addEventListener("click", () => {
     if (!dswdStore.length) return alert("No DSWD entries to export.");
-    const headers = ["Date","Contract #","Name of Deceased","Contract","Payment","Balance","DSWD Refund","After Tax","Date Received from DSWD","Payable","Date/Release","Beneficiary","DSWD Discount"];
+    const headers = ["Date","Contract #","Name of Deceased","Contract","Payment","Balance","DSWD Refund","After Tax","Date Received from DSWD","Payable","Date/Release","Beneficiary","DSWD Discount","Status"];
     const rows = dswdStore.map(r => [
       r.date, r.contract, r.deceased,
       r.contractAmt, r.payment, r.balance,
       r.dswdRefund, r.afterTax, r.dateReceived,
-      r.payable, r.dateRelease, r.beneficiary, r.dswdDiscount
+      r.payable, r.dateRelease, r.beneficiary, r.dswdDiscount, r.status||"Waiting"
     ]);
     let csv = headers.join(",") + "\n";
     rows.forEach(row => { csv += row.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",") + "\n"; });
