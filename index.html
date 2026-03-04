@@ -311,6 +311,7 @@
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankReceived">Bank Received</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankExpense">Bank Expense</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Deposit</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="dswd">DSWD</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
   </nav>
 
@@ -664,6 +665,72 @@
 </div>
 
   
+
+<div class="subpanel" id="subpanel-dswd" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>DSWD</h3>
+      <span class="hint">DSWD ledger — auto-fills contract details on entry (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="dswdRowCount">Rows: 0</span>
+      <span class="kpi" id="dswdSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="DSWD actions">
+    <button class="btn" id="btnDswdAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnDswdEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnDswdDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnDswdExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnDswdRefresh">Refresh</button>
+  </div>
+
+  <div class="filter-row" id="dswdFilterRow" aria-label="DSWD filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="dswdFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="contract">Contract #</option>
+          <option value="deceased">Name of Deceased</option>
+        </select>
+      </label>
+      <div id="dswdFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnDswdApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnDswdClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="dswdTable" aria-label="DSWD table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Contract #</th>
+            <th>Name of Deceased</th>
+            <th class="num">Contract</th>
+            <th class="num">Payment</th>
+            <th class="num">Balance</th>
+            <th class="num">DSWD Refund</th>
+            <th class="num">After Tax</th>
+            <th>Date Received from DSWD</th>
+            <th class="num">Payable</th>
+            <th>Date/Release</th>
+            <th>Beneficiary</th>
+            <th class="num">DSWD Discount</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="subpanel" id="subpanel-settings" role="tabpanel">
   <div class="panel-toolbar">
     <div class="toolbar-left">
@@ -857,6 +924,82 @@
     <div class="modal-footer" style="justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--border,#333);">
       <button type="button" class="btn" id="btnGeneratePaymentReport">📄 Generate Report</button>
     </div>
+  </div>
+
+  <!-- DSWD Modal -->
+  <div class="overlay" id="dswdOverlay" aria-hidden="true"></div>
+  <div class="modal" id="dswdModal" role="dialog" aria-modal="true" aria-labelledby="dswdTitle" style="max-width:680px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="dswdTitle">Add DSWD Entry</div>
+        <div class="modal-subtitle" id="dswdSubtitle">Enter Contract # to auto-fill details, then complete remaining fields.</div>
+      </div>
+      <button class="icon-btn" id="btnCloseDswd" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="dswdForm">
+      <div class="form-grid">
+
+        <!-- Contract # with autofill trigger -->
+        <label class="field">
+          <span>Contract # <small style="opacity:0.6;">(auto-fills fields)</small></span>
+          <input class="input" id="dwContract" type="text" placeholder="e.g., MC-0105" required />
+        </label>
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="dwDate" type="date" required />
+        </label>
+        <label class="field field-wide">
+          <span>Name of Deceased</span>
+          <input class="input" id="dwDeceased" type="text" placeholder="Auto-filled from contract" readonly style="opacity:0.75;" />
+        </label>
+        <label class="field">
+          <span>Contract Amount</span>
+          <input class="input" id="dwContractAmt" type="number" step="0.01" value="0.00" readonly style="opacity:0.75;" />
+        </label>
+        <label class="field">
+          <span>Payment (Total Paid)</span>
+          <input class="input" id="dwPayment" type="number" step="0.01" value="0.00" readonly style="opacity:0.75;" />
+        </label>
+        <label class="field">
+          <span>Balance (Remaining)</span>
+          <input class="input" id="dwBalance" type="number" step="0.01" value="0.00" readonly style="opacity:0.75;" />
+        </label>
+
+        <!-- Manual fields -->
+        <label class="field">
+          <span>DSWD Refund</span>
+          <input class="input" id="dwDswdRefund" type="number" step="0.01" value="0.00" />
+        </label>
+        <label class="field">
+          <span>After Tax</span>
+          <input class="input" id="dwAfterTax" type="number" step="0.01" value="0.00" />
+        </label>
+        <label class="field">
+          <span>Date Received from DSWD</span>
+          <input class="input" id="dwDateReceived" type="date" />
+        </label>
+        <label class="field">
+          <span>Payable</span>
+          <input class="input" id="dwPayable" type="number" step="0.01" value="0.00" />
+        </label>
+        <label class="field">
+          <span>Date/Release</span>
+          <input class="input" id="dwDateRelease" type="date" />
+        </label>
+        <label class="field field-wide">
+          <span>Beneficiary</span>
+          <input class="input" id="dwBeneficiary" type="text" placeholder="Name of beneficiary" />
+        </label>
+        <label class="field">
+          <span>DSWD Discount</span>
+          <input class="input" id="dwDswdDiscount" type="number" step="0.01" value="0.00" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelDswd">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitDswd">Add Entry</button>
+      </div>
+    </form>
   </div>
 
   <!-- Cash Received Modal -->

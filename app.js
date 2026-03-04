@@ -5228,6 +5228,346 @@ html += `</tr>`;
 
 
   // ---------------------------
+  // DSWD Tab Logic
+  // ---------------------------
+  const dswdTable      = $("#dswdTable");
+  const dswdRowCountEl = $("#dswdRowCount");
+  const dswdSelectedEl = $("#dswdSelected");
+
+  const btnDswdAdd    = $("#btnDswdAddEntry");
+  const btnDswdEdit   = $("#btnDswdEditSelected");
+  const btnDswdDel    = $("#btnDswdDeleteSelected");
+  const btnDswdExport = $("#btnDswdExportExcel");
+  const btnDswdRefresh= $("#btnDswdRefresh");
+
+  const dswdOverlay   = $("#dswdOverlay");
+  const dswdModal     = $("#dswdModal");
+  const dswdTitle     = $("#dswdTitle");
+  const dswdSubtitle  = $("#dswdSubtitle");
+  const dswdForm      = $("#dswdForm");
+  const btnCloseDswd  = $("#btnCloseDswd");
+  const btnCancelDswd = $("#btnCancelDswd");
+  const btnSubmitDswd = $("#btnSubmitDswd");
+
+  const dwContract     = $("#dwContract");
+  const dwDate         = $("#dwDate");
+  const dwDeceased     = $("#dwDeceased");
+  const dwContractAmt  = $("#dwContractAmt");
+  const dwPayment      = $("#dwPayment");
+  const dwBalance      = $("#dwBalance");
+  const dwDswdRefund   = $("#dwDswdRefund");
+  const dwAfterTax     = $("#dwAfterTax");
+  const dwDateReceived = $("#dwDateReceived");
+  const dwPayable      = $("#dwPayable");
+  const dwDateRelease  = $("#dwDateRelease");
+  const dwBeneficiary  = $("#dwBeneficiary");
+  const dwDswdDiscount = $("#dwDswdDiscount");
+
+  let dswdStore = [];
+  let dswdSelectedKey = null;
+  let dswdMode = "add";
+  let dswdEditingKey = null;
+
+  function dswdKeyFor(r) { return r.id || r._id || ""; }
+
+  function ensureDswdId(r) {
+    if (!r._id) r._id = "__DSWD__" + Date.now() + "_" + Math.floor(Math.random()*100000);
+    return r;
+  }
+
+  // ── Autofill from Contracts ──
+  function dswdAutofill(contractNo) {
+    const key = normalizeText(contractNo);
+    const c = contractsStore.find(x => normalizeText(x.contract) === key);
+    if (!c) {
+      dwDeceased.value = "";
+      dwContractAmt.value = "0.00";
+      dwPayment.value = "0.00";
+      dwBalance.value = "0.00";
+      return;
+    }
+    // Compute totals same way as contracts tab
+    const totalPaid = Math.max(0, (Number(c.inhaus)||0) + (Number(c.bai)||0) + (Number(c.gl)||0) + (Number(c.gcash)||0) + (Number(c.cash)||0));
+    const remaining = (Number(c.amount)||0) - totalPaid - (Number(c.discount)||0);
+    dwDeceased.value     = c.deceased || "";
+    dwContractAmt.value  = (Number(c.amount)||0).toFixed(2);
+    dwPayment.value      = totalPaid.toFixed(2);
+    dwBalance.value      = remaining.toFixed(2);
+  }
+
+  dwContract?.addEventListener("blur", () => {
+    if (dswdMode === "add") dswdAutofill(dwContract.value.trim());
+  });
+  dwContract?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Tab") {
+      dswdAutofill(dwContract.value.trim());
+    }
+  });
+
+  // ── Filter ──
+  const dswdFilterCategory = $("#dswdFilterCategory");
+  const dswdFilterInputs   = $("#dswdFilterInputs");
+  const btnDswdApplyFilter = $("#btnDswdApplyFilter");
+  const btnDswdClearFilter = $("#btnDswdClearFilter");
+  let dswdActiveFilter = { category: "", value: null };
+
+  function setDswdFilterInputs(category) {
+    if (!dswdFilterInputs) return;
+    dswdFilterInputs.innerHTML = "";
+    function makeText(id, label, ph) {
+      const wrap = document.createElement("label");
+      wrap.className = "field inline";
+      wrap.innerHTML = `<span>${label}</span><input class="input" id="${id}" type="text" placeholder="${ph}" style="width:160px;" />`;
+      dswdFilterInputs.appendChild(wrap);
+    }
+    if (category === "date")     makeText("dswdFilterDate",     "Date",     "MM/DD/YYYY or MM/YYYY");
+    if (category === "contract") makeText("dswdFilterContract", "Contract #","e.g. MC-0105");
+    if (category === "deceased") makeText("dswdFilterDeceased", "Deceased", "name...");
+  }
+
+  dswdFilterCategory?.addEventListener("change", () => setDswdFilterInputs(dswdFilterCategory.value));
+
+  function getDswdFilterFromUI() {
+    const cat = dswdFilterCategory?.value || "";
+    if (cat === "date")     return { category:"date",     value: ($("#dswdFilterDate")?.value||"").trim() };
+    if (cat === "contract") return { category:"contract", value: normalizeText($("#dswdFilterContract")?.value||"") };
+    if (cat === "deceased") return { category:"deceased", value: normalizeText($("#dswdFilterDeceased")?.value||"") };
+    return { category:"", value: null };
+  }
+
+  function dswdRowMatchesFilter(r, f) {
+    if (!f || !f.category) return true;
+    if (f.category === "date" && f.value) {
+      const v = String(f.value);
+      return String(r.date||"").startsWith(v.slice(0,2)) || String(r.date||"").includes(v);
+    }
+    if (f.category === "contract" && f.value) return normalizeText(r.contract||"").includes(f.value);
+    if (f.category === "deceased" && f.value) return normalizeText(r.deceased||"").includes(f.value);
+    return true;
+  }
+
+  btnDswdApplyFilter?.addEventListener("click", () => { dswdActiveFilter = getDswdFilterFromUI(); renderDswdTable(); });
+  btnDswdClearFilter?.addEventListener("click", () => {
+    dswdActiveFilter = { category:"", value:null };
+    if (dswdFilterCategory) dswdFilterCategory.value = "";
+    if (dswdFilterInputs) dswdFilterInputs.innerHTML = "";
+    renderDswdTable();
+  });
+
+  // ── Render ──
+  function fmtNum(n) { return (Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+  function renderDswdTable() {
+    if (!dswdTable) return;
+    const filtered = dswdStore.filter(r => dswdRowMatchesFilter(r, dswdActiveFilter));
+    const tbody = dswdTable.tBodies[0];
+    tbody.innerHTML = "";
+
+    if (filtered.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="13" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
+      tbody.appendChild(tr);
+    } else {
+      filtered.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "data";
+        tr.dataset.id = dswdKeyFor(r);
+        if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
+        tr.innerHTML = `
+          <td>${r.date||""}</td>
+          <td>${r.contract||""}</td>
+          <td>${r.deceased||""}</td>
+          <td class="num">${fmtNum(r.contractAmt)}</td>
+          <td class="num">${fmtNum(r.payment)}</td>
+          <td class="num">${fmtNum(r.balance)}</td>
+          <td class="num">${fmtNum(r.dswdRefund)}</td>
+          <td class="num">${fmtNum(r.afterTax)}</td>
+          <td>${r.dateReceived||""}</td>
+          <td class="num">${fmtNum(r.payable)}</td>
+          <td>${r.dateRelease||""}</td>
+          <td>${r.beneficiary||""}</td>
+          <td class="num">${fmtNum(r.dswdDiscount)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    if (dswdRowCountEl) dswdRowCountEl.textContent = `Rows: ${filtered.length}`;
+    if (dswdSelectedEl) dswdSelectedEl.textContent = dswdSelectedKey ? `Selected: ${dswdSelectedKey}` : "Selected: —";
+  }
+
+  dswdTable?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr || (tr.dataset.rowType||"") !== "data") return;
+    dswdSelectedKey = tr.dataset.id || null;
+    renderDswdTable();
+  });
+
+  dswdTable?.addEventListener("dblclick", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr || (tr.dataset.rowType||"") !== "data") return;
+    dswdSelectedKey = tr.dataset.id || null;
+    openDswdModal("edit", dswdSelectedKey);
+  });
+
+  // ── Modal ──
+  function mmddyyyyFromDateInput(v) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||""));
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
+  }
+  function dateInputFromMmddyyyy(v) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v||"").trim());
+    if (!m) return "";
+    return `${m[3]}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+  }
+
+  function openDswdModal(mode, keyOrNull = null) {
+    if (!dswdOverlay || !dswdModal) { alert("DSWD form not available."); return; }
+    dswdMode = mode;
+    dswdEditingKey = null;
+
+    // Set readonly state on autofill fields
+    [dwDeceased, dwContractAmt, dwPayment, dwBalance].forEach(el => {
+      if (el) { el.readOnly = (mode === "add"); el.style.opacity = mode === "add" ? "0.75" : "1"; }
+    });
+
+    if (mode === "add") {
+      dswdTitle.textContent = "Add DSWD Entry";
+      dswdSubtitle.textContent = "Enter Contract # to auto-fill details, then complete remaining fields.";
+      btnSubmitDswd.textContent = "Add Entry";
+
+      dwContract.value = ""; dwDate.value = new Date().toISOString().slice(0,10);
+      dwDeceased.value = ""; dwContractAmt.value = "0.00";
+      dwPayment.value = "0.00"; dwBalance.value = "0.00";
+      dwDswdRefund.value = "0.00"; dwAfterTax.value = "0.00";
+      dwDateReceived.value = ""; dwPayable.value = "0.00";
+      dwDateRelease.value = ""; dwBeneficiary.value = ""; dwDswdDiscount.value = "0.00";
+    } else {
+      dswdTitle.textContent = "Edit DSWD Entry";
+      dswdSubtitle.textContent = "Update this DSWD entry.";
+      btnSubmitDswd.textContent = "Save Changes";
+
+      const found = dswdStore.find(x => dswdKeyFor(x) === keyOrNull);
+      if (!found) { alert("Could not find selected entry."); return; }
+      dswdEditingKey = keyOrNull;
+
+      dwContract.value     = found.contract || "";
+      dwDate.value         = dateInputFromMmddyyyy(found.date) || new Date().toISOString().slice(0,10);
+      dwDeceased.value     = found.deceased || "";
+      dwContractAmt.value  = (Number(found.contractAmt)||0).toFixed(2);
+      dwPayment.value      = (Number(found.payment)||0).toFixed(2);
+      dwBalance.value      = (Number(found.balance)||0).toFixed(2);
+      dwDswdRefund.value   = (Number(found.dswdRefund)||0).toFixed(2);
+      dwAfterTax.value     = (Number(found.afterTax)||0).toFixed(2);
+      dwDateReceived.value = dateInputFromMmddyyyy(found.dateReceived) || "";
+      dwPayable.value      = (Number(found.payable)||0).toFixed(2);
+      dwDateRelease.value  = dateInputFromMmddyyyy(found.dateRelease) || "";
+      dwBeneficiary.value  = found.beneficiary || "";
+      dwDswdDiscount.value = (Number(found.dswdDiscount)||0).toFixed(2);
+    }
+
+    dswdOverlay.classList.add("is-open");
+    dswdModal.classList.add("is-open");
+    setTimeout(() => dwContract.focus(), 0);
+  }
+
+  function closeDswdModal() {
+    dswdOverlay?.classList.remove("is-open");
+    dswdModal?.classList.remove("is-open");
+    dswdMode = "add"; dswdEditingKey = null;
+  }
+
+  btnCloseDswd?.addEventListener("click", closeDswdModal);
+  btnCancelDswd?.addEventListener("click", closeDswdModal);
+  dswdOverlay?.addEventListener("click", closeDswdModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && dswdModal?.classList.contains("is-open")) closeDswdModal();
+  });
+
+  btnDswdAdd?.addEventListener("click", () => openDswdModal("add"));
+  btnDswdEdit?.addEventListener("click", () => {
+    if (!dswdSelectedKey) return alert("Please select a row first.");
+    openDswdModal("edit", dswdSelectedKey);
+  });
+
+  dswdForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const contractNo = (dwContract.value || "").trim();
+    if (!contractNo) return alert("Contract # is required.");
+
+    const entry = {
+      date:         mmddyyyyFromDateInput(dwDate.value) || "",
+      contract:     contractNo,
+      deceased:     dwDeceased.value.trim(),
+      contractAmt:  Number(dwContractAmt.value) || 0,
+      payment:      Number(dwPayment.value) || 0,
+      balance:      Number(dwBalance.value) || 0,
+      dswdRefund:   Number(dwDswdRefund.value) || 0,
+      afterTax:     Number(dwAfterTax.value) || 0,
+      dateReceived: mmddyyyyFromDateInput(dwDateReceived.value) || "",
+      payable:      Number(dwPayable.value) || 0,
+      dateRelease:  mmddyyyyFromDateInput(dwDateRelease.value) || "",
+      beneficiary:  dwBeneficiary.value.trim(),
+      dswdDiscount: Number(dwDswdDiscount.value) || 0,
+    };
+
+    if (dswdMode === "add") {
+      ensureDswdId(entry);
+      DB.saveDswd(entry).then(saved => { if (saved) entry.id = saved.id; });
+      dswdStore.push(entry);
+    } else {
+      const idx = dswdStore.findIndex(x => dswdKeyFor(x) === dswdEditingKey);
+      if (idx < 0) return alert("Could not find entry to update.");
+      entry.id = dswdStore[idx].id;
+      entry._id = dswdStore[idx]._id;
+      dswdStore[idx] = entry;
+      DB.saveDswd(entry);
+    }
+
+    closeDswdModal();
+    renderDswdTable();
+  });
+
+  btnDswdDel?.addEventListener("click", () => {
+    if (!dswdSelectedKey) return alert("Please select a row first.");
+    if (!confirm("Delete the selected DSWD entry?")) return;
+    const row = dswdStore.find(x => dswdKeyFor(x) === dswdSelectedKey);
+    if (row?.id) DB.deleteDswd(row.id);
+    dswdStore = dswdStore.filter(x => dswdKeyFor(x) !== dswdSelectedKey);
+    dswdSelectedKey = null;
+    renderDswdTable();
+  });
+
+  btnDswdRefresh?.addEventListener("click", () => {
+    DB.getDswd().then(rows => { dswdStore = rows; renderDswdTable(); });
+    alert("Refreshed DSWD view.");
+  });
+
+  // ── Export to Excel ──
+  btnDswdExport?.addEventListener("click", () => {
+    if (!dswdStore.length) return alert("No DSWD entries to export.");
+    const headers = ["Date","Contract #","Name of Deceased","Contract","Payment","Balance","DSWD Refund","After Tax","Date Received from DSWD","Payable","Date/Release","Beneficiary","DSWD Discount"];
+    const rows = dswdStore.map(r => [
+      r.date, r.contract, r.deceased,
+      r.contractAmt, r.payment, r.balance,
+      r.dswdRefund, r.afterTax, r.dateReceived,
+      r.payable, r.dateRelease, r.beneficiary, r.dswdDiscount
+    ]);
+    let csv = headers.join(",") + "\n";
+    rows.forEach(row => { csv += row.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",") + "\n"; });
+    const blob = new Blob([csv], { type:"text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url; a.download = `MagallanesDSWD_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  // ── Load from Supabase ──
+  DB.getDswd().then(rows => { dswdStore = rows; renderDswdTable(); });
+
+
+  // ---------------------------
   // Settings Tab Logic (v115)
   // ---------------------------
   const SETTINGS_STORE_KEY = "mf_settings_store";
@@ -5531,6 +5871,7 @@ html += `</tr>`;
         DB.deleteAllBankReceived?.(),
         DB.deleteAllBankExpense?.(),
         DB.deleteAllPnbDeposit?.(),
+        DB.deleteAllDswd?.(),
         DB.deleteAllSettings?.(),
       ]);
 

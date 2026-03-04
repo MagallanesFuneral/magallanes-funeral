@@ -18,6 +18,7 @@ const TABLE = {
   bankReceived: "bank_received",
   bankExpense:  "bank_expense",
   pnbDeposit:   "pnb_deposit",
+  dswd:         "dswd",
   settings:     "settings",
 };
 
@@ -105,6 +106,43 @@ function pnbFromDb(r) {
   return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 
+function dswdToDb(r) {
+  return {
+    id: r.id || undefined,
+    date: r.date || null,
+    contract: r.contract || null,
+    deceased: r.deceased || null,
+    contract_amt: Number(r.contractAmt) || 0,
+    payment: Number(r.payment) || 0,
+    balance: Number(r.balance) || 0,
+    dswd_refund: Number(r.dswdRefund) || 0,
+    after_tax: Number(r.afterTax) || 0,
+    date_received: r.dateReceived || null,
+    payable: Number(r.payable) || 0,
+    date_release: r.dateRelease || null,
+    beneficiary: r.beneficiary || null,
+    dswd_discount: Number(r.dswdDiscount) || 0,
+  };
+}
+function dswdFromDb(r) {
+  return {
+    id: r.id,
+    date: r.date || "",
+    contract: r.contract || "",
+    deceased: r.deceased || "",
+    contractAmt: Number(r.contract_amt) || 0,
+    payment: Number(r.payment) || 0,
+    balance: Number(r.balance) || 0,
+    dswdRefund: Number(r.dswd_refund) || 0,
+    afterTax: Number(r.after_tax) || 0,
+    dateReceived: r.date_received || "",
+    payable: Number(r.payable) || 0,
+    dateRelease: r.date_release || "",
+    beneficiary: r.beneficiary || "",
+    dswdDiscount: Number(r.dswd_discount) || 0,
+  };
+}
+
 // ── Generic DB helpers ────────────────────────────────────────
 
 async function dbGetAll(table, fromDb) {
@@ -158,6 +196,11 @@ window.DB = {
   async savePnbDeposit(r)       { return dbUpsert(TABLE.pnbDeposit, r, pnbToDb); },
   async deletePnbDeposit(id)    { return dbDelete(TABLE.pnbDeposit, id); },
 
+  // DSWD
+  async getDswd()               { return dbGetAll(TABLE.dswd, dswdFromDb); },
+  async saveDswd(r)             { return dbUpsert(TABLE.dswd, r, dswdToDb); },
+  async deleteDswd(id)          { return dbDelete(TABLE.dswd, id); },
+
   // Settings (shared — single row, no user_id filter needed with RLS)
   async getSettings() {
     const { data, error } = await _sb.from(TABLE.settings).select("*").limit(1).maybeSingle();
@@ -188,6 +231,7 @@ window.DB = {
   async deleteAllBankReceived() { const { error } = await _sb.from(TABLE.bankReceived).delete().gte("id", "00000000-0000-0000-0000-000000000000"); if (error) throw error; },
   async deleteAllBankExpense()  { const { error } = await _sb.from(TABLE.bankExpense).delete().gte("id", "00000000-0000-0000-0000-000000000000");  if (error) throw error; },
   async deleteAllPnbDeposit()   { const { error } = await _sb.from(TABLE.pnbDeposit).delete().gte("id", "00000000-0000-0000-0000-000000000000");   if (error) throw error; },
+  async deleteAllDswd()         { const { error } = await _sb.from(TABLE.dswd).delete().gte("id", "00000000-0000-0000-0000-000000000000");          if (error) throw error; },
   async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().gte("id", "00000000-0000-0000-0000-000000000000");     if (error) throw error; },
 };
 
