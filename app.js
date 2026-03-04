@@ -5423,18 +5423,32 @@ const reportDatePicker = $("#reportDatePicker");
     // ---------------- Bank Received ----------------
     const bankBF = computeCashInBankBefore(selectedYmd);
     const bankRows = (bankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
+    // Also include PNB deposit entries for the day — cash collected was deposited to bank
+    const pnbRows = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     const bankIn = bankRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    const totalBankReceived = bankBF + bankIn;
+    const pnbBankIn = pnbRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const totalBankReceived = bankBF + bankIn + pnbBankIn;
 
-    const bankBody = bankRows.map(r=>`
-      <tr>
-        <td>${escapeHtml(r.contract ?? r.contractNumber ?? "")}</td>
-        <td>${escapeHtml(r.type ?? r.transfer ?? r.gcashOrBankTransfer ?? "")}</td>
-        <td>${escapeHtml(r.client ?? r.clientName ?? r.nameOfClient ?? "")}</td>
-        <td>${escapeHtml(r.particular ?? "")}</td>
-        <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
-      </tr>
-    `).join("");
+    const bankBody = [
+      ...bankRows.map(r=>`
+        <tr>
+          <td>${escapeHtml(r.contract ?? r.contractNumber ?? "")}</td>
+          <td>${escapeHtml(r.type ?? r.transfer ?? r.gcashOrBankTransfer ?? "")}</td>
+          <td>${escapeHtml(r.client ?? r.clientName ?? r.nameOfClient ?? "")}</td>
+          <td>${escapeHtml(r.particular ?? "")}</td>
+          <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
+        </tr>
+      `),
+      ...pnbRows.map(r=>`
+        <tr>
+          <td></td>
+          <td>PNB Deposit</td>
+          <td></td>
+          <td>Cash deposit to PNB</td>
+          <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
+        </tr>
+      `)
+    ].join("");
 
     // ---------------- Bank Expense ----------------
     const bankExpRows = (bankExpStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
@@ -5688,6 +5702,7 @@ const reportDatePicker = $("#reportDatePicker");
     // Ensure latest stores are loaded
     try{ const t = loadBankStore(); if(Array.isArray(t)) bankStore = t; }catch{}
     try{ const t = loadBankExpStore(); if(Array.isArray(t)) bankExpStore = t; }catch{}
+    try{ const t = loadPnbStore(); if(Array.isArray(t)) pnbStore = t; }catch{}
 
     // Starting value from Settings (Bank Received Balance)
     const bankEl = document.querySelector("#setBankBalance");
@@ -5697,13 +5712,15 @@ const reportDatePicker = $("#reportDatePicker");
     const dates = new Set();
     for(const r of (bankStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
     for(const r of (bankExpStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
+    for(const r of (pnbStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
     const sorted = Array.from(dates).sort();
 
     for(const d of sorted){
       if(d >= selectedYmd) break;
-      const bankIn = (bankStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
+      const bankIn  = (bankStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
+      const pnbIn   = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       const bankOut = (bankExpStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.withdraw)||0),0);
-      cashInBank = (cashInBank + bankIn) - bankOut;
+      cashInBank = (cashInBank + bankIn + pnbIn) - bankOut;
     }
     return cashInBank;
   }
