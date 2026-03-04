@@ -6403,7 +6403,68 @@ const reportDatePicker = $("#reportDatePicker");
   }
 
 setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
-})();
+
+  // ── Deselect row when clicking blank space outside any data row ──
+  const deselectable = [
+    {
+      wrap: $("#contractsTable")?.closest(".grid-wrap") || $("#contractsTable")?.parentElement,
+      clearFn: () => {
+        selectedContractNo = null;
+        $$(".grid tbody tr").forEach(r => r.classList.remove("is-selected"));
+        const el = $("#contractSelectedCount") || document.querySelector("[id*='contractSelected']");
+        if (el) el.textContent = "Selected: —";
+      }
+    },
+    {
+      wrap: cashTable?.closest(".grid-wrap") || cashTable?.parentElement,
+      clearFn: () => { selectCashKey(null); }
+    },
+    {
+      wrap: cashExpTable?.closest(".grid-wrap") || cashExpTable?.parentElement,
+      clearFn: () => {
+        cashExpSelectedKey = null;
+        Array.from(cashExpTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected"));
+        if (cashExpSelectedEl) cashExpSelectedEl.textContent = "Selected: —";
+      }
+    },
+    {
+      wrap: bankTable?.closest(".grid-wrap") || bankTable?.parentElement,
+      clearFn: () => { selectBankKey(null); }
+    },
+    {
+      wrap: bankExpTable?.closest(".grid-wrap") || bankExpTable?.parentElement,
+      clearFn: () => {
+        bankExpSelectedKey = null;
+        Array.from(bankExpTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected"));
+        if (bankExpSelectedEl) bankExpSelectedEl.textContent = "Selected: —";
+      }
+    },
+    {
+      wrap: pnbTable?.closest(".grid-wrap") || pnbTable?.parentElement,
+      clearFn: () => { selectPnbKey(null); }
+    },
+    {
+      wrap: dswdTable?.closest(".grid-wrap") || dswdTable?.parentElement,
+      clearFn: () => {
+        dswdSelectedKey = null;
+        Array.from(dswdTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected"));
+        if (dswdSelectedEl) dswdSelectedEl.textContent = "Selected: —";
+      }
+    },
+  ];
+
+  document.addEventListener("click", (e) => {
+    for (const { wrap, clearFn } of deselectable) {
+      if (!wrap) continue;
+      // Click was inside this table's wrapper
+      if (wrap.contains(e.target)) {
+        // If it didn't land on a data row, deselect
+        const tr = e.target.closest("tr");
+        if (!tr || (tr.dataset.rowType || "data") !== "data") clearFn();
+        return; // only one table can own the click
+      }
+    }
+  });
 
   function exportDailyReportToPdf(){
     const panel   = document.querySelector("#panel-dailyreport");
