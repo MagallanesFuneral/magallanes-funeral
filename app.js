@@ -6733,3 +6733,5 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const btn = document.querySelector("#btnExportDailyReportPdf");
     if(btn) btn.addEventListener("click", function(){ try{ exportDailyReportToPdf(); }catch(e){ alert("Export error: " + e.message); } });
   })();
+
+})();
