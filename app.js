@@ -469,12 +469,14 @@ function fmtMoney(n) {
   function normalizeText(s){ return String(s ?? "").toLowerCase().trim(); }
 
   function calcComputed(c) {
-    // totalPaid = cash payments only (BAI assist is NOT counted as paid by customer)
-    const totalPaid  = Math.max(0, (c.inhaus + c.bai + c.gl + c.gcash + c.cash));
-    // baiAssist reduces the remaining balance but is not customer payment
-    const baiAssist  = Number(c.baiAssist) || 0;
-    const remaining  = (c.amount || 0) - totalPaid - c.discount - baiAssist;
-    return { totalPaid, remaining, baiAssist };
+    // totalPaid = cash payments only (BAI/DSWD assist are NOT counted as paid by customer)
+    const totalPaid    = Math.max(0, (c.inhaus + c.bai + c.gl + c.gcash + c.cash));
+    // These reduce remaining balance but are NOT customer payments
+    const baiAssist    = Number(c.baiAssist)    || 0;
+    const dswdAfterTax = Number(c.dswdAfterTax) || 0;
+    const dswdDiscount = Number(c.dswdDiscount) || 0;
+    const remaining    = (c.amount || 0) - totalPaid - (c.discount||0) - baiAssist - dswdAfterTax - dswdDiscount;
+    return { totalPaid, remaining, baiAssist, dswdAfterTax, dswdDiscount };
   }
 
   function createGroupRow(label) {
@@ -524,7 +526,9 @@ function fmtMoney(n) {
     tr.appendChild(tdNum(totals.gl));
     tr.appendChild(tdNum(totals.gcash));
     tr.appendChild(tdNum(totals.cash));
+    tr.appendChild(tdNum(totals.dswdAfterTax || 0));
     tr.appendChild(tdNum(totals.discount));
+    tr.appendChild(tdNum(totals.dswdDiscount || 0));
     tr.appendChild(tdNum(totals.totalPaid));
 
     const tdLP = document.createElement("td");
@@ -549,17 +553,19 @@ function fmtMoney(n) {
       { text: c.casket },
       { text: c.address },
 
-      { text: fmtMoney(c.amount), num: true },
-      { text: fmtMoney(c.inhaus), num: true },
-      { text: fmtMoney(c.bai), num: true },
-      { text: fmtMoney(c.gl), num: true },
-      { text: fmtMoney(c.gcash), num: true },
-      { text: fmtMoney(c.cash), num: true },
-      { text: fmtMoney(c.discount), num: true },
+      { text: fmtMoney(c.amount),                     num: true },
+      { text: fmtMoney(c.inhaus),                     num: true },
+      { text: fmtMoney(c.bai),                        num: true },
+      { text: fmtMoney(c.gl),                         num: true },
+      { text: fmtMoney(c.gcash),                      num: true },
+      { text: fmtMoney(c.cash),                       num: true },
+      { text: fmtMoney(c.dswdAfterTax || 0),          num: true, computed: true },
+      { text: fmtMoney(c.discount),                   num: true },
+      { text: fmtMoney(c.dswdDiscount || 0),          num: true, computed: true },
 
-      { text: fmtMoney(totalPaid), num: true, computed: true },
+      { text: fmtMoney(totalPaid),                    num: true, computed: true },
       { text: c.lastPayment || "—" },
-      { text: fmtMoney(remaining), num: true, computed: true },
+      { text: fmtMoney(remaining),                    num: true, computed: true },
     ];
 
     cells.forEach((cell, idx) => {
@@ -568,9 +574,10 @@ function fmtMoney(n) {
       if (cell.num) td.classList.add("num");
       if (cell.computed) td.classList.add("computed");
 
-      // add data-col attributes for numeric mapping
-      const dataCol = ["","", "", "", "",
-        "amount","inhaus","bai","gl","gcash","cash","discount","totalPaid","lastPayment","remaining"][idx];
+      const dataCol = ["","","","","",
+        "amount","inhaus","bai","gl","gcash","cash",
+        "dswdAfterTax","discount","dswdDiscount",
+        "totalPaid","lastPayment","remaining"][idx];
       if (dataCol) td.setAttribute("data-col", dataCol);
 
       tr.appendChild(td);
@@ -672,7 +679,7 @@ function fmtMoney(n) {
     selectedContractNo = null;
     selectedEl.textContent = "Selected: —";
 
-    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, discount:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, totalPaid:0, remaining:0 };
     let visibleDataCount = 0;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -682,7 +689,7 @@ function fmtMoney(n) {
 
       table.tBodies[0].appendChild(createGroupRow(monthLabelFromKey(key)));
 
-      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, discount:0, totalPaid:0, remaining:0 };
+      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const tr = createDataRow(c);
@@ -690,15 +697,17 @@ function fmtMoney(n) {
         visibleDataCount++;
 
         const computed = calcComputed(c);
-        totals.amount += c.amount || 0;
-        totals.inhaus += c.inhaus || 0;
-        totals.bai += c.bai || 0;
-        totals.gl += c.gl || 0;
-        totals.gcash += c.gcash || 0;
-        totals.cash += c.cash || 0;
-        totals.discount += c.discount || 0;
-        totals.totalPaid += computed.totalPaid;
-        totals.remaining += computed.remaining;
+        totals.amount      += c.amount      || 0;
+        totals.inhaus      += c.inhaus      || 0;
+        totals.bai         += c.bai         || 0;
+        totals.gl          += c.gl          || 0;
+        totals.gcash       += c.gcash       || 0;
+        totals.cash        += c.cash        || 0;
+        totals.dswdAfterTax+= c.dswdAfterTax|| 0;
+        totals.discount    += c.discount    || 0;
+        totals.dswdDiscount+= c.dswdDiscount|| 0;
+        totals.totalPaid   += computed.totalPaid;
+        totals.remaining   += computed.remaining;
       }
 
       table.tBodies[0].appendChild(createTotalRow("TOTAL", totals, "monthTotal"));
@@ -707,15 +716,17 @@ function fmtMoney(n) {
         table.tBodies[0].appendChild(createSpacerRow());
       }
 
-      grand.amount += totals.amount;
-      grand.inhaus += totals.inhaus;
-      grand.bai += totals.bai;
-      grand.gl += totals.gl;
-      grand.gcash += totals.gcash;
-      grand.cash += totals.cash;
-      grand.discount += totals.discount;
-      grand.totalPaid += totals.totalPaid;
-      grand.remaining += totals.remaining;
+      grand.amount       += totals.amount;
+      grand.inhaus       += totals.inhaus;
+      grand.bai          += totals.bai;
+      grand.gl           += totals.gl;
+      grand.gcash        += totals.gcash;
+      grand.cash         += totals.cash;
+      grand.dswdAfterTax += totals.dswdAfterTax;
+      grand.discount     += totals.discount;
+      grand.dswdDiscount += totals.dswdDiscount;
+      grand.totalPaid    += totals.totalPaid;
+      grand.remaining    += totals.remaining;
     }
 
     if (visibleDataCount > 0) {
@@ -5437,6 +5448,32 @@ html += `</tr>`;
 
     if (dswdRowCountEl) dswdRowCountEl.textContent = `Rows: ${filtered.length}`;
     if (dswdSelectedEl) dswdSelectedEl.textContent = dswdSelectedKey ? `Selected: ${dswdSelectedKey}` : "Selected: —";
+
+    syncDswdToContracts();
+  }
+
+  // ── Sync DSWD amounts into contracts ──
+  // dswdAfterTax → "DSWD" column (reduces remaining, not totalPaid)
+  // dswdDiscount → "DSWD Discount" column (also reduces remaining)
+  function syncDswdToContracts() {
+    if (!Array.isArray(contractsStore)) return;
+    const afterTaxByContract  = new Map();
+    const discountByContract  = new Map();
+    for (const r of dswdStore) {
+      const key = normalizeText(r.contract || "");
+      if (!key) continue;
+      afterTaxByContract.set(key,  (afterTaxByContract.get(key)  || 0) + (Number(r.afterTax)     || 0));
+      discountByContract.set(key,  (discountByContract.get(key)  || 0) + (Number(r.dswdDiscount)  || 0));
+    }
+    let changed = false;
+    for (const c of contractsStore) {
+      const key = normalizeText(c.contract || "");
+      const newAfterTax  = afterTaxByContract.get(key)  || 0;
+      const newDiscount  = discountByContract.get(key)  || 0;
+      if ((Number(c.dswdAfterTax)  || 0) !== newAfterTax)  { c.dswdAfterTax  = newAfterTax;  changed = true; }
+      if ((Number(c.dswdDiscount)  || 0) !== newDiscount)  { c.dswdDiscount  = newDiscount;  changed = true; }
+    }
+    if (changed) renderContracts();
   }
 
   dswdTable?.addEventListener("click", (e) => {
@@ -5619,7 +5656,7 @@ html += `</tr>`;
   });
 
   // ── Load from Supabase ──
-  DB.getDswd().then(rows => { dswdStore = rows; renderDswdTable(); });
+  DB.getDswd().then(rows => { dswdStore = rows; renderDswdTable(); syncDswdToContracts(); });
 
 
   // ---------------------------
