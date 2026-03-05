@@ -469,9 +469,12 @@ function fmtMoney(n) {
   function normalizeText(s){ return String(s ?? "").toLowerCase().trim(); }
 
   function calcComputed(c) {
-    const totalPaid = Math.max(0, (c.inhaus + c.bai + c.gl + c.gcash + c.cash ));
-    const remaining = (c.amount || 0) - totalPaid - c.discount;
-    return { totalPaid, remaining };
+    // totalPaid = cash payments only (BAI assist is NOT counted as paid by customer)
+    const totalPaid  = Math.max(0, (c.inhaus + c.bai + c.gl + c.gcash + c.cash));
+    // baiAssist reduces the remaining balance but is not customer payment
+    const baiAssist  = Number(c.baiAssist) || 0;
+    const remaining  = (c.amount || 0) - totalPaid - c.discount - baiAssist;
+    return { totalPaid, remaining, baiAssist };
   }
 
   function createGroupRow(label) {
@@ -5620,6 +5623,280 @@ html += `</tr>`;
 
 
   // ---------------------------
+  // BAI Tab Logic
+  // ---------------------------
+  const baiTable      = $("#baiTable");
+  const baiRowCountEl = $("#baiRowCount");
+  const baiSelectedEl = $("#baiSelected");
+  const btnBaiAdd     = $("#btnBaiAddEntry");
+  const btnBaiEdit    = $("#btnBaiEditSelected");
+  const btnBaiDel     = $("#btnBaiDeleteSelected");
+  const btnBaiExport  = $("#btnBaiExportExcel");
+  const btnBaiRefresh = $("#btnBaiRefresh");
+  const baiOverlay    = $("#baiOverlay");
+  const baiModal      = $("#baiModal");
+  const baiTitleEl    = $("#baiTitle");
+  const baiSubtitleEl = $("#baiSubtitle");
+  const baiForm       = $("#baiForm");
+  const btnCloseBai   = $("#btnCloseBai");
+  const btnCancelBai  = $("#btnCancelBai");
+  const btnSubmitBai  = $("#btnSubmitBai");
+  const baDateApplied   = $("#baDateApplied");
+  const baContract      = $("#baContract");
+  const baAmount        = $("#baAmount");
+  const baDateCompleted = $("#baDateCompleted");
+  const baStatus        = $("#baStatus");
+
+  let baiStore = [];
+  let baiSelectedKey = null;
+  let baiMode = "add";
+  let baiEditingKey = null;
+
+  function baiKeyFor(r) { return r.id || r._id || ""; }
+  function ensureBaiId(r) {
+    if (!r._id) r._id = "__BAI__" + Date.now() + "_" + Math.floor(Math.random()*100000);
+    return r;
+  }
+  function baiComputeStatus(dateCompleted) {
+    return (dateCompleted && String(dateCompleted).trim()) ? "Completed" : "Pending";
+  }
+  function baiMmddyyyyFromInput(v) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v||""));
+    return m ? `${m[2]}/${m[3]}/${m[1]}` : "";
+  }
+  function baiInputFromMmddyyyy(v) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(String(v||"").trim());
+    if (!m) return "";
+    return `${m[3]}-${String(m[1]).padStart(2,"0")}-${String(m[2]).padStart(2,"0")}`;
+  }
+
+  // Auto-set status when Date Completed changes
+  baDateCompleted?.addEventListener("input",  () => { if (baStatus) baStatus.value = baiComputeStatus(baDateCompleted.value); });
+  baDateCompleted?.addEventListener("change", () => { if (baStatus) baStatus.value = baiComputeStatus(baDateCompleted.value); });
+
+  // ── Filter ──
+  const baiFilterCategory = $("#baiFilterCategory");
+  const baiFilterInputs   = $("#baiFilterInputs");
+  const btnBaiApplyFilter = $("#btnBaiApplyFilter");
+  const btnBaiClearFilter = $("#btnBaiClearFilter");
+  let baiActiveFilter = { category: "", value: null };
+
+  function setBaiFilterInputs(cat) {
+    if (!baiFilterInputs) return;
+    baiFilterInputs.innerHTML = "";
+    const mk = (id, label, ph) => {
+      const w = document.createElement("label");
+      w.className = "field inline";
+      w.innerHTML = `<span>${label}</span><input class="input" id="${id}" type="text" placeholder="${ph}" style="width:160px;" />`;
+      baiFilterInputs.appendChild(w);
+    };
+    if (cat === "date")     mk("baiFilterDate",     "Date Applied", "MM/DD/YYYY");
+    if (cat === "contract") mk("baiFilterContract", "Contract #",   "e.g. MC-0105");
+    if (cat === "status")   mk("baiFilterStatus",   "Status",       "Pending or Completed");
+  }
+  baiFilterCategory?.addEventListener("change", () => setBaiFilterInputs(baiFilterCategory.value));
+
+  function getBaiFilter() {
+    const cat = baiFilterCategory?.value || "";
+    if (cat === "date")     return { category:"date",     value: ($("#baiFilterDate")?.value||"").trim() };
+    if (cat === "contract") return { category:"contract", value: normalizeText($("#baiFilterContract")?.value||"") };
+    if (cat === "status")   return { category:"status",   value: normalizeText($("#baiFilterStatus")?.value||"") };
+    return { category:"", value:null };
+  }
+  function baiRowMatches(r, f) {
+    if (!f || !f.category) return true;
+    if (f.category === "date"     && f.value) return String(r.dateApplied||"").includes(f.value);
+    if (f.category === "contract" && f.value) return normalizeText(r.contract||"").includes(f.value);
+    if (f.category === "status"   && f.value) return normalizeText(r.status||"").includes(f.value);
+    return true;
+  }
+  btnBaiApplyFilter?.addEventListener("click", () => { baiActiveFilter = getBaiFilter(); renderBaiTable(); });
+  btnBaiClearFilter?.addEventListener("click", () => {
+    baiActiveFilter = { category:"", value:null };
+    if (baiFilterCategory) baiFilterCategory.value = "";
+    if (baiFilterInputs)   baiFilterInputs.innerHTML = "";
+    renderBaiTable();
+  });
+
+  // ── Sync BAI amounts into contracts (reduces remaining, NOT totalPaid) ──
+  function syncBaiToContracts() {
+    if (!Array.isArray(contractsStore)) return;
+    // Sum all BAI entries per contract regardless of status
+    const baiByContract = new Map();
+    for (const r of baiStore) {
+      const key = normalizeText(r.contract || "");
+      if (!key) continue;
+      baiByContract.set(key, (baiByContract.get(key) || 0) + (Number(r.amount) || 0));
+    }
+    let changed = false;
+    for (const c of contractsStore) {
+      const key = normalizeText(c.contract || "");
+      const baiAmt = baiByContract.get(key) || 0;
+      if ((Number(c.baiAssist) || 0) !== baiAmt) {
+        c.baiAssist = baiAmt;
+        changed = true;
+      }
+    }
+    if (changed) renderContracts();
+  }
+
+  // ── Render ──
+  function renderBaiTable() {
+    if (!baiTable) return;
+    const filtered = baiStore.filter(r => baiRowMatches(r, baiActiveFilter));
+    const tbody = baiTable.tBodies[0];
+    tbody.innerHTML = "";
+
+    if (filtered.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
+      tbody.appendChild(tr);
+    } else {
+      filtered.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "data";
+        tr.dataset.id = baiKeyFor(r);
+        if (baiKeyFor(r) === baiSelectedKey) tr.classList.add("is-selected");
+        if (r.status === "Completed") tr.classList.add("dswd-processed"); // reuse green class
+        tr.innerHTML = `
+          <td>${r.dateApplied||""}</td>
+          <td>${r.contract||""}</td>
+          <td class="num">${fmtNum(r.amount)}</td>
+          <td>${r.dateCompleted||""}</td>
+          <td>${r.status||"Pending"}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+    if (baiRowCountEl) baiRowCountEl.textContent = `Rows: ${filtered.length}`;
+    if (baiSelectedEl) baiSelectedEl.textContent = baiSelectedKey ? `Selected: ${baiSelectedKey}` : "Selected: —";
+    syncBaiToContracts();
+  }
+
+  // ── Click / dblclick ──
+  baiTable?.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr || (tr.dataset.rowType||"") !== "data") return;
+    baiSelectedKey = tr.dataset.id || null;
+    Array.from(baiTable.tBodies[0].rows).forEach(r => r.classList.toggle("is-selected", r.dataset.id === baiSelectedKey));
+    if (baiSelectedEl) baiSelectedEl.textContent = baiSelectedKey ? `Selected: ${baiSelectedKey}` : "Selected: —";
+  });
+  baiTable?.addEventListener("dblclick", (e) => {
+    const tr = e.target.closest("tr");
+    if (!tr || (tr.dataset.rowType||"") !== "data") return;
+    baiSelectedKey = tr.dataset.id || null;
+    openBaiModal("edit", baiSelectedKey);
+  });
+
+  // ── Modal ──
+  function openBaiModal(mode, keyOrNull = null) {
+    if (!baiOverlay || !baiModal) { alert("BAI form not available."); return; }
+    baiMode = mode;
+    baiEditingKey = null;
+    if (mode === "add") {
+      baiTitleEl.textContent    = "Add BAI Entry";
+      baiSubtitleEl.textContent = "Leave Date Completed blank if still pending.";
+      btnSubmitBai.textContent  = "Add Entry";
+      baDateApplied.value   = new Date().toISOString().slice(0,10);
+      baContract.value      = "";
+      baAmount.value        = "0.00";
+      baDateCompleted.value = "";
+      baStatus.value        = "Pending";
+    } else {
+      baiTitleEl.textContent    = "Edit BAI Entry";
+      baiSubtitleEl.textContent = "Update this BAI entry.";
+      btnSubmitBai.textContent  = "Save Changes";
+      const found = baiStore.find(x => baiKeyFor(x) === keyOrNull);
+      if (!found) { alert("Could not find selected entry."); return; }
+      baiEditingKey = keyOrNull;
+      baDateApplied.value   = baiInputFromMmddyyyy(found.dateApplied)   || new Date().toISOString().slice(0,10);
+      baContract.value      = found.contract      || "";
+      baAmount.value        = (Number(found.amount)||0).toFixed(2);
+      baDateCompleted.value = baiInputFromMmddyyyy(found.dateCompleted) || "";
+      baStatus.value        = found.status || "Pending";
+    }
+    baiOverlay.classList.add("is-open");
+    baiModal.classList.add("is-open");
+    setTimeout(() => baContract.focus(), 0);
+  }
+
+  function closeBaiModal() {
+    baiOverlay?.classList.remove("is-open");
+    baiModal?.classList.remove("is-open");
+    baiMode = "add"; baiEditingKey = null;
+  }
+
+  btnCloseBai?.addEventListener("click",  closeBaiModal);
+  btnCancelBai?.addEventListener("click", closeBaiModal);
+  baiOverlay?.addEventListener("click",   closeBaiModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && baiModal?.classList.contains("is-open")) closeBaiModal();
+  });
+
+  btnBaiAdd?.addEventListener("click",  () => openBaiModal("add"));
+  btnBaiEdit?.addEventListener("click", () => {
+    if (!baiSelectedKey) return alert("Please select a row first.");
+    openBaiModal("edit", baiSelectedKey);
+  });
+
+  baiForm?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const contractNo    = (baContract.value||"").trim();
+    if (!contractNo) return alert("Contract # is required.");
+    const dateCompleted = baiMmddyyyyFromInput(baDateCompleted.value) || "";
+    const entry = {
+      dateApplied:   baiMmddyyyyFromInput(baDateApplied.value) || "",
+      contract:      contractNo,
+      amount:        Number(baAmount.value) || 0,
+      dateCompleted,
+      status:        baiComputeStatus(dateCompleted),
+    };
+    if (baiMode === "add") {
+      ensureBaiId(entry);
+      DB.saveBai(entry).then(saved => { if (saved) { entry.id = saved.id; renderBaiTable(); } });
+      baiStore.push(entry);
+    } else {
+      const idx = baiStore.findIndex(x => baiKeyFor(x) === baiEditingKey);
+      if (idx < 0) return alert("Could not find entry to update.");
+      entry.id  = baiStore[idx].id;
+      entry._id = baiStore[idx]._id;
+      baiStore[idx] = entry;
+      DB.saveBai(entry);
+    }
+    closeBaiModal();
+    renderBaiTable();
+  });
+
+  btnBaiDel?.addEventListener("click", () => {
+    if (!baiSelectedKey) return alert("Please select a row first.");
+    if (!confirm("Delete the selected BAI entry?")) return;
+    const row = baiStore.find(x => baiKeyFor(x) === baiSelectedKey);
+    if (row?.id) DB.deleteBai(row.id);
+    baiStore = baiStore.filter(x => baiKeyFor(x) !== baiSelectedKey);
+    baiSelectedKey = null;
+    renderBaiTable();
+  });
+
+  btnBaiRefresh?.addEventListener("click", () => {
+    DB.getBai().then(rows => { baiStore = rows; renderBaiTable(); });
+  });
+
+  btnBaiExport?.addEventListener("click", () => {
+    if (!baiStore.length) return alert("No BAI entries to export.");
+    const headers = ["Date Applied","Contract #","Amount","Date Completed","Status"];
+    const rows = baiStore.map(r => [r.dateApplied, r.contract, r.amount, r.dateCompleted, r.status]);
+    let csv = headers.join(",") + "\n";
+    rows.forEach(row => { csv += row.map(v => `"${String(v||"").replace(/"/g,'""')}"`).join(",") + "\n"; });
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a"); a.href=url; a.download=`MagallanesBai_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  });
+
+  DB.getBai().then(rows => { baiStore = rows; renderBaiTable(); });
+
+
+  // ---------------------------
   // Settings Tab Logic (v115)
   // ---------------------------
   const SETTINGS_STORE_KEY = "mf_settings_store";
@@ -5924,6 +6201,7 @@ html += `</tr>`;
         DB.deleteAllBankExpense?.(),
         DB.deleteAllPnbDeposit?.(),
         DB.deleteAllDswd?.(),
+        DB.deleteAllBai?.(),
         DB.deleteAllSettings?.(),
       ]);
 
@@ -6127,9 +6405,12 @@ const reportDatePicker = $("#reportDatePicker");
     const bankRows = (bankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     // Also include PNB deposit entries for the day — cash collected was deposited to bank
     const pnbRows = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
-    const bankIn = bankRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    // BAI completed entries — appear in Bank Received on their Date Completed
+    const baiBankRows = (baiStore||[]).filter(r => r.status === "Completed" && drParseYmd(r.dateCompleted) === selectedYmd);
+    const bankIn    = bankRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
     const pnbBankIn = pnbRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    const totalBankReceived = bankBF + bankIn + pnbBankIn;
+    const baiBankIn = baiBankRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const totalBankReceived = bankBF + bankIn + pnbBankIn + baiBankIn;
 
     const bankBody = [
       ...bankRows.map(r=>`
@@ -6147,6 +6428,15 @@ const reportDatePicker = $("#reportDatePicker");
           <td>PNB Deposit</td>
           <td></td>
           <td>Cash deposit to PNB</td>
+          <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
+        </tr>
+      `),
+      ...baiBankRows.map(r=>`
+        <tr>
+          <td>${escapeHtml(r.contract||"")}</td>
+          <td>BAI</td>
+          <td></td>
+          <td>BAI Assistance — Completed</td>
           <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
         </tr>
       `)
@@ -6437,6 +6727,7 @@ const reportDatePicker = $("#reportDatePicker");
       { el: bankExpTable,          clearFn: () => { bankExpSelectedKey = null; Array.from(bankExpTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected")); if(bankExpSelectedEl) bankExpSelectedEl.textContent="Selected: —"; } },
       { el: pnbTable,              clearFn: () => { selectPnbKey(null); } },
       { el: dswdTable,             clearFn: () => { dswdSelectedKey = null; Array.from(dswdTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected")); if(dswdSelectedEl) dswdSelectedEl.textContent="Selected: —"; } },
+      { el: baiTable,              clearFn: () => { baiSelectedKey  = null; Array.from(baiTable?.tBodies[0]?.rows||[]).forEach(r=>r.classList.remove("is-selected")); if(baiSelectedEl)  baiSelectedEl.textContent ="Selected: —"; } },
     ];
     for (const { el, clearFn } of tables) {
       if (!el) continue;

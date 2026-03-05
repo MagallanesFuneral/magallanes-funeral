@@ -313,6 +313,7 @@
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankExpense">Bank Expense</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Deposit</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="dswd">DSWD</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="bai">BAI</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
   </nav>
 
@@ -733,6 +734,64 @@
   </div>
 </div>
 
+
+<div class="subpanel" id="subpanel-bai" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>BAI</h3>
+      <span class="hint">BAI assistance tracker — reduces customer balance but is not counted as payment until completed.</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="baiRowCount">Rows: 0</span>
+      <span class="kpi" id="baiSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="BAI actions">
+    <button class="btn" id="btnBaiAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnBaiEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnBaiDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnBaiExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnBaiRefresh">Refresh</button>
+  </div>
+
+  <div class="filter-row" id="baiFilterRow" aria-label="BAI filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="baiFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date Applied</option>
+          <option value="contract">Contract #</option>
+          <option value="status">Status</option>
+        </select>
+      </label>
+      <div id="baiFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnBaiApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnBaiClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="baiTable" aria-label="BAI table">
+        <thead>
+          <tr>
+            <th>Date Applied</th>
+            <th>Contract #</th>
+            <th class="num">Amount</th>
+            <th>Date Completed</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="subpanel" id="subpanel-settings" role="tabpanel">
   <div class="panel-toolbar">
     <div class="toolbar-left">
@@ -926,6 +985,46 @@
     <div class="modal-footer" style="justify-content:flex-end; padding:12px 16px; border-top:1px solid var(--border,#333);">
       <button type="button" class="btn" id="btnGeneratePaymentReport">📄 Generate Report</button>
     </div>
+  </div>
+
+  <!-- BAI Modal -->
+  <div class="overlay" id="baiOverlay" aria-hidden="true"></div>
+  <div class="modal" id="baiModal" role="dialog" aria-modal="true" aria-labelledby="baiTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="baiTitle">Add BAI Entry</div>
+        <div class="modal-subtitle" id="baiSubtitle">Enter Contract # — status is auto-set based on Date Completed.</div>
+      </div>
+      <button class="icon-btn" id="btnCloseBai" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="baiForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date Applied</span>
+          <input class="input" id="baDateApplied" type="date" required />
+        </label>
+        <label class="field">
+          <span>Contract #</span>
+          <input class="input" id="baContract" type="text" placeholder="e.g., MC-0105" required />
+        </label>
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="baAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+        <label class="field">
+          <span>Date Completed <small style="opacity:0.6;">(leave blank if pending)</small></span>
+          <input class="input" id="baDateCompleted" type="date" />
+        </label>
+        <label class="field">
+          <span>Status</span>
+          <input class="input" id="baStatus" type="text" readonly style="opacity:0.75;" value="Pending" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelBai">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitBai">Add Entry</button>
+      </div>
+    </form>
   </div>
 
   <!-- DSWD Modal -->

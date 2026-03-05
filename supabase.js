@@ -19,6 +19,7 @@ const TABLE = {
   bankExpense:  "bank_expense",
   pnbDeposit:   "pnb_deposit",
   dswd:         "dswd",
+  bai:          "bai",
   settings:     "settings",
 };
 
@@ -104,6 +105,27 @@ function pnbToDb(r) {
 }
 function pnbFromDb(r) {
   return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
+}
+
+function baiToDb(r) {
+  return {
+    id: r.id || undefined,
+    date_applied:    r.dateApplied    || null,
+    contract:        r.contract       || null,
+    amount:          Number(r.amount) || 0,
+    date_completed:  r.dateCompleted  || null,
+    status:          r.status         || "Pending",
+  };
+}
+function baiFromDb(r) {
+  return {
+    id:            r.id,
+    dateApplied:   r.date_applied   || "",
+    contract:      r.contract       || "",
+    amount:        Number(r.amount) || 0,
+    dateCompleted: r.date_completed || "",
+    status:        r.status         || "Pending",
+  };
 }
 
 function dswdToDb(r) {
@@ -203,6 +225,11 @@ window.DB = {
   async saveDswd(r)             { return dbUpsert(TABLE.dswd, r, dswdToDb); },
   async deleteDswd(id)          { return dbDelete(TABLE.dswd, id); },
 
+  // BAI
+  async getBai()                { return dbGetAll(TABLE.bai, baiFromDb); },
+  async saveBai(r)              { return dbUpsert(TABLE.bai, r, baiToDb); },
+  async deleteBai(id)           { return dbDelete(TABLE.bai, id); },
+
   // Settings (shared — single row, no user_id filter needed with RLS)
   async getSettings() {
     const { data, error } = await _sb.from(TABLE.settings).select("*").limit(1).maybeSingle();
@@ -234,6 +261,7 @@ window.DB = {
   async deleteAllBankExpense()  { const { error } = await _sb.from(TABLE.bankExpense).delete().gte("id", "00000000-0000-0000-0000-000000000000");  if (error) throw error; },
   async deleteAllPnbDeposit()   { const { error } = await _sb.from(TABLE.pnbDeposit).delete().gte("id", "00000000-0000-0000-0000-000000000000");   if (error) throw error; },
   async deleteAllDswd()         { const { error } = await _sb.from(TABLE.dswd).delete().gte("id", "00000000-0000-0000-0000-000000000000");          if (error) throw error; },
+  async deleteAllBai()          { const { error } = await _sb.from(TABLE.bai).delete().gte("id", "00000000-0000-0000-0000-000000000000");           if (error) throw error; },
   async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().gte("id", "00000000-0000-0000-0000-000000000000");     if (error) throw error; },
 };
 
