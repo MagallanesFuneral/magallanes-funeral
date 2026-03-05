@@ -214,6 +214,18 @@ body{
   max-height: calc(20 * 36px + 40px); /* ~20 data rows + header */
   overflow: auto;
 }
+
+/* Top mirror scrollbar for contracts table */
+.top-scroll-bar {
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 12px;
+  margin-bottom: 2px;
+}
+.top-scroll-bar::-webkit-scrollbar { height: 8px; }
+.top-scroll-bar::-webkit-scrollbar-thumb { background: var(--line2, #555); border-radius: 4px; }
+.top-scroll-bar::-webkit-scrollbar-track { background: transparent; }
+.top-scroll-inner { height: 1px; } /* width set by JS to match table */
 .grid{
   width: 100%;
   border-collapse: collapse;

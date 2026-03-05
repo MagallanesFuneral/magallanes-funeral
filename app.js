@@ -338,6 +338,30 @@ function escapeHtml(value){
   const btnImport = $("#btnImportExcel");
   const btnExport = $("#btnExportExcel");
   const btnRefresh = $("#btnRefresh");
+
+  // ── Top scrollbar mirror for contracts table ──
+  const contractsGridWrap    = $("#contractsGridWrap");
+  const contractsTopScroll   = $("#contractsTopScroll");
+  const contractsTopInner    = $("#contractsTopScrollInner");
+
+  function syncTopScrollWidth() {
+    if (contractsTopInner && table) {
+      contractsTopInner.style.width = table.offsetWidth + "px";
+    }
+  }
+
+  if (contractsGridWrap && contractsTopScroll) {
+    // Sync scroll positions both ways
+    contractsTopScroll.addEventListener("scroll", () => {
+      contractsGridWrap.scrollLeft = contractsTopScroll.scrollLeft;
+    });
+    contractsGridWrap.addEventListener("scroll", () => {
+      contractsTopScroll.scrollLeft = contractsGridWrap.scrollLeft;
+    });
+    // Update inner width on render and resize
+    new ResizeObserver(syncTopScrollWidth).observe(table);
+    syncTopScrollWidth();
+  }
   const btnSaveData = $("#btnSaveData");
   const btnLoadData = $("#btnLoadData");
   const fileLoadJson = $("#fileLoadJson");
@@ -697,6 +721,7 @@ function fmtMoney(n) {
     }
 
     rowCountEl.textContent = `Rows: ${visibleDataCount}`;
+    syncTopScrollWidth();
   }
 
   function selectByContract(contractNo) {
