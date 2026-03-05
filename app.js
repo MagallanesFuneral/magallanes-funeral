@@ -736,6 +736,8 @@ function fmtMoney(n) {
 
     rowCountEl.textContent = `Rows: ${visibleDataCount}`;
     syncTopScrollWidth();
+    // Re-render DSWD table so live Balance column stays current
+    if (typeof renderDswdTable === "function") try { renderDswdTable(); } catch(e) {}
   }
 
   function selectByContract(contractNo) {
@@ -5420,6 +5422,11 @@ html += `</tr>`;
       tbody.appendChild(tr);
     } else {
       filtered.forEach(r => {
+        // Live balance — look up current Remaining from Contracts Tab
+        const contractKey = normalizeText(r.contract || "");
+        const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
+        const liveBalance = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
+
         const tr = document.createElement("tr");
         tr.dataset.rowType = "data";
         tr.dataset.id = dswdKeyFor(r);
@@ -5432,7 +5439,7 @@ html += `</tr>`;
           <td>${r.deceased||""}</td>
           <td class="num">${fmtNum(r.contractAmt)}</td>
           <td class="num">${fmtNum(r.payment)}</td>
-          <td class="num">${fmtNum(r.balance)}</td>
+          <td class="num">${fmtNum(liveBalance)}</td>
           <td class="num">${fmtNum(r.dswdRefund)}</td>
           <td class="num">${fmtNum(r.afterTax)}</td>
           <td>${r.dateReceived||""}</td>
