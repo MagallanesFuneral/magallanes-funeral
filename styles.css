@@ -16,11 +16,12 @@
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-html,body{ height: 100%; }
+html,body{ height: auto; min-height: 100%; }
 body{
   margin:0;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   background:
@@ -94,7 +95,7 @@ body{
   margin: 0;
   padding: 14px 18px 14px;
   flex: 1;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -141,7 +142,7 @@ body{
   border-radius: var(--radius);
   background: color-mix(in oklab, var(--panel) 94%, transparent);
   box-shadow: var(--shadow);
-  overflow:hidden;
+  overflow: visible;
 }
 .panel.is-active{ display:flex; flex-direction: column; }
 
@@ -209,8 +210,8 @@ body{
 .input::placeholder{ color: color-mix(in oklab, var(--muted) 85%, transparent); }
 
 .grid-wrap{
-  flex: 1;
   min-height: 0;
+  max-height: calc(20 * 36px + 40px); /* ~20 data rows + header */
   overflow: auto;
 }
 .grid{
@@ -507,7 +508,7 @@ body{
   border-color: color-mix(in oklab, var(--accent) 55%, var(--line2));
   background: color-mix(in oklab, var(--accent) 16%, var(--panel));
 }
-.subpanel{ display:none; flex: 1; min-height: 0; overflow:auto; }
+.subpanel{ display:none; flex: 1; min-height: 0; overflow: visible; }
 .subpanel.is-active{ display:flex; flex-direction: column; }
 
 /* Header toggles */
@@ -597,7 +598,7 @@ html.glass-on .modal{
 
 /* Subpanel grid layout */
 .subpanel .actions-row{ border-bottom: 1px solid var(--line); }
-.subpanel .grid-wrap{ flex: 1; min-height: 0; }
+.subpanel .grid-wrap{ flex: none; }
 
 
 /* Contracts: center column headers */
