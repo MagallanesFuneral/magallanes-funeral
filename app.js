@@ -2509,6 +2509,8 @@ html += `</tr>`;
     cashSelectedKey = null;
     cashSelectedEl.textContent = "Selected: —";
     cashRowCountEl.textContent = `Rows: ${rows.length}`;
+    // Keep BAI monthly totals in sync when Cash Received changes
+    if (typeof renderBaiTable === "function") try { renderBaiTable(); } catch(e) {}
   }
 
   function selectCashKey(key) {
@@ -5800,22 +5802,91 @@ html += `</tr>`;
       tr.innerHTML = `<td colspan="5" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
       tbody.appendChild(tr);
     } else {
+      // ── Group by month using dateApplied ──
+      const groups = new Map();
+      const keyOrder = [];
       filtered.forEach(r => {
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = "data";
-        tr.dataset.id = baiKeyFor(r);
-        if (baiKeyFor(r) === baiSelectedKey) tr.classList.add("is-selected");
-        if (r.status === "Completed") tr.classList.add("dswd-processed"); // reuse green class
-        tr.innerHTML = `
-          <td>${r.dateApplied||""}</td>
-          <td>${r.contract||""}</td>
-          <td class="num">${fmtNum(r.amount)}</td>
-          <td>${r.dateCompleted||""}</td>
-          <td>${r.status||"Pending"}</td>
+        const key = monthKeyFromDate(r.dateApplied || "");
+        if (!groups.has(key)) { groups.set(key, []); keyOrder.push(key); }
+        groups.get(key).push(r);
+      });
+      keyOrder.sort();
+
+      // ── Pre-compute Cash Received BAI totals by month ──
+      // cashStore entries where particular maps to "bai" bucket
+      const cashBaiByMonth = new Map();
+      for (const r of (cashStore || [])) {
+        const p = normalizeText(r.particular || "");
+        const isBai = /\bbai\b/.test(p) || /\bbank\b/.test(p) || p.includes("bank received") || p.includes("deposit bank");
+        if (!isBai) continue;
+        const key = monthKeyFromDate(r.date || "");
+        cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
+      }
+
+      // ── Render each month group ──
+      keyOrder.forEach(key => {
+        const rows = groups.get(key);
+
+        // Month header row
+        const thdr = document.createElement("tr");
+        thdr.dataset.rowType = "monthHeader";
+        thdr.innerHTML = `<td colspan="5" style="padding:6px 10px;font-weight:900;opacity:0.7;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line2);">${monthLabelFromKey(key)}</td>`;
+        tbody.appendChild(thdr);
+
+        // Data rows
+        let monthTotal = 0;
+        rows.forEach(r => {
+          monthTotal += Number(r.amount) || 0;
+          const tr = document.createElement("tr");
+          tr.dataset.rowType = "data";
+          tr.dataset.id = baiKeyFor(r);
+          if (baiKeyFor(r) === baiSelectedKey) tr.classList.add("is-selected");
+          if (r.status === "Completed") tr.classList.add("dswd-processed");
+          tr.innerHTML = `
+            <td>${r.dateApplied||""}</td>
+            <td>${r.contract||""}</td>
+            <td class="num">${fmtNum(r.amount)}</td>
+            <td>${r.dateCompleted||""}</td>
+            <td>${r.status||"Pending"}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Monthly Total row
+        const tTotal = document.createElement("tr");
+        tTotal.dataset.rowType = "monthTotal";
+        tTotal.innerHTML = `
+          <td colspan="2" style="font-weight:700;padding:5px 10px;border-top:1px solid var(--line2);">Total</td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(monthTotal)}</td>
+          <td colspan="2" style="border-top:1px solid var(--line2);"></td>
         `;
-        tbody.appendChild(tr);
+        tbody.appendChild(tTotal);
+
+        // Total BAI Collected row (from Cash Received)
+        const cashBaiTotal = cashBaiByMonth.get(key) || 0;
+        const tCollected = document.createElement("tr");
+        tCollected.dataset.rowType = "baiCollected";
+        tCollected.innerHTML = `
+          <td colspan="2" style="padding:4px 10px;opacity:0.75;font-style:italic;">Total BAI Collected</td>
+          <td class="num" style="opacity:0.75;font-style:italic;">${fmtNum(cashBaiTotal)}</td>
+          <td colspan="2"></td>
+        `;
+        tbody.appendChild(tCollected);
+
+        // Balance row
+        const balance = monthTotal - cashBaiTotal;
+        const balanceColor = balance > 0 ? "color:var(--danger,#e55);" : balance < 0 ? "color:var(--accent,#4c8);" : "";
+        const tBalance = document.createElement("tr");
+        tBalance.dataset.rowType = "baiBalance";
+        tBalance.innerHTML = `
+          <td colspan="2" style="font-weight:700;padding:4px 10px 10px;${balanceColor}">Balance</td>
+          <td class="num" style="font-weight:700;${balanceColor}">${fmtNum(balance)}</td>
+          <td colspan="2" style="padding-bottom:10px;"></td>
+        `;
+        tbody.appendChild(tBalance);
       });
     }
+
     if (baiRowCountEl) baiRowCountEl.textContent = `Rows: ${filtered.length}`;
     if (baiSelectedEl) baiSelectedEl.textContent = baiSelectedKey ? `Selected: ${baiSelectedKey}` : "Selected: —";
     syncBaiToContracts();
