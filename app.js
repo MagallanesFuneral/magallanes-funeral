@@ -471,7 +471,7 @@ function fmtMoney(n) {
   function calcComputed(c) {
     // totalPaid = only actual customer cash payments
     const totalPaid    = Math.max(0,
-      (Number(c.inhaus)||0) + (Number(c.gl)||0) +
+      (Number(c.inhaus)||0) +
       (Number(c.gcash)||0)  + (Number(c.cash)||0)
     );
     // These reduce remaining balance but are NOT customer payments
@@ -488,7 +488,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "monthHeader";
     tr.classList.add("group-row");
     const td = document.createElement("td");
-    td.colSpan = 17;
+    td.colSpan = 16;
     td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
     tr.appendChild(td);
     return tr;
@@ -499,7 +499,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "spacer";
     tr.classList.add("spacer-row");
     const td = document.createElement("td");
-    td.colSpan = 17;
+    td.colSpan = 16;
     tr.appendChild(td);
     return tr;
   }
@@ -526,7 +526,6 @@ function fmtMoney(n) {
 
     tr.appendChild(tdNum(totals.amount));
     tr.appendChild(tdNum(totals.inhaus));
-    tr.appendChild(tdNum(totals.gl));
     tr.appendChild(tdNum(totals.gcash));
     tr.appendChild(tdNum(totals.cash));
     tr.appendChild(tdNum(totals.dswdAfterTax || 0));
@@ -559,7 +558,6 @@ function fmtMoney(n) {
 
       { text: fmtMoney(c.amount),                     num: true },
       { text: fmtMoney(c.inhaus),                     num: true },
-      { text: fmtMoney(c.gl),                         num: true },
       { text: fmtMoney(c.gcash),                      num: true },
       { text: fmtMoney(c.cash),                       num: true },
       { text: fmtMoney(c.dswdAfterTax || 0),          num: true, computed: true },
@@ -579,7 +577,7 @@ function fmtMoney(n) {
       if (cell.computed) td.classList.add("computed");
 
       const dataCol = ["","","","","",
-        "amount","inhaus","gl","gcash","cash",
+        "amount","inhaus","gcash","cash",
         "dswdAfterTax","discount","dswdDiscount","baiAssist",
         "totalPaid","lastPayment","remaining"][idx];
       if (dataCol) td.setAttribute("data-col", dataCol);
@@ -683,7 +681,7 @@ function fmtMoney(n) {
     selectedContractNo = null;
     selectedEl.textContent = "Selected: —";
 
-    const grand = { amount:0, inhaus:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let visibleDataCount = 0;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -693,7 +691,7 @@ function fmtMoney(n) {
 
       table.tBodies[0].appendChild(createGroupRow(monthLabelFromKey(key)));
 
-      const totals = { amount:0, inhaus:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const totals = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const tr = createDataRow(c);
@@ -703,7 +701,6 @@ function fmtMoney(n) {
         const computed = calcComputed(c);
         totals.amount      += c.amount      || 0;
         totals.inhaus      += c.inhaus      || 0;
-        totals.gl          += c.gl          || 0;
         totals.gcash       += c.gcash       || 0;
         totals.cash        += c.cash        || 0;
         totals.dswdAfterTax+= c.dswdAfterTax|| 0;
@@ -722,7 +719,6 @@ function fmtMoney(n) {
 
       grand.amount       += totals.amount;
       grand.inhaus       += totals.inhaus;
-      grand.gl           += totals.gl;
       grand.gcash        += totals.gcash;
       grand.cash         += totals.cash;
       grand.dswdAfterTax += totals.dswdAfterTax;
@@ -1955,15 +1951,13 @@ html += `</tr>`;
     DB.getContracts(),
     DB.getDswd(),
     DB.getBai(),
-  ]).then(([contracts, dswd, bai]) => {
+    DB.getBankReceived(),
+  ]).then(([contracts, dswd, bai, bank]) => {
     contractsStore = contracts;
     dswdStore      = dswd;
     baiStore       = bai;
-    // Sync assisted-payment amounts into contracts before first render
-    // (guards reset in case prior run set them)
-    _syncingDswd = false;
-    _syncingBai  = false;
-    // Write dswdAfterTax, dswdDiscount, baiAssist directly onto contractsStore
+    bankStore      = bank;
+    // Write all assisted/linked payment amounts directly onto contractsStore before render
     for (const c of contractsStore) {
       const key = normalizeText(c.contract || "");
       // DSWD
@@ -1979,14 +1973,17 @@ html += `</tr>`;
       // BAI
       let baiAssist = 0;
       for (const r of baiStore) {
-        if (normalizeText(r.contract || "") === key) {
-          baiAssist += Number(r.amount) || 0;
-        }
+        if (normalizeText(r.contract || "") === key) baiAssist += Number(r.amount) || 0;
       }
       c.baiAssist = baiAssist;
+      // GCASH/BANK TRANSFER from Bank Received
+      let gcash = 0;
+      for (const r of bankStore) {
+        if (normalizeText(r.contract || "") === key) gcash += Number(r.amount) || 0;
+      }
+      c.gcash = gcash;
     }
     renderContracts();
-    // Render sub-tab tables (defined later in file, use setTimeout to ensure they exist)
     setTimeout(() => {
       if (typeof renderDswdTable === "function") renderDswdTable();
       if (typeof renderBaiTable  === "function") renderBaiTable();
@@ -2218,7 +2215,27 @@ html += `</tr>`;
     }
   }
 
-  // ---------- Render Cash table with Monthly Grouping ----------
+  // ── Sync Bank Received (GCASH + BANK TRANSFER) → Contracts c.gcash ──
+  let _syncingBank = false;
+  function syncBankReceivedToContracts() {
+    if (_syncingBank || !Array.isArray(contractsStore)) return;
+    _syncingBank = true;
+    const gcashByContract = new Map();
+    for (const r of (bankStore || [])) {
+      const key = normalizeText(r.contract || "");
+      if (!key) continue;
+      // Include ALL bank received entries (GCASH and BANK TRANSFER)
+      gcashByContract.set(key, (gcashByContract.get(key) || 0) + (Number(r.amount) || 0));
+    }
+    let changed = false;
+    for (const c of contractsStore) {
+      const key = normalizeText(c.contract || "");
+      const newVal = gcashByContract.get(key) || 0;
+      if ((Number(c.gcash) || 0) !== newVal) { c.gcash = newVal; changed = true; }
+    }
+    _syncingBank = false;
+    if (changed) renderContracts();
+  }
   function cashGroupColumnsRow() {
     const tr = document.createElement("tr");
     tr.classList.add("cashGroupCols");
@@ -3850,6 +3867,8 @@ html += `</tr>`;
     bankSelectedKey = null;
     bankSelectedEl.textContent = "Selected: —";
     bankRowCountEl.textContent = `Rows: ${rows.length}`;
+    // Sync GCASH/BANK TRANSFER totals into Contracts tab
+    if (typeof syncBankReceivedToContracts === "function") syncBankReceivedToContracts();
   }
 
   function selectBankKey(key) {
@@ -4144,11 +4163,6 @@ html += `</tr>`;
   }
 
   // Load bank received from Supabase
-  DB.getBankReceived().then(rows => {
-    bankStore = rows;
-    renderBankTable();
-  });
-
   renderBankTable();
 
 
