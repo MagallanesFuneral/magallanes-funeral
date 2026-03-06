@@ -1951,9 +1951,46 @@ html += `</tr>`;
   }
 
   // Load contracts from Supabase
-  DB.getContracts().then(rows => {
-    contractsStore = rows;
+  Promise.all([
+    DB.getContracts(),
+    DB.getDswd(),
+    DB.getBai(),
+  ]).then(([contracts, dswd, bai]) => {
+    contractsStore = contracts;
+    dswdStore      = dswd;
+    baiStore       = bai;
+    // Sync assisted-payment amounts into contracts before first render
+    // (guards reset in case prior run set them)
+    _syncingDswd = false;
+    _syncingBai  = false;
+    // Write dswdAfterTax, dswdDiscount, baiAssist directly onto contractsStore
+    for (const c of contractsStore) {
+      const key = normalizeText(c.contract || "");
+      // DSWD
+      let dswdAfterTax = 0, dswdDiscount = 0;
+      for (const r of dswdStore) {
+        if (normalizeText(r.contract || "") === key) {
+          dswdAfterTax += Number(r.afterTax)    || 0;
+          dswdDiscount += Number(r.dswdDiscount) || 0;
+        }
+      }
+      c.dswdAfterTax = dswdAfterTax;
+      c.dswdDiscount = dswdDiscount;
+      // BAI
+      let baiAssist = 0;
+      for (const r of baiStore) {
+        if (normalizeText(r.contract || "") === key) {
+          baiAssist += Number(r.amount) || 0;
+        }
+      }
+      c.baiAssist = baiAssist;
+    }
     renderContracts();
+    // Render sub-tab tables (defined later in file, use setTimeout to ensure they exist)
+    setTimeout(() => {
+      if (typeof renderDswdTable === "function") renderDswdTable();
+      if (typeof renderBaiTable  === "function") renderBaiTable();
+    }, 0);
   });
 
   // ---------------------------
@@ -5669,10 +5706,6 @@ html += `</tr>`;
     URL.revokeObjectURL(url);
   });
 
-  // ── Load from Supabase ──
-  DB.getDswd().then(rows => { dswdStore = rows; renderDswdTable(); syncDswdToContracts(); });
-
-
   // ---------------------------
   // BAI Tab Logic
   // ---------------------------
@@ -6014,8 +6047,6 @@ html += `</tr>`;
     const a    = document.createElement("a"); a.href=url; a.download=`MagallanesBai_${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   });
-
-  DB.getBai().then(rows => { baiStore = rows; renderBaiTable(); });
 
 
   // ---------------------------
