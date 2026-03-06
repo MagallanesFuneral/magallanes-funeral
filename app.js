@@ -2347,12 +2347,12 @@ html += `</tr>`;
     for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
     const tdLabel = document.createElement("td");
     tdLabel.textContent = label;
-    tdLabel.style.cssText = "padding-left:18px;opacity:0.8;font-size:0.88em;font-style:italic;";
+    tdLabel.style.cssText = "padding-left:18px;font-size:0.88em;font-style:italic;";
     tr.appendChild(tdLabel);
     const tdAmt = document.createElement("td");
     tdAmt.classList.add("num");
     tdAmt.textContent = fmtMoney(amount);
-    tdAmt.style.cssText = "opacity:0.8;font-size:0.88em;font-style:italic;";
+    tdAmt.style.cssText = "font-size:0.88em;font-style:italic;";
     tr.appendChild(tdAmt);
     return tr;
   }

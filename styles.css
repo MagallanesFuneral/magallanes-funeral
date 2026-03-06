@@ -705,6 +705,10 @@ html.glass-on .modal{
   text-align: center;
   letter-spacing: .12em;
 }
+#cashReceivedTable tbody tr.cashParticularRow td{
+  background: color-mix(in oklab, var(--warning, #f5a623) 13%, transparent);
+  border-top: 1px solid var(--line2);
+}
 #cashReceivedTable tbody tr.cashGrandTotal td{
   font-weight: 950;
   background: color-mix(in oklab, var(--danger) 18%, transparent);
