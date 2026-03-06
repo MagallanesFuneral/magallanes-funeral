@@ -452,6 +452,9 @@ function fmtMoney(n) {
    *  discount:number, lastPayment:string
    * }>} */
   let contractsStore = [];
+  let bankStore      = [];  // declared early for Promise.all cross-section access
+  let dswdStore      = [];  // declared early for Promise.all cross-section access
+  let baiStore       = [];  // declared early for Promise.all cross-section access
 
   function saveStore() {
     // No-op: individual saves happen via DB.saveContract() per operation
@@ -3564,7 +3567,7 @@ html += `</tr>`;
   const BANK_STORE_KEY = "mf_bank_received_store_v35";
 
   /** @type {Array<{date:string, contract:string, type:string, client:string, amount:number, _id?:string}>} */
-  let bankStore = [];
+  // bankStore declared early above for cross-section Promise.all access
   let bankSelectedKey = null;
   let bankMode = "add";
   let bankEditingKey = null;
@@ -4163,7 +4166,10 @@ html += `</tr>`;
   }
 
   // Load bank received from Supabase
-  renderBankTable();
+  DB.getBankReceived().then(rows => {
+    bankStore = rows;
+    renderBankTable();
+  });
 
 
   // ---------------------------
@@ -5360,7 +5366,7 @@ html += `</tr>`;
   const dwDswdDiscount = $("#dwDswdDiscount");
   const dwStatus       = $("#dwStatus");
 
-  let dswdStore = [];
+  // dswdStore declared early above for cross-section Promise.all access
   let dswdSelectedKey = null;
   let dswdMode = "add";
   let dswdEditingKey = null;
@@ -5745,7 +5751,7 @@ html += `</tr>`;
   const baDateCompleted = $("#baDateCompleted");
   const baStatus        = $("#baStatus");
 
-  let baiStore = [];
+  // baiStore declared early above for cross-section Promise.all access
   let baiSelectedKey = null;
   let baiMode = "add";
   let baiEditingKey = null;
@@ -5862,13 +5868,20 @@ html += `</tr>`;
       });
       keyOrder.sort();
 
-      // ── Pre-compute Cash Received BAI totals by month ──
-      // cashStore entries where particular maps to "bai" bucket
+      // ── Pre-compute BAI collected totals by month ──
+      // Source 1: Cash Received entries where particular maps to "bai" bucket
       const cashBaiByMonth = new Map();
       for (const r of (cashStore || [])) {
         const p = normalizeText(r.particular || "");
         const isBai = /\bbai\b/.test(p) || /\bbank\b/.test(p) || p.includes("bank received") || p.includes("deposit bank");
         if (!isBai) continue;
+        const key = monthKeyFromDate(r.date || "");
+        cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
+      }
+      // Source 2: Bank Received entries labelled "BAI"
+      for (const r of (bankStore || [])) {
+        const p = normalizeText(r.type || "");
+        if (!/\bbai\b/.test(p)) continue;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
