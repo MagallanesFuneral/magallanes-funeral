@@ -740,8 +740,6 @@ function fmtMoney(n) {
 
     rowCountEl.textContent = `Rows: ${visibleDataCount}`;
     syncTopScrollWidth();
-    // Re-render DSWD table so live Balance column stays current
-    if (typeof renderDswdTable === "function") try { renderDswdTable(); } catch(e) {}
   }
 
   function selectByContract(contractNo) {
@@ -5468,24 +5466,27 @@ html += `</tr>`;
   // ── Sync DSWD amounts into contracts ──
   // dswdAfterTax → "DSWD" column (reduces remaining, not totalPaid)
   // dswdDiscount → "DSWD Discount" column (also reduces remaining)
+  let _syncingDswd = false;
   function syncDswdToContracts() {
-    if (!Array.isArray(contractsStore)) return;
-    const afterTaxByContract  = new Map();
-    const discountByContract  = new Map();
+    if (_syncingDswd || !Array.isArray(contractsStore)) return;
+    _syncingDswd = true;
+    const afterTaxByContract = new Map();
+    const discountByContract = new Map();
     for (const r of dswdStore) {
       const key = normalizeText(r.contract || "");
       if (!key) continue;
-      afterTaxByContract.set(key,  (afterTaxByContract.get(key)  || 0) + (Number(r.afterTax)     || 0));
-      discountByContract.set(key,  (discountByContract.get(key)  || 0) + (Number(r.dswdDiscount)  || 0));
+      afterTaxByContract.set(key, (afterTaxByContract.get(key) || 0) + (Number(r.afterTax)    || 0));
+      discountByContract.set(key, (discountByContract.get(key) || 0) + (Number(r.dswdDiscount) || 0));
     }
     let changed = false;
     for (const c of contractsStore) {
       const key = normalizeText(c.contract || "");
-      const newAfterTax  = afterTaxByContract.get(key)  || 0;
-      const newDiscount  = discountByContract.get(key)  || 0;
-      if ((Number(c.dswdAfterTax)  || 0) !== newAfterTax)  { c.dswdAfterTax  = newAfterTax;  changed = true; }
-      if ((Number(c.dswdDiscount)  || 0) !== newDiscount)  { c.dswdDiscount  = newDiscount;  changed = true; }
+      const newAfterTax = afterTaxByContract.get(key) || 0;
+      const newDiscount = discountByContract.get(key) || 0;
+      if ((Number(c.dswdAfterTax) || 0) !== newAfterTax) { c.dswdAfterTax = newAfterTax; changed = true; }
+      if ((Number(c.dswdDiscount) || 0) !== newDiscount) { c.dswdDiscount = newDiscount; changed = true; }
     }
+    _syncingDswd = false;
     if (changed) renderContracts();
   }
 
@@ -5769,9 +5770,10 @@ html += `</tr>`;
   });
 
   // ── Sync BAI amounts into contracts (reduces remaining, NOT totalPaid) ──
+  let _syncingBai = false;
   function syncBaiToContracts() {
-    if (!Array.isArray(contractsStore)) return;
-    // Sum all BAI entries per contract regardless of status
+    if (_syncingBai || !Array.isArray(contractsStore)) return;
+    _syncingBai = true;
     const baiByContract = new Map();
     for (const r of baiStore) {
       const key = normalizeText(r.contract || "");
@@ -5787,6 +5789,7 @@ html += `</tr>`;
         changed = true;
       }
     }
+    _syncingBai = false;
     if (changed) renderContracts();
   }
 
