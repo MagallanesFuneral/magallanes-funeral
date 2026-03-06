@@ -471,8 +471,8 @@ function fmtMoney(n) {
   function calcComputed(c) {
     // totalPaid = only actual customer cash payments
     const totalPaid    = Math.max(0,
-      (Number(c.inhaus)||0) + (Number(c.bai)||0) +
-      (Number(c.gl)||0)     + (Number(c.gcash)||0) + (Number(c.cash)||0)
+      (Number(c.inhaus)||0) + (Number(c.gl)||0) +
+      (Number(c.gcash)||0)  + (Number(c.cash)||0)
     );
     // These reduce remaining balance but are NOT customer payments
     const baiAssist    = Number(c.baiAssist)    || 0;  // from BAI Tab
@@ -488,7 +488,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "monthHeader";
     tr.classList.add("group-row");
     const td = document.createElement("td");
-    td.colSpan = 18;
+    td.colSpan = 17;
     td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
     tr.appendChild(td);
     return tr;
@@ -499,7 +499,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "spacer";
     tr.classList.add("spacer-row");
     const td = document.createElement("td");
-    td.colSpan = 18;
+    td.colSpan = 17;
     tr.appendChild(td);
     return tr;
   }
@@ -526,7 +526,6 @@ function fmtMoney(n) {
 
     tr.appendChild(tdNum(totals.amount));
     tr.appendChild(tdNum(totals.inhaus));
-    tr.appendChild(tdNum(totals.bai));
     tr.appendChild(tdNum(totals.gl));
     tr.appendChild(tdNum(totals.gcash));
     tr.appendChild(tdNum(totals.cash));
@@ -560,7 +559,6 @@ function fmtMoney(n) {
 
       { text: fmtMoney(c.amount),                     num: true },
       { text: fmtMoney(c.inhaus),                     num: true },
-      { text: fmtMoney(c.bai),                        num: true },
       { text: fmtMoney(c.gl),                         num: true },
       { text: fmtMoney(c.gcash),                      num: true },
       { text: fmtMoney(c.cash),                       num: true },
@@ -581,7 +579,7 @@ function fmtMoney(n) {
       if (cell.computed) td.classList.add("computed");
 
       const dataCol = ["","","","","",
-        "amount","inhaus","bai","gl","gcash","cash",
+        "amount","inhaus","gl","gcash","cash",
         "dswdAfterTax","discount","dswdDiscount","baiAssist",
         "totalPaid","lastPayment","remaining"][idx];
       if (dataCol) td.setAttribute("data-col", dataCol);
@@ -685,7 +683,7 @@ function fmtMoney(n) {
     selectedContractNo = null;
     selectedEl.textContent = "Selected: —";
 
-    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, inhaus:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let visibleDataCount = 0;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -695,7 +693,7 @@ function fmtMoney(n) {
 
       table.tBodies[0].appendChild(createGroupRow(monthLabelFromKey(key)));
 
-      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const totals = { amount:0, inhaus:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const tr = createDataRow(c);
@@ -705,7 +703,6 @@ function fmtMoney(n) {
         const computed = calcComputed(c);
         totals.amount      += c.amount      || 0;
         totals.inhaus      += c.inhaus      || 0;
-        totals.bai         += c.bai         || 0;
         totals.gl          += c.gl          || 0;
         totals.gcash       += c.gcash       || 0;
         totals.cash        += c.cash        || 0;
@@ -725,7 +722,6 @@ function fmtMoney(n) {
 
       grand.amount       += totals.amount;
       grand.inhaus       += totals.inhaus;
-      grand.bai          += totals.bai;
       grand.gl           += totals.gl;
       grand.gcash        += totals.gcash;
       grand.cash         += totals.cash;
