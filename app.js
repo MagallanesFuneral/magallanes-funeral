@@ -469,13 +469,17 @@ function fmtMoney(n) {
   function normalizeText(s){ return String(s ?? "").toLowerCase().trim(); }
 
   function calcComputed(c) {
-    // totalPaid = cash payments only (BAI/DSWD assist are NOT counted as paid by customer)
-    const totalPaid    = Math.max(0, (c.inhaus + c.bai + c.gl + c.gcash + c.cash));
+    // totalPaid = only actual customer cash payments
+    const totalPaid    = Math.max(0,
+      (Number(c.inhaus)||0) + (Number(c.bai)||0) +
+      (Number(c.gl)||0)     + (Number(c.gcash)||0) + (Number(c.cash)||0)
+    );
     // These reduce remaining balance but are NOT customer payments
-    const baiAssist    = Number(c.baiAssist)    || 0;
-    const dswdAfterTax = Number(c.dswdAfterTax) || 0;
-    const dswdDiscount = Number(c.dswdDiscount) || 0;
-    const remaining    = (c.amount || 0) - totalPaid - (c.discount||0) - baiAssist - dswdAfterTax - dswdDiscount;
+    const baiAssist    = Number(c.baiAssist)    || 0;  // from BAI Tab
+    const dswdAfterTax = Number(c.dswdAfterTax) || 0;  // from DSWD Tab
+    const dswdDiscount = Number(c.dswdDiscount) || 0;  // from DSWD Tab
+    const discount     = Number(c.discount)     || 0;
+    const remaining    = (Number(c.amount) || 0) - totalPaid - discount - baiAssist - dswdAfterTax - dswdDiscount;
     return { totalPaid, remaining, baiAssist, dswdAfterTax, dswdDiscount };
   }
 
@@ -484,7 +488,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "monthHeader";
     tr.classList.add("group-row");
     const td = document.createElement("td");
-    td.colSpan = 15;
+    td.colSpan = 18;
     td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
     tr.appendChild(td);
     return tr;
@@ -495,7 +499,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "spacer";
     tr.classList.add("spacer-row");
     const td = document.createElement("td");
-    td.colSpan = 15;
+    td.colSpan = 18;
     tr.appendChild(td);
     return tr;
   }
