@@ -529,6 +529,7 @@ function fmtMoney(n) {
     tr.appendChild(tdNum(totals.dswdAfterTax || 0));
     tr.appendChild(tdNum(totals.discount));
     tr.appendChild(tdNum(totals.dswdDiscount || 0));
+    tr.appendChild(tdNum(totals.baiAssist || 0));
     tr.appendChild(tdNum(totals.totalPaid));
 
     const tdLP = document.createElement("td");
@@ -562,6 +563,7 @@ function fmtMoney(n) {
       { text: fmtMoney(c.dswdAfterTax || 0),          num: true, computed: true },
       { text: fmtMoney(c.discount),                   num: true },
       { text: fmtMoney(c.dswdDiscount || 0),          num: true, computed: true },
+      { text: fmtMoney(c.baiAssist || 0),             num: true, computed: true },
 
       { text: fmtMoney(totalPaid),                    num: true, computed: true },
       { text: c.lastPayment || "—" },
@@ -576,7 +578,7 @@ function fmtMoney(n) {
 
       const dataCol = ["","","","","",
         "amount","inhaus","bai","gl","gcash","cash",
-        "dswdAfterTax","discount","dswdDiscount",
+        "dswdAfterTax","discount","dswdDiscount","baiAssist",
         "totalPaid","lastPayment","remaining"][idx];
       if (dataCol) td.setAttribute("data-col", dataCol);
 
@@ -679,7 +681,7 @@ function fmtMoney(n) {
     selectedContractNo = null;
     selectedEl.textContent = "Selected: —";
 
-    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let visibleDataCount = 0;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -689,7 +691,7 @@ function fmtMoney(n) {
 
       table.tBodies[0].appendChild(createGroupRow(monthLabelFromKey(key)));
 
-      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, totalPaid:0, remaining:0 };
+      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const tr = createDataRow(c);
@@ -706,6 +708,7 @@ function fmtMoney(n) {
         totals.dswdAfterTax+= c.dswdAfterTax|| 0;
         totals.discount    += c.discount    || 0;
         totals.dswdDiscount+= c.dswdDiscount|| 0;
+        totals.baiAssist   += c.baiAssist   || 0;
         totals.totalPaid   += computed.totalPaid;
         totals.remaining   += computed.remaining;
       }
@@ -725,6 +728,7 @@ function fmtMoney(n) {
       grand.dswdAfterTax += totals.dswdAfterTax;
       grand.discount     += totals.discount;
       grand.dswdDiscount += totals.dswdDiscount;
+      grand.baiAssist    += totals.baiAssist;
       grand.totalPaid    += totals.totalPaid;
       grand.remaining    += totals.remaining;
     }
