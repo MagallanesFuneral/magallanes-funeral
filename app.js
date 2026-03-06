@@ -2311,6 +2311,52 @@ html += `</tr>`;
     return tr;
   }
 
+  // Returns an array of summary rows — one per particular category that has a non-zero total
+  function cashParticularBreakdownRows(grp) {
+    const sums = new Map();
+    const ORDER = ["INHAUS","BAI","GCASH","CASH"];
+    for (const r of grp) {
+      const p = normalizeText(r.particular || "");
+      let label;
+      if (/g[\s\-]?cash/.test(p) || p.includes("gcash"))                                         label = "GCASH";
+      else if (/in[\s\-]?house/.test(p) || p.includes("inhaus") || p.includes("inhouse"))        label = "INHAUS";
+      else if (/\bbai\b/.test(p) || /\bbank\b/.test(p) || p.includes("bank received") || p.includes("deposit bank")) label = "BAI";
+      else if (/\bgl\b/.test(p) || /\bg\/l\b/.test(p))                                           label = "GL";
+      else                                                                                          label = "CASH";
+      sums.set(label, (sums.get(label) || 0) + (Number(r.amount) || 0));
+    }
+    if (sums.size <= 1) return []; // no breakdown needed if only one category
+    const rows = [];
+    // Render in defined order first, then any extras
+    const rendered = new Set();
+    for (const label of ORDER) {
+      if (!sums.has(label)) continue;
+      rows.push(makeCashBreakdownRow(label, sums.get(label)));
+      rendered.add(label);
+    }
+    for (const [label, amt] of sums) {
+      if (!rendered.has(label)) rows.push(makeCashBreakdownRow(label, amt));
+    }
+    return rows;
+  }
+
+  function makeCashBreakdownRow(label, amount) {
+    const tr = document.createElement("tr");
+    tr.classList.add("cashParticularRow");
+    tr.dataset.rowType = "cashParticular";
+    for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = label;
+    tdLabel.style.cssText = "padding-left:18px;opacity:0.8;font-size:0.88em;font-style:italic;";
+    tr.appendChild(tdLabel);
+    const tdAmt = document.createElement("td");
+    tdAmt.classList.add("num");
+    tdAmt.textContent = fmtMoney(amount);
+    tdAmt.style.cssText = "opacity:0.8;font-size:0.88em;font-style:italic;";
+    tr.appendChild(tdAmt);
+    return tr;
+  }
+
 
   // ---------- Cash Received Filters ----------
   const cashFilterCategory = $("#cashFilterCategory");
@@ -2547,6 +2593,11 @@ html += `</tr>`;
         cashTable.tBodies[0].appendChild(tr);
 
         monthTotal += Number(r.amount) || 0;
+      }
+
+      // Per-particular category breakdown rows
+      for (const row of cashParticularBreakdownRows(grp)) {
+        cashTable.tBodies[0].appendChild(row);
       }
 
       cashTable.tBodies[0].appendChild(cashMonthTotalRow(monthTotal));
