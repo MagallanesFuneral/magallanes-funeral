@@ -5929,10 +5929,13 @@ html += `</tr>`;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
-      // Source 2: Bank Received entries labelled "BAI"
+      // Source 2: Bank Received entries where type is "BAI"
+      //           OR where client (Name of Client) is "Bai-Office Collection"
       for (const r of (bankStore || [])) {
-        const p = normalizeText(r.type || "");
-        if (!/\bbai\b/.test(p)) continue;
+        const pType   = normalizeText(r.type   || "");
+        const pClient = normalizeText(r.client || "");
+        const isBai   = /\bbai\b/.test(pType) || pClient === normalizeText("Bai-Office Collection");
+        if (!isBai) continue;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
