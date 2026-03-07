@@ -5920,22 +5920,18 @@ html += `</tr>`;
       keyOrder.sort();
 
       // ── Pre-compute BAI collected totals by month ──
-      // Source 1: Cash Received entries where particular maps to "bai" bucket
+      // Source 1: Cash Received entries where Particular column = "BAI"
       const cashBaiByMonth = new Map();
       for (const r of (cashStore || [])) {
         const p = normalizeText(r.particular || "");
-        const isBai = /\bbai\b/.test(p) || /\bbank\b/.test(p) || p.includes("bank received") || p.includes("deposit bank");
-        if (!isBai) continue;
+        if (p !== "bai") continue;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
-      // Source 2: Bank Received entries where type is "BAI"
-      //           OR where client (Name of Client) is "Bai-Office Collection"
+      // Source 2: Bank Received entries where Name of Client = "Bai-Office Collection"
       for (const r of (bankStore || [])) {
-        const pType   = normalizeText(r.type   || "");
         const pClient = normalizeText(r.client || "");
-        const isBai   = /\bbai\b/.test(pType) || pClient === normalizeText("Bai-Office Collection");
-        if (!isBai) continue;
+        if (pClient !== "bai-office collection") continue;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
