@@ -5920,7 +5920,7 @@ html += `</tr>`;
       keyOrder.sort();
 
       // ── Pre-compute BAI collected totals by month ──
-      // Source 1: Cash Received entries where Particular column = "BAI"
+      // Source 1: Cash Received entries where Particular = "BAI"
       const cashBaiByMonth = new Map();
       for (const r of (cashStore || [])) {
         const p = normalizeText(r.particular || "");
@@ -5928,10 +5928,12 @@ html += `</tr>`;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
-      // Source 2: Bank Received entries where Name of Client = "Bai-Office Collection"
+      // Source 2: Bank Received entries where Name of Client is
+      //   "Bai-Office Collection" (with hyphen) OR "Bai Office Collection" (no hyphen)
+      //   — matched case-insensitively by stripping hyphens before comparing
       for (const r of (bankStore || [])) {
-        const pClient = normalizeText(r.client || "");
-        if (pClient !== "bai-office collection") continue;
+        const pClient = normalizeText(r.client || "").replace(/-/g, " ").replace(/\s+/g, " ").trim();
+        if (pClient !== "bai office collection") continue;
         const key = monthKeyFromDate(r.date || "");
         cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
