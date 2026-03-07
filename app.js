@@ -5940,6 +5940,8 @@ html += `</tr>`;
       }
 
       // ── Render each month group ──
+      let runningBalance = 0; // carries forward from month to month
+
       keyOrder.forEach(key => {
         const rows = groups.get(key);
 
@@ -5948,6 +5950,19 @@ html += `</tr>`;
         thdr.dataset.rowType = "monthHeader";
         thdr.innerHTML = `<td colspan="5" style="padding:6px 10px;font-weight:900;opacity:0.7;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line2);">${monthLabelFromKey(key)}</td>`;
         tbody.appendChild(thdr);
+
+        // Previous Balance row — only shown from the 2nd month onward if carry-over ≠ 0
+        if (runningBalance !== 0) {
+          const prevColor = runningBalance > 0 ? "color:var(--danger,#e55);" : "color:var(--accent,#4c8);";
+          const tPrev = document.createElement("tr");
+          tPrev.dataset.rowType = "baiPrevBalance";
+          tPrev.innerHTML = `
+            <td colspan="2" style="padding:3px 10px 3px 14px;font-style:italic;opacity:0.8;${prevColor}">Previous Balance</td>
+            <td class="num" style="font-style:italic;opacity:0.8;${prevColor}">${fmtNum(runningBalance)}</td>
+            <td colspan="2"></td>
+          `;
+          tbody.appendChild(tPrev);
+        }
 
         // Data rows
         let monthTotal = 0;
@@ -5977,7 +5992,6 @@ html += `</tr>`;
           <td colspan="2" style="border-top:1px solid var(--line2);"></td>
         `;
         tbody.appendChild(tTotal);
-
 
         // Total BAI Collected row — with Cash Received + Bank Received breakdown
         const cashBaiTotal = cashBaiByMonth.get(key) || 0;
@@ -6015,8 +6029,9 @@ html += `</tr>`;
           `;
           tbody.appendChild(tBankBreak);
         }
-        // Balance row
-        const balance = monthTotal - totalBaiCollected;
+
+        // Balance = previous balance carried forward + this month's BAI applied − collected
+        const balance = runningBalance + monthTotal - totalBaiCollected;
         const balanceColor = balance > 0 ? "color:var(--danger,#e55);" : balance < 0 ? "color:var(--accent,#4c8);" : "";
         const tBalance = document.createElement("tr");
         tBalance.dataset.rowType = "baiBalance";
@@ -6026,6 +6041,9 @@ html += `</tr>`;
           <td colspan="2" style="padding-bottom:10px;"></td>
         `;
         tbody.appendChild(tBalance);
+
+        // Carry this month's balance forward to the next month
+        runningBalance = balance;
       });
     }
 
