@@ -5919,7 +5919,7 @@ html += `</tr>`;
       });
       keyOrder.sort();
 
-      // ── Pre-compute BAI collected totals by month ──
+      // ── Pre-compute BAI collected totals by month (separate Maps for breakdown display) ──
       // Source 1: Cash Received entries where Particular = "BAI"
       const cashBaiByMonth = new Map();
       for (const r of (cashStore || [])) {
@@ -5931,11 +5931,12 @@ html += `</tr>`;
       // Source 2: Bank Received entries where Name of Client is
       //   "Bai-Office Collection" (with hyphen) OR "Bai Office Collection" (no hyphen)
       //   — matched case-insensitively by stripping hyphens before comparing
+      const bankBaiByMonth = new Map();
       for (const r of (bankStore || [])) {
         const pClient = normalizeText(r.client || "").replace(/-/g, " ").replace(/\s+/g, " ").trim();
         if (pClient !== "bai office collection") continue;
         const key = monthKeyFromDate(r.date || "");
-        cashBaiByMonth.set(key, (cashBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
+        bankBaiByMonth.set(key, (bankBaiByMonth.get(key) || 0) + (Number(r.amount) || 0));
       }
 
       // ── Render each month group ──
@@ -5977,19 +5978,45 @@ html += `</tr>`;
         `;
         tbody.appendChild(tTotal);
 
-        // Total BAI Collected row (from Cash Received)
+
+        // Total BAI Collected row — with Cash Received + Bank Received breakdown
         const cashBaiTotal = cashBaiByMonth.get(key) || 0;
+        const bankBaiTotal = bankBaiByMonth.get(key) || 0;
+        const totalBaiCollected = cashBaiTotal + bankBaiTotal;
         const tCollected = document.createElement("tr");
         tCollected.dataset.rowType = "baiCollected";
         tCollected.innerHTML = `
-          <td colspan="2" style="padding:4px 10px;opacity:0.75;font-style:italic;">Total BAI Collected</td>
-          <td class="num" style="opacity:0.75;font-style:italic;">${fmtNum(cashBaiTotal)}</td>
+          <td colspan="2" style="padding:4px 10px 2px;font-weight:700;font-style:italic;">Total BAI Collected</td>
+          <td class="num" style="font-weight:700;font-style:italic;padding:4px 10px 2px;">${fmtNum(totalBaiCollected)}</td>
           <td colspan="2"></td>
         `;
         tbody.appendChild(tCollected);
 
+        // Breakdown: Cash Received sub-row (only show if > 0)
+        if (cashBaiTotal > 0) {
+          const tCashBreak = document.createElement("tr");
+          tCashBreak.dataset.rowType = "baiCollectedBreak";
+          tCashBreak.innerHTML = `
+            <td colspan="2" style="padding:1px 10px 1px 26px;opacity:0.65;font-size:0.88em;">↳ Cash Received (BAI)</td>
+            <td class="num" style="opacity:0.65;font-size:0.88em;padding:1px 10px;">${fmtNum(cashBaiTotal)}</td>
+            <td colspan="2"></td>
+          `;
+          tbody.appendChild(tCashBreak);
+        }
+
+        // Breakdown: Bank Received sub-row (only show if > 0)
+        if (bankBaiTotal > 0) {
+          const tBankBreak = document.createElement("tr");
+          tBankBreak.dataset.rowType = "baiCollectedBreak";
+          tBankBreak.innerHTML = `
+            <td colspan="2" style="padding:1px 10px 4px 26px;opacity:0.65;font-size:0.88em;">↳ Bank Received (Bai Office Collection)</td>
+            <td class="num" style="opacity:0.65;font-size:0.88em;padding:1px 10px 4px;">${fmtNum(bankBaiTotal)}</td>
+            <td colspan="2"></td>
+          `;
+          tbody.appendChild(tBankBreak);
+        }
         // Balance row
-        const balance = monthTotal - cashBaiTotal;
+        const balance = monthTotal - totalBaiCollected;
         const balanceColor = balance > 0 ? "color:var(--danger,#e55);" : balance < 0 ? "color:var(--accent,#4c8);" : "";
         const tBalance = document.createElement("tr");
         tBalance.dataset.rowType = "baiBalance";
