@@ -5430,23 +5430,47 @@ html += `</tr>`;
   }
 
   // ── Autofill from Contracts ──
+  // Fields that get auto-filled (or manually entered when no contract match)
+  const DSWD_AUTOFILL_FIELDS = [dwDeceased, dwContractAmt, dwPayment, dwBalance];
+
+  function dswdSetAutofillState(matched) {
+    // matched=true  → fields filled from contract, shown as auto-filled (slightly muted)
+    // matched=false → fields are blank and fully editable for manual input
+    const hint = document.getElementById("dwContractHint");
+    DSWD_AUTOFILL_FIELDS.forEach(el => {
+      if (!el) return;
+      el.readOnly = false; // always editable — user can override auto-fill
+      el.style.opacity = matched ? "0.82" : "1";
+      el.style.background = matched ? "" : "";
+    });
+    if (hint) {
+      hint.textContent = matched
+        ? "(auto-filled — you may override)"
+        : "(not found — fill in manually)";
+      hint.style.color = matched ? "" : "var(--accent, #4ea1ff)";
+    }
+  }
+
   function dswdAutofill(contractNo) {
     const key = normalizeText(contractNo);
     const c = contractsStore.find(x => normalizeText(x.contract) === key);
     if (!c) {
-      dwDeceased.value = "";
+      // No match — clear fields and let user type freely
+      dwDeceased.value    = "";
       dwContractAmt.value = "0.00";
-      dwPayment.value = "0.00";
-      dwBalance.value = "0.00";
+      dwPayment.value     = "0.00";
+      dwBalance.value     = "0.00";
+      dswdSetAutofillState(false);
       return;
     }
-    // Compute totals same way as contracts tab
+    // Match found — auto-fill computed values
     const totalPaid = Math.max(0, (Number(c.inhaus)||0) + (Number(c.bai)||0) + (Number(c.gl)||0) + (Number(c.gcash)||0) + (Number(c.cash)||0));
     const remaining = (Number(c.amount)||0) - totalPaid - (Number(c.discount)||0);
     dwDeceased.value     = c.deceased || "";
     dwContractAmt.value  = (Number(c.amount)||0).toFixed(2);
     dwPayment.value      = totalPaid.toFixed(2);
     dwBalance.value      = remaining.toFixed(2);
+    dswdSetAutofillState(true);
   }
 
   dwContract?.addEventListener("blur", () => {
@@ -5632,10 +5656,13 @@ html += `</tr>`;
     dswdMode = mode;
     dswdEditingKey = null;
 
-    // Set readonly state on autofill fields
-    [dwDeceased, dwContractAmt, dwPayment, dwBalance].forEach(el => {
-      if (el) { el.readOnly = (mode === "add"); el.style.opacity = mode === "add" ? "0.75" : "1"; }
+    // All auto-fill fields are always editable; dswdAutofill/dswdSetAutofillState manages styling
+    DSWD_AUTOFILL_FIELDS.forEach(el => {
+      if (el) { el.readOnly = false; el.style.opacity = "1"; }
     });
+    // Reset hint to default state on open
+    const hint = document.getElementById("dwContractHint");
+    if (hint) { hint.textContent = "(auto-fills fields below)"; hint.style.color = ""; }
 
     if (mode === "add") {
       dswdTitle.textContent = "Add DSWD Entry";
