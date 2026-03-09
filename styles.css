@@ -262,13 +262,16 @@ body{
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 45%, transparent);
 }
 
-/* DSWD Tab — Date Received subtotal row (green highlight) */
+
+
+/* DSWD Tab — Date Received batch subtotal row (green highlight) */
 #dswdTable tbody tr.dswdDateReceivedTotal td {
   font-weight: 700;
+  font-style: italic;
   background: color-mix(in oklab, #22c55e 22%, transparent);
-  border-top: 1px solid color-mix(in oklab, #22c55e 45%, transparent);
-  border-bottom: 1px solid color-mix(in oklab, #22c55e 45%, transparent);
-  padding: 4px 10px;
+  border-top: 1px solid color-mix(in oklab, #22c55e 55%, transparent);
+  border-bottom: 2px solid color-mix(in oklab, #22c55e 55%, transparent);
+  padding: 5px 10px;
 }
 /* DSWD Tab — month grouping rows */
 #dswdTable tbody tr.dswdMonthHeader td {
