@@ -5638,6 +5638,12 @@ html += `</tr>`;
           <td></td>
         `;
         tbody.appendChild(tTot);
+
+        // Spacer row — separation between months
+        const tSpacer = document.createElement("tr");
+        tSpacer.dataset.rowType = "spacer";
+        tSpacer.innerHTML = `<td colspan="14" style="height:10px;border:none;background:transparent;"></td>`;
+        tbody.appendChild(tSpacer);
       });
     }
 
