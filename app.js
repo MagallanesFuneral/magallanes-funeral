@@ -5554,38 +5554,90 @@ html += `</tr>`;
 
     if (filtered.length === 0) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="13" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
+      tr.innerHTML = `<td colspan="14" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
       tbody.appendChild(tr);
     } else {
+      // ── Group entries by month ──
+      const groups  = new Map();
+      const keyOrder = [];
       filtered.forEach(r => {
-        // Live balance — look up current Remaining from Contracts Tab
-        const contractKey = normalizeText(r.contract || "");
-        const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
-        const liveBalance = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
+        const key = monthKeyFromDate(r.date || "");
+        if (!groups.has(key)) { groups.set(key, []); keyOrder.push(key); }
+        groups.get(key).push(r);
+      });
+      keyOrder.sort();
 
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = "data";
-        tr.dataset.id = dswdKeyFor(r);
-        if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
-        if (r.status === "Processed")       tr.classList.add("dswd-processed");
-        else if (r.status === "Scheduled")  tr.classList.add("dswd-scheduled");
-        tr.innerHTML = `
-          <td>${r.date||""}</td>
-          <td>${r.contract||""}</td>
-          <td>${r.deceased||""}</td>
-          <td class="num">${fmtNum(r.contractAmt)}</td>
-          <td class="num">${fmtNum(r.payment)}</td>
-          <td class="num">${fmtNum(liveBalance)}</td>
-          <td class="num">${fmtNum(r.dswdRefund)}</td>
-          <td class="num">${fmtNum(r.afterTax)}</td>
-          <td>${r.dateReceived||""}</td>
-          <td class="num">${fmtNum(r.payable)}</td>
-          <td>${r.dateRelease||""}</td>
-          <td>${r.beneficiary||""}</td>
-          <td class="num">${fmtNum(r.dswdDiscount)}</td>
-          <td>${r.status||"Waiting"}</td>
+      keyOrder.forEach(key => {
+        const rows = groups.get(key);
+
+        // ── Month header row ──
+        const thdr = document.createElement("tr");
+        thdr.dataset.rowType = "monthHeader";
+        thdr.innerHTML = `<td colspan="14" style="padding:6px 10px;font-weight:900;opacity:0.7;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line2);">${monthLabelFromKey(key).toUpperCase()}</td>`;
+        tbody.appendChild(thdr);
+
+        // ── Data rows + accumulate totals ──
+        let totContractAmt = 0, totPayment = 0, totBalance = 0;
+        let totDswdRefund  = 0, totAfterTax = 0, totPayable = 0, totDswdDiscount = 0;
+
+        rows.forEach(r => {
+          const contractKey     = normalizeText(r.contract || "");
+          const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
+          const liveBalance     = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
+
+          totContractAmt  += Number(r.contractAmt)  || 0;
+          totPayment      += Number(r.payment)       || 0;
+          totBalance      += Number(liveBalance)     || 0;
+          totDswdRefund   += Number(r.dswdRefund)    || 0;
+          totAfterTax     += Number(r.afterTax)      || 0;
+          totPayable      += Number(r.payable)       || 0;
+          totDswdDiscount += Number(r.dswdDiscount)  || 0;
+
+          const tr = document.createElement("tr");
+          tr.dataset.rowType = "data";
+          tr.dataset.id = dswdKeyFor(r);
+          if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
+          if (r.status === "Processed")       tr.classList.add("dswd-processed");
+          else if (r.status === "Scheduled")  tr.classList.add("dswd-scheduled");
+          tr.innerHTML = `
+            <td>${r.date||""}</td>
+            <td>${r.contract||""}</td>
+            <td>${r.deceased||""}</td>
+            <td class="num">${fmtNum(r.contractAmt)}</td>
+            <td class="num">${fmtNum(r.payment)}</td>
+            <td class="num">${fmtNum(liveBalance)}</td>
+            <td class="num">${fmtNum(r.dswdRefund)}</td>
+            <td class="num">${fmtNum(r.afterTax)}</td>
+            <td>${r.dateReceived||""}</td>
+            <td class="num">${fmtNum(r.payable)}</td>
+            <td>${r.dateRelease||""}</td>
+            <td>${r.beneficiary||""}</td>
+            <td class="num">${fmtNum(r.dswdDiscount)}</td>
+            <td>${r.status||"Waiting"}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // ── Monthly totals row ──
+        const tTot = document.createElement("tr");
+        tTot.dataset.rowType = "monthTotal";
+        tTot.innerHTML = `
+          <td colspan="3" style="font-weight:700;padding:5px 10px;border-top:1px solid var(--line2);opacity:0.85;">
+            TOTAL — ${monthLabelFromKey(key).toUpperCase()}
+          </td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totContractAmt)}</td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totPayment)}</td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totBalance)}</td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totDswdRefund)}</td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totAfterTax)}</td>
+          <td style="border-top:1px solid var(--line2);"></td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totPayable)}</td>
+          <td style="border-top:1px solid var(--line2);"></td>
+          <td style="border-top:1px solid var(--line2);"></td>
+          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totDswdDiscount)}</td>
+          <td style="border-top:1px solid var(--line2);padding-bottom:10px;"></td>
         `;
-        tbody.appendChild(tr);
+        tbody.appendChild(tTot);
       });
     }
 
