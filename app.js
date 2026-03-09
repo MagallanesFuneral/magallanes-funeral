@@ -5577,46 +5577,90 @@ html += `</tr>`;
         thdr.innerHTML = `<td colspan="14">${monthLabelFromKey(key).toUpperCase()}</td>`;
         tbody.appendChild(thdr);
 
-        // ── Data rows + accumulate totals ──
+        // ── Sub-group rows by dateReceived within this month ──
+        // Rows with no dateReceived are placed in a "" bucket (no subtotal rendered for them)
+        const drGroups  = new Map();
+        const drOrder   = [];
+        rows.forEach(r => {
+          const dr = (r.dateReceived || "").trim();
+          if (!drGroups.has(dr)) { drGroups.set(dr, []); drOrder.push(dr); }
+          drGroups.get(dr).push(r);
+        });
+
+        // ── Data rows + accumulate month totals ──
         let totContractAmt = 0, totPayment = 0, totBalance = 0;
         let totDswdRefund  = 0, totAfterTax = 0, totPayable = 0, totDswdDiscount = 0;
 
-        rows.forEach(r => {
-          const contractKey     = normalizeText(r.contract || "");
-          const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
-          const liveBalance     = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
+        drOrder.forEach(dr => {
+          const drRows = drGroups.get(dr);
 
-          totContractAmt  += Number(r.contractAmt)  || 0;
-          totPayment      += Number(r.payment)       || 0;
-          totBalance      += Number(liveBalance)     || 0;
-          totDswdRefund   += Number(r.dswdRefund)    || 0;
-          totAfterTax     += Number(r.afterTax)      || 0;
-          totPayable      += Number(r.payable)       || 0;
-          totDswdDiscount += Number(r.dswdDiscount)  || 0;
+          // Accumulators for this dateReceived group
+          let drRefund = 0, drAfterTax = 0, drPayable = 0, drDiscount = 0;
 
-          const tr = document.createElement("tr");
-          tr.dataset.rowType = "data";
-          tr.dataset.id = dswdKeyFor(r);
-          if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
-          if (r.status === "Processed")       tr.classList.add("dswd-processed");
-          else if (r.status === "Scheduled")  tr.classList.add("dswd-scheduled");
-          tr.innerHTML = `
-            <td>${r.date||""}</td>
-            <td>${r.contract||""}</td>
-            <td>${r.deceased||""}</td>
-            <td class="num">${fmtNum(r.contractAmt)}</td>
-            <td class="num">${fmtNum(r.payment)}</td>
-            <td class="num">${fmtNum(liveBalance)}</td>
-            <td class="num">${fmtNum(r.dswdRefund)}</td>
-            <td class="num">${fmtNum(r.afterTax)}</td>
-            <td>${r.dateReceived||""}</td>
-            <td class="num">${fmtNum(r.payable)}</td>
-            <td>${r.dateRelease||""}</td>
-            <td>${r.beneficiary||""}</td>
-            <td class="num">${fmtNum(r.dswdDiscount)}</td>
-            <td>${r.status||"Waiting"}</td>
-          `;
-          tbody.appendChild(tr);
+          drRows.forEach(r => {
+            const contractKey     = normalizeText(r.contract || "");
+            const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
+            const liveBalance     = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
+
+            totContractAmt  += Number(r.contractAmt)  || 0;
+            totPayment      += Number(r.payment)       || 0;
+            totBalance      += Number(liveBalance)     || 0;
+            totDswdRefund   += Number(r.dswdRefund)    || 0;
+            totAfterTax     += Number(r.afterTax)      || 0;
+            totPayable      += Number(r.payable)       || 0;
+            totDswdDiscount += Number(r.dswdDiscount)  || 0;
+
+            drRefund   += Number(r.dswdRefund)   || 0;
+            drAfterTax += Number(r.afterTax)     || 0;
+            drPayable  += Number(r.payable)      || 0;
+            drDiscount += Number(r.dswdDiscount) || 0;
+
+            const tr = document.createElement("tr");
+            tr.dataset.rowType = "data";
+            tr.dataset.id = dswdKeyFor(r);
+            if (dswdKeyFor(r) === dswdSelectedKey) tr.classList.add("is-selected");
+            if (r.status === "Processed")       tr.classList.add("dswd-processed");
+            else if (r.status === "Scheduled")  tr.classList.add("dswd-scheduled");
+            tr.innerHTML = `
+              <td>${r.date||""}</td>
+              <td>${r.contract||""}</td>
+              <td>${r.deceased||""}</td>
+              <td class="num">${fmtNum(r.contractAmt)}</td>
+              <td class="num">${fmtNum(r.payment)}</td>
+              <td class="num">${fmtNum(liveBalance)}</td>
+              <td class="num">${fmtNum(r.dswdRefund)}</td>
+              <td class="num">${fmtNum(r.afterTax)}</td>
+              <td>${r.dateReceived||""}</td>
+              <td class="num">${fmtNum(r.payable)}</td>
+              <td>${r.dateRelease||""}</td>
+              <td>${r.beneficiary||""}</td>
+              <td class="num">${fmtNum(r.dswdDiscount)}</td>
+              <td>${r.status||"Waiting"}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+
+          // ── Date Received subtotal row — only when date is set AND 1+ rows in group ──
+          if (dr && drRows.length > 0) {
+            const tDr = document.createElement("tr");
+            tDr.classList.add("dswdDateReceivedTotal");
+            tDr.dataset.rowType = "dateReceivedTotal";
+            tDr.innerHTML = `
+              <td colspan="3" style="font-style:italic;">Received: ${dr}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td class="num">${fmtNum(drRefund)}</td>
+              <td class="num">${fmtNum(drAfterTax)}</td>
+              <td style="font-weight:700;">${dr}</td>
+              <td class="num">${fmtNum(drPayable)}</td>
+              <td></td>
+              <td></td>
+              <td class="num">${fmtNum(drDiscount)}</td>
+              <td></td>
+            `;
+            tbody.appendChild(tDr);
+          }
         });
 
         // ── Monthly totals row ──
