@@ -5572,8 +5572,9 @@ html += `</tr>`;
 
         // ── Month header row ──
         const thdr = document.createElement("tr");
+        thdr.classList.add("dswdMonthHeader");
         thdr.dataset.rowType = "monthHeader";
-        thdr.innerHTML = `<td colspan="14" style="padding:6px 10px;font-weight:900;opacity:0.7;font-size:11px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line2);">${monthLabelFromKey(key).toUpperCase()}</td>`;
+        thdr.innerHTML = `<td colspan="14">${monthLabelFromKey(key).toUpperCase()}</td>`;
         tbody.appendChild(thdr);
 
         // ── Data rows + accumulate totals ──
@@ -5620,22 +5621,21 @@ html += `</tr>`;
 
         // ── Monthly totals row ──
         const tTot = document.createElement("tr");
+        tTot.classList.add("dswdMonthTotal");
         tTot.dataset.rowType = "monthTotal";
         tTot.innerHTML = `
-          <td colspan="3" style="font-weight:700;padding:5px 10px;border-top:1px solid var(--line2);opacity:0.85;">
-            TOTAL — ${monthLabelFromKey(key).toUpperCase()}
-          </td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totContractAmt)}</td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totPayment)}</td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totBalance)}</td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totDswdRefund)}</td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totAfterTax)}</td>
-          <td style="border-top:1px solid var(--line2);"></td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totPayable)}</td>
-          <td style="border-top:1px solid var(--line2);"></td>
-          <td style="border-top:1px solid var(--line2);"></td>
-          <td class="num" style="font-weight:700;border-top:1px solid var(--line2);">${fmtNum(totDswdDiscount)}</td>
-          <td style="border-top:1px solid var(--line2);padding-bottom:10px;"></td>
+          <td colspan="3">TOTAL — ${monthLabelFromKey(key).toUpperCase()}</td>
+          <td class="num">${fmtNum(totContractAmt)}</td>
+          <td class="num">${fmtNum(totPayment)}</td>
+          <td class="num">${fmtNum(totBalance)}</td>
+          <td class="num">${fmtNum(totDswdRefund)}</td>
+          <td class="num">${fmtNum(totAfterTax)}</td>
+          <td></td>
+          <td class="num">${fmtNum(totPayable)}</td>
+          <td></td>
+          <td></td>
+          <td class="num">${fmtNum(totDswdDiscount)}</td>
+          <td></td>
         `;
         tbody.appendChild(tTot);
       });
