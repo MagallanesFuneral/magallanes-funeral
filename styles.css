@@ -1437,8 +1437,8 @@ html.display-mobile .modal { width: calc(100vw - 24px); max-width: none; left: 1
     border-radius: 0 !important;
   }
   .cf-input { border-bottom: 1px solid #333 !important; background: transparent !important; }
-  .cf-contract-body { border: 1px solid #aaa !important; }
-  .cf-contract-left { border-right: 1px solid #aaa !important; }
+  .cf-contract-body { border: none !important; }
+  .cf-contract-left { border-right: none !important; }
 }
 
 /* ── Agreement / Sections ── */
@@ -1479,13 +1479,13 @@ html.display-mobile .modal { width: calc(100vw - 24px); max-width: none; left: 1
 .cf-contract-body {
   display: flex;
   gap: 0;
-  border: 1px solid #aaa;
+  border: none;
   border-radius: 0;
 }
 .cf-contract-left {
   flex: 1;
   padding: 10px 14px;
-  border-right: 1px solid #aaa;
+  border-right: none;
 }
 .cf-contract-right {
   width: 200px;
