@@ -919,15 +919,153 @@
           <!-- ── NO. / DATE ROW ── -->
           <div class="cf-no-date-row">
             <div class="cf-no-block">
-              <span class="cf-label">No.</span>
-              <input class="cf-input cf-input-no" type="text" placeholder="" />
+              <span class="cf-label"><strong>No.</strong></span>
+              <input class="cf-input cf-input-no" type="text" />
             </div>
             <div class="cf-date-block">
-              <span class="cf-label">Date:</span>
-              <input class="cf-input cf-input-date" type="text" placeholder="" />
-              <span class="cf-label">,</span>
-              <span class="cf-label">20</span>
-              <input class="cf-input cf-input-year" type="text" maxlength="4" placeholder="" />
+              <span class="cf-label"><strong>Date:</strong></span>
+              <input class="cf-input cf-input-date" type="text" />
+              <span class="cf-label"><strong>,</strong></span>
+              <span class="cf-label"><strong>20</strong></span>
+              <input class="cf-input cf-input-year" type="text" maxlength="4" />
+            </div>
+          </div>
+
+          <!-- ── AGREEMENT BETWEEN ── -->
+          <div class="cf-section">
+            <div class="cf-text">Agreement between:</div>
+            <div class="cf-indent">
+              <div class="cf-field-row">
+                <span class="cf-label">Name:</span>
+                <input class="cf-input cf-input-full" type="text" />
+              </div>
+              <div class="cf-field-row" style="margin-top:10px;">
+                <span class="cf-label">Address:</span>
+                <input class="cf-input cf-input-full" type="text" />
+              </div>
+              <div class="cf-field-row" style="margin-top:10px;">
+                <span class="cf-label">Contact No.:</span>
+                <input class="cf-input cf-input-contact" type="text" />
+                <span class="cf-label" style="margin-left:10px;">FB Account:</span>
+                <input class="cf-input cf-input-fb" type="text" />
+              </div>
+            </div>
+          </div>
+
+          <!-- ── FOR FUNERAL SERVICES ── -->
+          <div class="cf-section">
+            <div class="cf-text">For funeral services rendered to the late:</div>
+            <div class="cf-deceased-lines">
+              <input class="cf-input cf-input-deceased" type="text" />
+              <input class="cf-input cf-input-deceased" type="text" style="margin-top:8px;" />
+            </div>
+          </div>
+
+          <!-- ── CONTRACT SECTION ── -->
+          <div class="cf-contract-title">* CONTRACT *</div>
+
+          <div class="cf-contract-body">
+            <!-- Left column: service descriptions | Right column: amounts -->
+            <div class="cf-contract-left">
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">Type of Casket</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">Embalming</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">Services arrangement at the</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">Funeral Car for burial</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">Other services</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">&nbsp;</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">&nbsp;</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+              <div class="cf-service-block">
+                <div class="cf-service-label">&nbsp;</div>
+                <input class="cf-input cf-input-service" type="text" />
+              </div>
+
+            </div><!-- /cf-contract-left -->
+
+            <div class="cf-contract-right">
+              <div class="cf-amount-header">&#8369;</div>
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" type="text" />
+            </div><!-- /cf-contract-right -->
+          </div><!-- /cf-contract-body -->
+
+          <!-- ── NOTE ── -->
+          <div class="cf-note">
+            NOTE: The total amount of funeral services must be paid in cash one day before burial.
+            We will not be responsible for not scheduling the day of internment for non-payment of
+            funeral services, as stated.
+          </div>
+
+          <!-- ── TOTAL ── -->
+          <div class="cf-total-row">
+            <span class="cf-label">TOTAL:</span>
+            <div class="cf-total-amount">
+              <span class="cf-label">&#8369;</span>
+              <input class="cf-input cf-input-total" type="text" />
+            </div>
+          </div>
+
+          <!-- ── STIPULATIONS ── -->
+          <div class="cf-stipulations-title"><strong>Stipulations:</strong></div>
+          <div class="cf-stipulations-text">
+            Interest at 12% per annum will be charged on all overdue accounts plus 25% for
+            Attorney's Fee and collection costs, in case collection is made thru an attorney.
+            Buyers expressly submit themselves to the jurisdictions of the courts of Romblon in
+            any legal action arising out of this transaction. Our responsibility ceases when the
+            cadaver was already delivered to its final resting place.
+          </div>
+
+          <!-- ── CONFORME / SIGNATURES ── -->
+          <div class="cf-conforme-title">Conforme:</div>
+          <div class="cf-signatures">
+            <div class="cf-sig-left">
+              <input class="cf-input cf-input-sig" type="text" />
+              <div class="cf-sig-label">Signature</div>
+              <input class="cf-input cf-input-sig" style="margin-top:18px;" type="text" />
+              <div class="cf-sig-label">Relation to the Deceased</div>
+            </div>
+            <div class="cf-sig-right">
+              <div class="cf-sig-fixed-line"></div>
+              <div class="cf-sig-name">Elizabeth Magallanes</div>
+              <div class="cf-sig-title-text">Owner / Manager</div>
             </div>
           </div>
 
