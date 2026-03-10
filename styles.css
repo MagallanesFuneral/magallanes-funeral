@@ -1320,3 +1320,110 @@ html.display-mobile .modal { width: calc(100vw - 24px); max-width: none; left: 1
   html:not(.display-desktop) .subtabs { gap: 5px; }
   html:not(.display-desktop) .btn { padding: 7px 11px; font-size: 12px; }
 }
+
+/* ═══════════════════════════════════════════
+   CONTRACT FORM TAB
+   ═══════════════════════════════════════════ */
+
+/* Outer scroll wrapper */
+.cf-page-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 28px 16px 48px;
+  background: var(--bg);
+  min-height: calc(100vh - 120px);
+}
+
+/* The paper itself — 8.5"×11" at 96dpi = 816×1056px */
+.cf-paper {
+  width: 816px;
+  min-height: 1056px;
+  background: #ffffff;
+  color: #111111;
+  padding: 48px 56px;
+  box-shadow: 0 6px 40px rgba(0,0,0,0.45);
+  border-radius: 2px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+/* ── Header ── */
+.cf-header {
+  text-align: center;
+  margin-bottom: 0;
+  line-height: 1.55;
+}
+.cf-co-name {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.cf-co-line {
+  font-size: 12px;
+  color: #222;
+}
+
+/* ── No. / Date row ── */
+.cf-no-date-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 22px;
+  padding-top: 4px;
+}
+.cf-no-block {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.cf-date-block {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.cf-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111;
+  white-space: nowrap;
+  line-height: 1;
+  padding-bottom: 3px;
+}
+
+/* Inputs styled as underlines — no box, just a bottom border */
+.cf-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #333;
+  border-radius: 0;
+  outline: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: #111;
+  padding: 2px 4px;
+  line-height: 1;
+}
+.cf-input:focus {
+  border-bottom: 2px solid #1a56db;
+}
+.cf-input-no   { width: 120px; }
+.cf-input-date { width: 160px; }
+.cf-input-year { width: 48px;  }
+
+/* ── Print styles ── */
+@media print {
+  body * { visibility: hidden; }
+  #cfPaper, #cfPaper * { visibility: visible; }
+  #cfPaper {
+    position: fixed;
+    top: 0; left: 0;
+    width: 8.5in;
+    min-height: 11in;
+    padding: 0.5in 0.58in;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .cf-input { border-bottom: 1px solid #333 !important; }
+}

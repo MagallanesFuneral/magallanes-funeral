@@ -5567,22 +5567,25 @@ html += `</tr>`;
       });
       keyOrder.sort();
 
-      // ── Global pre-pass: find last occurrence key + totals per dateReceived ──
-      // Rows are already grouped by month and keyOrder is sorted, so iterating
-      // keyOrder then rows gives us table order — last write wins for drLastKey.
-      const drLastKey = new Map(); // dateReceived → dswdKeyFor of its last row
+      // ── Global pre-pass: find last occurrence index + totals per dateReceived ──
+      // Build a flat ordered list matching exact render order (sorted months → rows).
+      // Use index position so we never rely on ID uniqueness.
+      const flatRows = [];
+      keyOrder.forEach(key => groups.get(key).forEach(r => flatRows.push(r)));
+
+      const drLastIdx = new Map(); // dateReceived → flat index of its last row
       const drTotals  = new Map(); // dateReceived → { refund, afterTax }
-      keyOrder.forEach(key => {
-        groups.get(key).forEach(r => {
-          const dr = (r.dateReceived || "").trim();
-          if (!dr) return;
-          drLastKey.set(dr, dswdKeyFor(r));
-          const t = drTotals.get(dr) || { refund: 0, afterTax: 0 };
-          t.refund   += Number(r.dswdRefund) || 0;
-          t.afterTax += Number(r.afterTax)   || 0;
-          drTotals.set(dr, t);
-        });
+      flatRows.forEach((r, idx) => {
+        const dr = (r.dateReceived || "").trim();
+        if (!dr) return;
+        drLastIdx.set(dr, idx); // always overwrite → last one wins
+        const t = drTotals.get(dr) || { refund: 0, afterTax: 0 };
+        t.refund   += Number(r.dswdRefund) || 0;
+        t.afterTax += Number(r.afterTax)   || 0;
+        drTotals.set(dr, t);
       });
+
+      let flatIdx = 0; // tracks position in flatRows across all months
 
       keyOrder.forEach(key => {
         const rows = groups.get(key);
@@ -5599,6 +5602,7 @@ html += `</tr>`;
         let totDswdRefund  = 0, totAfterTax = 0, totPayable = 0, totDswdDiscount = 0;
 
         rows.forEach(r => {
+          const curFlatIdx = flatIdx++;
           const contractKey     = normalizeText(r.contract || "");
           const matchedContract = contractsStore.find(c => normalizeText(c.contract || "") === contractKey);
           const liveBalance     = matchedContract ? calcComputed(matchedContract).remaining : (r.balance || 0);
@@ -5637,7 +5641,7 @@ html += `</tr>`;
 
           // ── Green subtotal row: insert after the global last occurrence of this dateReceived ──
           const dr = (r.dateReceived || "").trim();
-          if (dr && drLastKey.get(dr) === dswdKeyFor(r)) {
+          if (dr && drLastIdx.get(dr) === curFlatIdx) {
             const t = drTotals.get(dr);
             const tDr = document.createElement("tr");
             tDr.classList.add("dswdDateReceivedTotal");
@@ -7444,5 +7448,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const btn = document.querySelector("#btnExportDailyReportPdf");
     if(btn) btn.addEventListener("click", function(){ try{ exportDailyReportToPdf(); }catch(e){ alert("Export error: " + e.message); } });
   })();
+
+  // ── Contract Form — Print button ──
+  document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => window.print());
 
 })();

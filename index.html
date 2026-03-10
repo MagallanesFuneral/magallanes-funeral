@@ -142,6 +142,7 @@
     <nav class="tabs" role="tablist" aria-label="Main tabs">
       <button class="tab is-active" role="tab" aria-selected="true" data-tab="contracts">Contracts</button>      <button class="tab" role="tab" aria-selected="false" data-tab="transactions">Transactions</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="dailyreport">Daily Report</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="contractform">Contract Form</button>
     </nav>
 
     <!-- CONTRACTS TAB -->
@@ -889,6 +890,50 @@
   <div id="dailyReportContent" class="dailyreport-content"></div></div>
     </section>
 </div>
+
+    <!-- CONTRACT FORM TAB -->
+    <section class="panel" id="panel-contractform" role="tabpanel">
+      <div class="panel-toolbar">
+        <div class="toolbar-left">
+          <h2>Contract Form</h2>
+          <span class="hint">Fill in customer contract details. Prints as 8.5" × 11".</span>
+        </div>
+        <div class="toolbar-right">
+          <button class="btn" id="btnPrintContractForm" type="button">🖨 Print</button>
+        </div>
+      </div>
+
+      <!-- Paper wrapper — simulates 8.5"×11" page -->
+      <div class="cf-page-wrap">
+        <div class="cf-paper" id="cfPaper">
+
+          <!-- ── HEADER ── -->
+          <div class="cf-header">
+            <div class="cf-co-name">MAGALLANES FUNERAL SERVICES</div>
+            <div class="cf-co-line">Main Office: 35 M.L. Quezon St., Brgy. Tabin-Dagat, Odiongan, Romblon</div>
+            <div class="cf-co-line">Email Address: magallanesfuneral@gmail.com.ph</div>
+            <div class="cf-co-line">Like us on Facebook: Magallanes Funeral Services</div>
+            <div class="cf-co-line">Contact Nos.: 567 2122&nbsp;&nbsp;&nbsp;Smart: 0908 861 8127</div>
+          </div>
+
+          <!-- ── NO. / DATE ROW ── -->
+          <div class="cf-no-date-row">
+            <div class="cf-no-block">
+              <span class="cf-label">No.</span>
+              <input class="cf-input cf-input-no" type="text" placeholder="" />
+            </div>
+            <div class="cf-date-block">
+              <span class="cf-label">Date:</span>
+              <input class="cf-input cf-input-date" type="text" placeholder="" />
+              <span class="cf-label">,</span>
+              <span class="cf-label">20</span>
+              <input class="cf-input cf-input-year" type="text" maxlength="4" placeholder="" />
+            </div>
+          </div>
+
+        </div><!-- /cf-paper -->
+      </div><!-- /cf-page-wrap -->
+    </section>
     <footer class="app-footer">
       <span>Magallanes Funeral • Local-only Prototype v115</span>
     </footer>
