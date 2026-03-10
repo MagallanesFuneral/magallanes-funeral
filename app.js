@@ -7450,6 +7450,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   })();
 
   // ── Contract Form — Print button ──
-  document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => window.print());
+  document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
+    // Move cfPaper to body temporarily so print CSS can target it cleanly
+    const paper = document.getElementById("cfPaper");
+    if (!paper) { window.print(); return; }
+    const placeholder = document.createComment("cfPaper-placeholder");
+    paper.parentNode.replaceChild(placeholder, paper);
+    document.body.appendChild(paper);
+    paper.classList.add("cf-printing");
+    window.print();
+    // Restore after print dialog closes
+    document.body.removeChild(paper);
+    paper.classList.remove("cf-printing");
+    placeholder.parentNode.replaceChild(paper, placeholder);
+  });
 
 })();
