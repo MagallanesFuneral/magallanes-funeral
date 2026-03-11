@@ -1355,15 +1355,12 @@ function fmtMoney(n) {
     URL.revokeObjectURL(url);
   }
   btnExport?.addEventListener("click", () => {
-    // Export a styled Excel-like sheet (HTML .xls) that matches the grouped layout:
-    // - Month header rows
-    // - TOTAL rows per month
-    // - GRAND TOTAL row at the bottom
-    //
-    // This approach preserves colors/merged cells in Excel without requiring a paid XLSX styling library.
+    // Export styled HTML-XLS matching current 16-column layout exactly:
+    // Date | Contract# | Deceased | Casket | Address |
+    // Contract Amt | InHaus | GCash | Cash | DSWD After Tax | Discount | DSWD Discount | BAI Assist |
+    // Total Paid | Last Payment | Remaining
     const visible = applyFilterToRows(contractsStore.slice(), activeFilter);
 
-    // sort same as render
     visible.sort((a, b) => {
       const ak = monthKeyFromDate(a.date);
       const bk = monthKeyFromDate(b.date);
@@ -1378,7 +1375,6 @@ function fmtMoney(n) {
       return (a.contract || "").localeCompare(b.contract || "");
     });
 
-    // group
     const groups = new Map();
     for (const r of visible) {
       const k = monthKeyFromDate(r.date);
@@ -1391,32 +1387,37 @@ function fmtMoney(n) {
       return a.localeCompare(b);
     });
 
+    const NUM_COLS = 16;
+
     const cols = [
-      "Date","Contract Number","Deceased","Casket","Address",
-      "Contract Amount","INHAUS","BAI","GL","GCASH","CASH","Discount","Total Paid","Last Payment Date","Remaining"
+      "Date", "Contract Number", "Deceased", "Casket", "Address",
+      "Contract Amount", "InHaus", "GCash", "Cash",
+      "DSWD After Tax", "Discount", "DSWD Discount", "BAI Assist",
+      "Total Paid", "Last Payment Date", "Remaining"
     ];
 
-    // Excel-friendly number format
-    const msoMoney = 'mso-number-format:"\\#\\,\\#\\#0\\.00"';
-    const msoText = 'mso-number-format:"\\@"';
+    const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
+    const msoText  = 'mso-number-format:"\@"';
 
     const css = `
       <style>
         table { border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt; }
         th, td { border: 1px solid #cfcfcf; padding: 4px 6px; white-space: nowrap; }
-        th { font-weight: 700; background: #ffffff; }
+        th { font-weight: 700; background: #f2f2f2; }
         td.num { text-align: right; }
+        td.computed { background: #f0f7ff; }
         tr.data-row td { background: #ffffff; }
-        tr.month-total td { font-weight: 700; background: #fff2cc; border-top: 2px solid #000000; }
+        tr.data-row td.computed { background: #f0f7ff; }
+        tr.month-header td { font-weight: 800; text-align: center; background: #d9d9d9;
+          border-top: 2px solid #000; border-bottom: 2px solid #000; font-size: 12pt; }
+        tr.month-total td { font-weight: 700; background: #fff2cc; border-top: 2px solid #000; }
         tr.month-total td.label { text-align: center; letter-spacing: .10em; }
-        tr.month-header td { font-weight: 800; text-align: center; background: #d9d9d9; border-top: 2px solid #000000; border-bottom: 2px solid #000000; }
         tr.spacer td { border: none; height: 10px; background: #ffffff; }
-        tr.grand-total td { font-weight: 800; background: #92d050; border-top: 2px solid #000000; border-bottom: 2px solid #000000; }
+        tr.grand-total td { font-weight: 800; background: #92d050;
+          border-top: 2px solid #000; border-bottom: 2px solid #000; }
         tr.grand-total td.label { text-align: center; letter-spacing: .10em; }
-      </style>
-    `;
+      </style>`;
 
-    // Column widths similar to screenshot
     const colgroup = `
       <colgroup>
         <col style="width:90px" />
@@ -1426,126 +1427,126 @@ function fmtMoney(n) {
         <col style="width:140px" />
         <col style="width:120px" />
         <col style="width:90px" />
-        <col style="width:80px" />
-        <col style="width:80px" />
-        <col style="width:95px" />
         <col style="width:90px" />
+        <col style="width:90px" />
+        <col style="width:110px" />
+        <col style="width:90px" />
+        <col style="width:110px" />
         <col style="width:90px" />
         <col style="width:110px" />
         <col style="width:140px" />
         <col style="width:110px" />
-      </colgroup>
-    `;
+      </colgroup>`;
 
-    const esc = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const esc = (s) => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    const numCell  = (v)        => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
+    const compCell = (v)        => `<td class="num computed" style="${msoMoney}">${fmtMoney(v)}</td>`;
+    const txtCell  = (v)        => `<td style="${msoText}">${esc(v)}</td>`;
 
     let html = `<!doctype html><html><head><meta charset="utf-8" />${css}</head><body>`;
     html += `<table>${colgroup}<thead><tr>`;
     for (const h of cols) html += `<th>${esc(h)}</th>`;
     html += `</tr></thead><tbody>`;
 
-    const grand = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, discount:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let any = false;
 
     for (let gi = 0; gi < keys.length; gi++) {
-      const key = keys[gi];
+      const key  = keys[gi];
       const rows = groups.get(key) || [];
       if (!rows.length) continue;
       any = true;
 
-      // Month header row (merged across all columns)
-      html += `<tr class="month-header"><td colspan="15" style="${msoText}; font-size: 12pt;">${esc(monthLabelFromKey(key).toUpperCase())}</td></tr>`;
+      // Month header spanning all columns
+      html += `<tr class="month-header"><td colspan="${NUM_COLS}">${esc(monthLabelFromKey(key).toUpperCase())}</td></tr>`;
 
-// Repeat column headers for this month group
-html += `<tr>`;
-for (const h of cols) {
-  html += `<th>${esc(h)}</th>`;
-}
-html += `</tr>`;
+      // Repeat column headers under each month
+      html += `<tr>`;
+      for (const h of cols) html += `<th>${esc(h)}</th>`;
+      html += `</tr>`;
 
-      const totals = { amount:0, inhaus:0, bai:0, gl:0, gcash:0, cash:0, discount:0, totalPaid:0, remaining:0 };
+      const tot = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
-        const computed = calcComputed(c);
-        totals.amount += c.amount || 0;
-        totals.inhaus += c.inhaus || 0;
-        totals.bai += c.bai || 0;
-        totals.gl += c.gl || 0;
-        totals.gcash += c.gcash || 0;
-        totals.cash += c.cash || 0;
-        totals.discount += c.discount || 0;
-        totals.totalPaid += computed.totalPaid;
-        totals.remaining += computed.remaining;
+        const cp = calcComputed(c);
+
+        tot.amount       += Number(c.amount)       || 0;
+        tot.inhaus       += Number(c.inhaus)       || 0;
+        tot.gcash        += Number(c.gcash)        || 0;
+        tot.cash         += Number(c.cash)         || 0;
+        tot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+        tot.discount     += Number(c.discount)     || 0;
+        tot.dswdDiscount += Number(c.dswdDiscount) || 0;
+        tot.baiAssist    += Number(c.baiAssist)    || 0;
+        tot.totalPaid    += cp.totalPaid;
+        tot.remaining    += cp.remaining;
 
         html += `<tr class="data-row">`;
-        html += `<td style="${msoText}">${esc(c.date)}</td>`;
-        html += `<td style="${msoText}">${esc(c.contract)}</td>`;
-        html += `<td style="${msoText}">${esc(c.deceased)}</td>`;
-        html += `<td style="${msoText}">${esc(c.casket)}</td>`;
-        html += `<td style="${msoText}">${esc(c.address)}</td>`;
-
-        const numCell = (v) => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
+        html += txtCell(c.date);
+        html += txtCell(c.contract);
+        html += txtCell(c.deceased);
+        html += txtCell(c.casket);
+        html += txtCell(c.address);
         html += numCell(c.amount);
         html += numCell(c.inhaus);
-        html += numCell(c.bai);
-        html += numCell(c.gl);
         html += numCell(c.gcash);
         html += numCell(c.cash);
+        html += compCell(c.dswdAfterTax || 0);
         html += numCell(c.discount);
-        html += numCell(computed.totalPaid);
-        html += `<td style="${msoText}">${esc(c.lastPayment || "")}</td>`;
-        html += numCell(computed.remaining);
+        html += compCell(c.dswdDiscount || 0);
+        html += compCell(c.baiAssist    || 0);
+        html += compCell(cp.totalPaid);
+        html += txtCell(c.lastPayment || "");
+        html += compCell(cp.remaining);
         html += `</tr>`;
       }
 
-      // TOTAL row: label under Address column
+      // Month TOTAL row — label under Address (col 4), blanks for text cols, nums for numeric cols
       html += `<tr class="month-total">`;
       html += `<td colspan="4"></td>`;
       html += `<td class="label">TOTAL</td>`;
-      const numCell = (v) => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
-      html += numCell(totals.amount);
-      html += numCell(totals.inhaus);
-      html += numCell(totals.bai);
-      html += numCell(totals.gl);
-      html += numCell(totals.gcash);
-      html += numCell(totals.cash);
-      html += numCell(totals.discount);
-      html += numCell(totals.totalPaid);
+      html += numCell(tot.amount);
+      html += numCell(tot.inhaus);
+      html += numCell(tot.gcash);
+      html += numCell(tot.cash);
+      html += numCell(tot.dswdAfterTax);
+      html += numCell(tot.discount);
+      html += numCell(tot.dswdDiscount);
+      html += numCell(tot.baiAssist);
+      html += numCell(tot.totalPaid);
       html += `<td></td>`;
-      html += numCell(totals.remaining);
+      html += numCell(tot.remaining);
       html += `</tr>`;
 
-      // add to grand
-      grand.amount += totals.amount;
-      grand.inhaus += totals.inhaus;
-      grand.bai += totals.bai;
-      grand.gl += totals.gl;
-      grand.gcash += totals.gcash;
-      grand.cash += totals.cash;
-      grand.discount += totals.discount;
-      grand.totalPaid += totals.totalPaid;
-      grand.remaining += totals.remaining;
+      grand.amount       += tot.amount;
+      grand.inhaus       += tot.inhaus;
+      grand.gcash        += tot.gcash;
+      grand.cash         += tot.cash;
+      grand.dswdAfterTax += tot.dswdAfterTax;
+      grand.discount     += tot.discount;
+      grand.dswdDiscount += tot.dswdDiscount;
+      grand.baiAssist    += tot.baiAssist;
+      grand.totalPaid    += tot.totalPaid;
+      grand.remaining    += tot.remaining;
 
-      // Extra spacer line between months
       if (gi < keys.length - 1) {
-        html += `<tr class="spacer"><td colspan="15"></td></tr>`;
+        html += `<tr class="spacer"><td colspan="${NUM_COLS}"></td></tr>`;
       }
     }
 
     if (any) {
-      // Spacer + GRAND TOTAL row (green)
-      html += `<tr class="spacer"><td colspan="15"></td></tr>`;
+      html += `<tr class="spacer"><td colspan="${NUM_COLS}"></td></tr>`;
       html += `<tr class="grand-total">`;
       html += `<td colspan="4"></td>`;
       html += `<td class="label">GRAND TOTAL</td>`;
-      const numCell = (v) => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
       html += numCell(grand.amount);
       html += numCell(grand.inhaus);
-      html += numCell(grand.bai);
-      html += numCell(grand.gl);
       html += numCell(grand.gcash);
       html += numCell(grand.cash);
+      html += numCell(grand.dswdAfterTax);
       html += numCell(grand.discount);
+      html += numCell(grand.dswdDiscount);
+      html += numCell(grand.baiAssist);
       html += numCell(grand.totalPaid);
       html += `<td></td>`;
       html += numCell(grand.remaining);
@@ -7450,6 +7451,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   })();
 
   // ── Contract Form — Print button ──
-  document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => window.print());
+  document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
+    // Move cfPaper to body temporarily so print CSS can target it cleanly
+    const paper = document.getElementById("cfPaper");
+    if (!paper) { window.print(); return; }
+    const placeholder = document.createComment("cfPaper-placeholder");
+    paper.parentNode.replaceChild(placeholder, paper);
+    document.body.appendChild(paper);
+    paper.classList.add("cf-printing");
+    window.print();
+    // Restore after print dialog closes
+    document.body.removeChild(paper);
+    paper.classList.remove("cf-printing");
+    placeholder.parentNode.replaceChild(paper, placeholder);
+  });
 
 })();
