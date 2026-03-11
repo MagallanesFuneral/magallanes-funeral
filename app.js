@@ -1385,10 +1385,10 @@ function fmtMoney(n) {
     const NUM_COLS = 15;
 
     const cols = [
-      "Date", "Contract Number", "Deceased", "Casket", "Address",
-      "Contract Amount", "GCash", "Cash",
-      "DSWD After Tax", "Discount", "DSWD Discount", "BAI Assist",
-      "Total Paid", "Last Payment Date", "Remaining"
+      "Date", "Contract #", "Deceased", "Casket", "Address",
+      "Amount", "GCASH/BANK TRANSFER", "CASH",
+      "DSWD", "Discount", "DSWD Discount", "BAI",
+      "Total Paid", "Last Payment", "Remaining"
     ];
 
     const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
