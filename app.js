@@ -474,8 +474,7 @@ function fmtMoney(n) {
   function calcComputed(c) {
     // totalPaid = only actual customer cash payments
     const totalPaid    = Math.max(0,
-      (Number(c.inhaus)||0) +
-      (Number(c.gcash)||0)  + (Number(c.cash)||0)
+      (Number(c.gcash)||0) + (Number(c.cash)||0)
     );
     // These reduce remaining balance but are NOT customer payments
     const baiAssist    = Number(c.baiAssist)    || 0;  // from BAI Tab
@@ -491,7 +490,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "monthHeader";
     tr.classList.add("group-row");
     const td = document.createElement("td");
-    td.colSpan = 16;
+    td.colSpan = 15;
     td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
     tr.appendChild(td);
     return tr;
@@ -502,7 +501,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "spacer";
     tr.classList.add("spacer-row");
     const td = document.createElement("td");
-    td.colSpan = 16;
+    td.colSpan = 15;
     tr.appendChild(td);
     return tr;
   }
@@ -528,7 +527,6 @@ function fmtMoney(n) {
     }
 
     tr.appendChild(tdNum(totals.amount));
-    tr.appendChild(tdNum(totals.inhaus));
     tr.appendChild(tdNum(totals.gcash));
     tr.appendChild(tdNum(totals.cash));
     tr.appendChild(tdNum(totals.dswdAfterTax || 0));
@@ -560,7 +558,6 @@ function fmtMoney(n) {
       { text: c.address },
 
       { text: fmtMoney(c.amount),                     num: true },
-      { text: fmtMoney(c.inhaus),                     num: true },
       { text: fmtMoney(c.gcash),                      num: true },
       { text: fmtMoney(c.cash),                       num: true },
       { text: fmtMoney(c.dswdAfterTax || 0),          num: true, computed: true },
@@ -580,7 +577,7 @@ function fmtMoney(n) {
       if (cell.computed) td.classList.add("computed");
 
       const dataCol = ["","","","","",
-        "amount","inhaus","gcash","cash",
+        "amount","gcash","cash",
         "dswdAfterTax","discount","dswdDiscount","baiAssist",
         "totalPaid","lastPayment","remaining"][idx];
       if (dataCol) td.setAttribute("data-col", dataCol);
@@ -684,7 +681,7 @@ function fmtMoney(n) {
     selectedContractNo = null;
     selectedEl.textContent = "Selected: —";
 
-    const grand = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let visibleDataCount = 0;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -694,7 +691,7 @@ function fmtMoney(n) {
 
       table.tBodies[0].appendChild(createGroupRow(monthLabelFromKey(key)));
 
-      const totals = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const totals = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const tr = createDataRow(c);
@@ -703,7 +700,6 @@ function fmtMoney(n) {
 
         const computed = calcComputed(c);
         totals.amount      += c.amount      || 0;
-        totals.inhaus      += c.inhaus      || 0;
         totals.gcash       += c.gcash       || 0;
         totals.cash        += c.cash        || 0;
         totals.dswdAfterTax+= c.dswdAfterTax|| 0;
@@ -721,7 +717,6 @@ function fmtMoney(n) {
       }
 
       grand.amount       += totals.amount;
-      grand.inhaus       += totals.inhaus;
       grand.gcash        += totals.gcash;
       grand.cash         += totals.cash;
       grand.dswdAfterTax += totals.dswdAfterTax;
@@ -1387,11 +1382,11 @@ function fmtMoney(n) {
       return a.localeCompare(b);
     });
 
-    const NUM_COLS = 16;
+    const NUM_COLS = 15;
 
     const cols = [
       "Date", "Contract Number", "Deceased", "Casket", "Address",
-      "Contract Amount", "InHaus", "GCash", "Cash",
+      "Contract Amount", "GCash", "Cash",
       "DSWD After Tax", "Discount", "DSWD Discount", "BAI Assist",
       "Total Paid", "Last Payment Date", "Remaining"
     ];
@@ -1428,7 +1423,6 @@ function fmtMoney(n) {
         <col style="width:120px" />
         <col style="width:90px" />
         <col style="width:90px" />
-        <col style="width:90px" />
         <col style="width:110px" />
         <col style="width:90px" />
         <col style="width:110px" />
@@ -1448,7 +1442,7 @@ function fmtMoney(n) {
     for (const h of cols) html += `<th>${esc(h)}</th>`;
     html += `</tr></thead><tbody>`;
 
-    const grand = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+    const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
     let any = false;
 
     for (let gi = 0; gi < keys.length; gi++) {
@@ -1465,13 +1459,12 @@ function fmtMoney(n) {
       for (const h of cols) html += `<th>${esc(h)}</th>`;
       html += `</tr>`;
 
-      const tot = { amount:0, inhaus:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const tot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
       for (const c of rows) {
         const cp = calcComputed(c);
 
         tot.amount       += Number(c.amount)       || 0;
-        tot.inhaus       += Number(c.inhaus)       || 0;
         tot.gcash        += Number(c.gcash)        || 0;
         tot.cash         += Number(c.cash)         || 0;
         tot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
@@ -1488,7 +1481,6 @@ function fmtMoney(n) {
         html += txtCell(c.casket);
         html += txtCell(c.address);
         html += numCell(c.amount);
-        html += numCell(c.inhaus);
         html += numCell(c.gcash);
         html += numCell(c.cash);
         html += compCell(c.dswdAfterTax || 0);
@@ -1506,7 +1498,6 @@ function fmtMoney(n) {
       html += `<td colspan="4"></td>`;
       html += `<td class="label">TOTAL</td>`;
       html += numCell(tot.amount);
-      html += numCell(tot.inhaus);
       html += numCell(tot.gcash);
       html += numCell(tot.cash);
       html += numCell(tot.dswdAfterTax);
@@ -1519,7 +1510,6 @@ function fmtMoney(n) {
       html += `</tr>`;
 
       grand.amount       += tot.amount;
-      grand.inhaus       += tot.inhaus;
       grand.gcash        += tot.gcash;
       grand.cash         += tot.cash;
       grand.dswdAfterTax += tot.dswdAfterTax;
@@ -1540,7 +1530,6 @@ function fmtMoney(n) {
       html += `<td colspan="4"></td>`;
       html += `<td class="label">GRAND TOTAL</td>`;
       html += numCell(grand.amount);
-      html += numCell(grand.inhaus);
       html += numCell(grand.gcash);
       html += numCell(grand.cash);
       html += numCell(grand.dswdAfterTax);
