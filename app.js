@@ -7446,6 +7446,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const mrMonthSelect = document.getElementById("mrMonthSelect");
     const mrYearSelect  = document.getElementById("mrYearSelect");
     const btnGenerate   = document.getElementById("btnMrGenerate");
+    const btnMrPdf      = document.getElementById("btnMrPdf");
     const mrTable       = document.getElementById("mrTable");
     const mrGridWrap    = document.getElementById("mrGridWrap");
     const mrEmpty       = document.getElementById("mrEmpty");
@@ -7462,74 +7463,85 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const d = parseMMDDYYYY(c.date || "");
         if (d) years.add(d.getFullYear());
       }
-      for (const r of (cashStore || [])) {
-        const d = parseMMDDYYYY(r.date || "");
-        if (d) years.add(d.getFullYear());
-      }
-      for (const r of (bankStore || [])) {
-        const d = parseMMDDYYYY(r.date || "");
-        if (d) years.add(d.getFullYear());
-      }
       const sorted = Array.from(years).sort((a, b) => a - b);
+      const prev = mrYearSelect.value;
       mrYearSelect.innerHTML = "";
       for (const y of sorted) {
         const opt = document.createElement("option");
-        opt.value = y;
-        opt.textContent = y;
+        opt.value = y; opt.textContent = y;
         mrYearSelect.appendChild(opt);
       }
-      // Default to current month/year
-      mrMonthSelect.value = now.getMonth() + 1;
-      mrYearSelect.value  = now.getFullYear();
+      mrMonthSelect.value = prev ? mrMonthSelect.value : (now.getMonth() + 1);
+      mrYearSelect.value  = prev || now.getFullYear();
     }
 
     populateYears();
-
-    // Re-populate years whenever the tab is activated
-    document.querySelector(".tab[data-tab='monthlyreport']")
-      ?.addEventListener("click", populateYears);
+    document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
 
     btnGenerate.addEventListener("click", renderMonthlyReport);
+    btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
 
-    function monthKeyOf(dateStr) {
-      return monthKeyFromDate(dateStr || "");
+    // ── Core data builder — shared by both render and PDF export ──
+    function buildReportData(selMonth, selYear) {
+      const pickedKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
+
+      // Section A: contracts whose date is in the selected month
+      const sectionA = (contractsStore || [])
+        .filter(c => monthKeyFromDate(c.date || "") === pickedKey)
+        .sort((a, b) => {
+          const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+          const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+          return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
+        });
+
+      // Section B: contracts from previous months where lastPayment falls in the selected month
+      const sectionB = (contractsStore || [])
+        .filter(c => {
+          const cKey = monthKeyFromDate(c.date || "");
+          if (cKey === pickedKey) return false; // already in section A
+          const lpKey = monthKeyFromDate(c.lastPayment || "");
+          return lpKey === pickedKey;
+        })
+        .sort((a, b) => {
+          const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+          const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+          return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
+        });
+
+      return { pickedKey, sectionA, sectionB };
     }
 
+    function calcTotals(rows) {
+      const t = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      for (const c of rows) {
+        const cp = calcComputed(c);
+        t.amount       += Number(c.amount)       || 0;
+        t.gcash        += Number(c.gcash)        || 0;
+        t.cash         += Number(c.cash)         || 0;
+        t.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+        t.discount     += Number(c.discount)     || 0;
+        t.dswdDiscount += Number(c.dswdDiscount) || 0;
+        t.baiAssist    += Number(c.baiAssist)    || 0;
+        t.totalPaid    += cp.totalPaid;
+        t.remaining    += cp.remaining;
+      }
+      return t;
+    }
+
+    // ── Render into the on-screen table ──
     function renderMonthlyReport() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year."); return; }
 
-      // "YYYY-MM" key for the selected end month
-      const endKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
-
+      const { pickedKey, sectionA, sectionB } = buildReportData(selMonth, selYear);
+      const monthLabel = monthLabelFromKey(pickedKey);
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
-
-      // ── Collect all unique month keys that exist in data, up to and including endKey ──
-      const monthKeysSet = new Set();
-      for (const c of (contractsStore || [])) {
-        const k = monthKeyOf(c.date || "");
-        if (k && k <= endKey) monthKeysSet.add(k);
-      }
-      // Also include months that only have payments (no contracts that month)
-      for (const r of (cashStore || [])) {
-        const k = monthKeyOf(r.date || "");
-        if (k && k <= endKey) monthKeysSet.add(k);
-      }
-      for (const r of (bankStore || [])) {
-        const k = monthKeyOf(r.date || "");
-        if (k && k <= endKey) monthKeysSet.add(k);
-      }
-
-      // Sort chronologically Jan → selected month
-      const monthKeys = Array.from(monthKeysSet).filter(k => k !== "unknown").sort();
-
       const NUM_COLS = 15;
       let totalDataRows = 0;
 
-      // ── Helpers ──
-      function appendSectionHeader(label) {
+      function appendHeader(label) {
         const tr = document.createElement("tr");
         tr.dataset.rowType = "monthHeader";
         tr.classList.add("group-row");
@@ -7545,64 +7557,37 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tr.dataset.rowType = rowType;
         tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
         for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
-        const tdLabel = document.createElement("td");
-        tdLabel.textContent = label;
-        tdLabel.classList.add("total-label");
-        tr.appendChild(tdLabel);
-        const n = (v) => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
-        tr.appendChild(n(tot.amount));
-        tr.appendChild(n(tot.gcash));
-        tr.appendChild(n(tot.cash));
-        tr.appendChild(n(tot.dswdAfterTax));
-        tr.appendChild(n(tot.discount));
-        tr.appendChild(n(tot.dswdDiscount));
-        tr.appendChild(n(tot.baiAssist));
-        tr.appendChild(n(tot.totalPaid));
-        tr.appendChild(document.createElement("td"));
+        const tdL = document.createElement("td"); tdL.textContent = label; tdL.classList.add("total-label");
+        tr.appendChild(tdL);
+        const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
+        tr.appendChild(n(tot.amount)); tr.appendChild(n(tot.gcash)); tr.appendChild(n(tot.cash));
+        tr.appendChild(n(tot.dswdAfterTax)); tr.appendChild(n(tot.discount));
+        tr.appendChild(n(tot.dswdDiscount)); tr.appendChild(n(tot.baiAssist));
+        tr.appendChild(n(tot.totalPaid)); tr.appendChild(document.createElement("td"));
         tr.appendChild(n(tot.remaining));
         tbody.appendChild(tr);
       }
 
       function appendSpacer() {
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = "spacer";
-        tr.classList.add("spacer-row");
-        const td = document.createElement("td"); td.colSpan = NUM_COLS;
-        tr.appendChild(td);
-        tbody.appendChild(tr);
+        const tr = document.createElement("tr"); tr.dataset.rowType = "spacer"; tr.classList.add("spacer-row");
+        const td = document.createElement("td"); td.colSpan = NUM_COLS; tr.appendChild(td); tbody.appendChild(tr);
       }
 
-      function appendDataRow(c, overrideGcash, overrideCash) {
-        const gcashVal = overrideGcash !== undefined ? overrideGcash : (Number(c.gcash) || 0);
-        const cashVal  = overrideCash  !== undefined ? overrideCash  : (Number(c.cash)  || 0);
-        let totalPaid, remaining;
-        if (overrideGcash !== undefined || overrideCash !== undefined) {
-          totalPaid = Math.max(0, gcashVal + cashVal);
-          remaining = calcComputed(c).remaining;
-        } else {
-          const cp = calcComputed(c);
-          totalPaid = cp.totalPaid;
-          remaining = cp.remaining;
-        }
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = "data";
-        tr.dataset.contract = c.contract;
+      function appendDataRow(c) {
+        const cp = calcComputed(c);
+        const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
         const cells = [
-          { text: c.date },
-          { text: c.contract },
-          { text: c.deceased },
-          { text: c.casket },
-          { text: c.address },
-          { text: fmtMoney(c.amount),             num: true },
-          { text: fmtMoney(gcashVal),              num: true },
-          { text: fmtMoney(cashVal),               num: true },
-          { text: fmtMoney(c.dswdAfterTax || 0),  num: true, computed: true },
-          { text: fmtMoney(c.discount),            num: true },
-          { text: fmtMoney(c.dswdDiscount || 0),  num: true, computed: true },
-          { text: fmtMoney(c.baiAssist || 0),     num: true, computed: true },
-          { text: fmtMoney(totalPaid),             num: true, computed: true },
+          { text: c.date }, { text: c.contract }, { text: c.deceased }, { text: c.casket }, { text: c.address },
+          { text: fmtMoney(c.amount), num:true },
+          { text: fmtMoney(c.gcash),  num:true },
+          { text: fmtMoney(c.cash),   num:true },
+          { text: fmtMoney(c.dswdAfterTax||0), num:true, computed:true },
+          { text: fmtMoney(c.discount),        num:true },
+          { text: fmtMoney(c.dswdDiscount||0), num:true, computed:true },
+          { text: fmtMoney(c.baiAssist||0),    num:true, computed:true },
+          { text: fmtMoney(cp.totalPaid),      num:true, computed:true },
           { text: c.lastPayment || "—" },
-          { text: fmtMoney(remaining),             num: true, computed: true },
+          { text: fmtMoney(cp.remaining),      num:true, computed:true },
         ];
         cells.forEach(cell => {
           const td = document.createElement("td");
@@ -7616,123 +7601,144 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       }
 
       const grandTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-      let anyData = false;
-      let firstSection = true;
+      const addToGrand = t => { for (const k in grandTot) grandTot[k] += t[k] || 0; };
+      const anyData = sectionA.length + sectionB.length > 0;
 
-      // ── Render one section per month chronologically ──
-      for (const mKey of monthKeys) {
-        const monthLabel = monthLabelFromKey(mKey);
-
-        // Build payInMonth map for THIS month key
-        const payInMonth = new Map();
-        for (const r of (cashStore || [])) {
-          if (monthKeyOf(r.date || "") !== mKey) continue;
-          const cno = normalizeText(r.contract || "");
-          if (!cno) continue;
-          const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-          cur.cash += Number(r.amount) || 0;
-          payInMonth.set(cno, cur);
-        }
-        for (const r of (bankStore || [])) {
-          if (monthKeyOf(r.date || "") !== mKey) continue;
-          const cno = normalizeText(r.contract || "");
-          if (!cno) continue;
-          const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-          cur.gcash += Number(r.amount) || 0;
-          payInMonth.set(cno, cur);
-        }
-
-        // Contracts from this month
-        const sameMonth = (contractsStore || [])
-          .filter(c => monthKeyOf(c.date || "") === mKey)
-          .sort((a, b) => {
-            const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
-            const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-            return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
-          });
-
-        // Previous contracts with payments this month
-        const prevPaid = (contractsStore || [])
-          .filter(c => {
-            const cKey = monthKeyOf(c.date || "");
-            return cKey !== mKey && payInMonth.has(normalizeText(c.contract || ""));
-          })
-          .sort((a, b) => {
-            const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
-            const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-            return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
-          });
-
-        if (sameMonth.length === 0 && prevPaid.length === 0) continue;
-        anyData = true;
-
-        if (!firstSection) appendSpacer();
-        firstSection = false;
-
-        const monthTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-
-        // Same-month contracts
-        if (sameMonth.length > 0) {
-          appendSectionHeader(`Contracts — ${monthLabel}`);
-          for (const c of sameMonth) {
-            const cp = calcComputed(c);
-            appendDataRow(c);
-            monthTot.amount       += Number(c.amount)       || 0;
-            monthTot.gcash        += Number(c.gcash)        || 0;
-            monthTot.cash         += Number(c.cash)         || 0;
-            monthTot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-            monthTot.discount     += Number(c.discount)     || 0;
-            monthTot.dswdDiscount += Number(c.dswdDiscount) || 0;
-            monthTot.baiAssist    += Number(c.baiAssist)    || 0;
-            monthTot.totalPaid    += cp.totalPaid;
-            monthTot.remaining    += cp.remaining;
-          }
-        }
-
-        // Previous contracts that paid this month
-        if (prevPaid.length > 0) {
-          if (sameMonth.length > 0) appendSpacer();
-          appendSectionHeader(`Payments in ${monthLabel} — Previous Contracts`);
-          for (const c of prevPaid) {
-            const cno = normalizeText(c.contract || "");
-            const pay = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-            appendDataRow(c, pay.gcash, pay.cash);
-            monthTot.amount       += Number(c.amount)       || 0;
-            monthTot.gcash        += pay.gcash;
-            monthTot.cash         += pay.cash;
-            monthTot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-            monthTot.discount     += Number(c.discount)     || 0;
-            monthTot.dswdDiscount += Number(c.dswdDiscount) || 0;
-            monthTot.baiAssist    += Number(c.baiAssist)    || 0;
-            monthTot.totalPaid    += pay.gcash + pay.cash;
-            monthTot.remaining    += calcComputed(c).remaining;
-          }
-        }
-
-        // Subtotal for this month
-        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, monthTot, "monthTotal");
-
-        grandTot.amount       += monthTot.amount;
-        grandTot.gcash        += monthTot.gcash;
-        grandTot.cash         += monthTot.cash;
-        grandTot.dswdAfterTax += monthTot.dswdAfterTax;
-        grandTot.discount     += monthTot.discount;
-        grandTot.dswdDiscount += monthTot.dswdDiscount;
-        grandTot.baiAssist    += monthTot.baiAssist;
-        grandTot.totalPaid    += monthTot.totalPaid;
-        grandTot.remaining    += monthTot.remaining;
+      if (sectionA.length > 0) {
+        appendHeader(`Contracts — ${monthLabel}`);
+        sectionA.forEach(c => appendDataRow(c));
+        const tA = calcTotals(sectionA);
+        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, tA, "monthTotal");
+        addToGrand(tA);
       }
 
-      // Grand total
-      if (anyData) {
-        appendSpacer();
-        appendSubtotal("GRAND TOTAL", grandTot, "grandTotal");
+      if (sectionB.length > 0) {
+        if (sectionA.length > 0) appendSpacer();
+        appendHeader(`Previous Contracts — Last Payment in ${monthLabel}`);
+        sectionB.forEach(c => appendDataRow(c));
+        const tB = calcTotals(sectionB);
+        appendSubtotal("SUBTOTAL — PREVIOUS CONTRACTS", tB, "monthTotal");
+        addToGrand(tB);
       }
+
+      if (anyData) { appendSpacer(); appendSubtotal("GRAND TOTAL", grandTot, "grandTotal"); }
 
       mrGridWrap.style.display = anyData ? "" : "none";
       mrEmpty.style.display    = anyData ? "none" : "";
-      mrEmpty.textContent      = anyData ? "" : `No data found up to ${monthLabelFromKey(endKey)}.`;
+      mrEmpty.textContent      = anyData ? "" : `No contracts or payments found for ${monthLabel}.`;
       if (mrRowCount) mrRowCount.textContent = `Rows: ${totalDataRows}`;
+    }
+
+    // ── PDF export — builds a styled printable HTML and opens in new window ──
+    function exportMonthlyReportPdf() {
+      const selMonth = parseInt(mrMonthSelect.value, 10);
+      const selYear  = parseInt(mrYearSelect.value,  10);
+      if (!selMonth || !selYear) { alert("Please select a month and year first."); return; }
+
+      const { pickedKey, sectionA, sectionB } = buildReportData(selMonth, selYear);
+      const monthLabel = monthLabelFromKey(pickedKey);
+      const anyData = sectionA.length + sectionB.length > 0;
+      if (!anyData) { alert(`No data found for ${monthLabel}.`); return; }
+
+      const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
+      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const fmtN = v => fmtMoney(v);
+      const NUM_COLS = 15;
+
+      const cols = ["Date","Contract #","Deceased","Casket","Address",
+        "Amount","GCASH/BANK TRANSFER","CASH","DSWD","Discount","DSWD Discount","BAI",
+        "Total Paid","Last Payment","Remaining"];
+
+      const css = `
+        <style>
+          @page { size: landscape; margin: 0.4in; }
+          body { font-family: Calibri, Arial, sans-serif; font-size: 9pt; margin: 0; }
+          h2 { text-align:center; font-size:13pt; margin:0 0 2px; }
+          h3 { text-align:center; font-size:10pt; font-weight:normal; margin:0 0 10px; color:#444; }
+          table { border-collapse:collapse; width:100%; font-size:8.5pt; }
+          th, td { border:1px solid #bbb; padding:3px 5px; white-space:nowrap; }
+          th { background:#f2f2f2; font-weight:700; text-align:center; }
+          td.num { text-align:right; }
+          td.computed { background:#f0f7ff; }
+          tr.section-header td { background:#d9d9d9; font-weight:800; font-size:9pt;
+            text-align:center; border-top:2px solid #333; border-bottom:2px solid #333; }
+          tr.subtotal td { background:#fff2cc; font-weight:700; border-top:2px solid #333; }
+          tr.subtotal td.lbl { text-align:center; letter-spacing:.08em; }
+          tr.grand td { background:#92d050; font-weight:800;
+            border-top:2px solid #333; border-bottom:2px solid #333; }
+          tr.grand td.lbl { text-align:center; letter-spacing:.08em; }
+          tr.spacer td { border:none; height:8px; }
+          @media print { button { display:none; } }
+        </style>`;
+
+      function headerRow() {
+        return `<tr>${cols.map(h => `<th>${esc(h)}</th>`).join("")}</tr>`;
+      }
+      function dataRow(c) {
+        const cp = calcComputed(c);
+        const n = v => `<td class="num">${fmtN(v)}</td>`;
+        const nc = v => `<td class="num computed">${fmtN(v)}</td>`;
+        const t = v => `<td>${esc(v)}</td>`;
+        return `<tr>
+          ${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}
+          ${n(c.amount)}${n(c.gcash)}${n(c.cash)}
+          ${nc(c.dswdAfterTax||0)}${n(c.discount)}${nc(c.dswdDiscount||0)}${nc(c.baiAssist||0)}
+          ${nc(cp.totalPaid)}${t(c.lastPayment||"")}${nc(cp.remaining)}
+        </tr>`;
+      }
+      function sectionHeaderRow(label) {
+        return `<tr class="section-header"><td colspan="${NUM_COLS}">${esc(label)}</td></tr>`;
+      }
+      function subtotalRow(label, tot, cls) {
+        const n = v => `<td class="num">${fmtN(v)}</td>`;
+        return `<tr class="${cls}">
+          <td colspan="4"></td><td class="lbl">${esc(label)}</td>
+          ${n(tot.amount)}${n(tot.gcash)}${n(tot.cash)}
+          ${n(tot.dswdAfterTax)}${n(tot.discount)}${n(tot.dswdDiscount)}${n(tot.baiAssist)}
+          ${n(tot.totalPaid)}<td></td>${n(tot.remaining)}
+        </tr>`;
+      }
+      function spacerRow() {
+        return `<tr class="spacer"><td colspan="${NUM_COLS}"></td></tr>`;
+      }
+
+      const grandTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const addToGrand = t => { for (const k in grandTot) grandTot[k] += t[k] || 0; };
+
+      let tableBody = "";
+
+      if (sectionA.length > 0) {
+        tableBody += sectionHeaderRow(`Contracts — ${monthLabel}`);
+        tableBody += headerRow();
+        tableBody += sectionA.map(dataRow).join("");
+        const tA = calcTotals(sectionA);
+        tableBody += subtotalRow(`SUBTOTAL — ${monthLabel.toUpperCase()}`, tA, "subtotal");
+        addToGrand(tA);
+      }
+      if (sectionB.length > 0) {
+        if (sectionA.length > 0) tableBody += spacerRow();
+        tableBody += sectionHeaderRow(`Previous Contracts — Last Payment in ${monthLabel}`);
+        tableBody += headerRow();
+        tableBody += sectionB.map(dataRow).join("");
+        const tB = calcTotals(sectionB);
+        tableBody += subtotalRow("SUBTOTAL — PREVIOUS CONTRACTS", tB, "subtotal");
+        addToGrand(tB);
+      }
+      tableBody += spacerRow();
+      tableBody += subtotalRow("GRAND TOTAL", grandTot, "grand");
+
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+        <title>Monthly Report — ${monthLabel}</title>${css}</head><body>
+        <h2>Magallanes Funeral Services</h2>
+        <h3>Monthly Report — ${esc(monthLabel)}</h3>
+        <button onclick="window.print()" style="margin-bottom:10px;padding:6px 18px;cursor:pointer;">🖨 Print / Save as PDF</button>
+        <table><tbody>${tableBody}</tbody></table>
+      </body></html>`;
+
+      const win = window.open("", "_blank");
+      if (!win) { alert("Please allow popups for this page to export the report."); return; }
+      win.document.write(html);
+      win.document.close();
     }
   })();
 
