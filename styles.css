@@ -1610,25 +1610,36 @@ html.display-mobile .modal { width: calc(100vw - 24px); max-width: none; left: 1
 }
 
 /* Contract Form — Logo in header */
-.cf-header-logo-row {
+/* Logo wrap: stretches to full height of the text block */
+.cf-logo-wrap {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
-  margin-bottom: 4px;
-}
-.cf-logo {
-  width: 80px;
-  height: 80px;
-  object-fit: contain;
   flex-shrink: 0;
 }
+/* Outer wrapper: centers the whole logo+text unit on the page */
+.cf-header-logo-row {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;   /* makes logo stretch to full height of text block */
+  gap: 16px;
+  margin-bottom: 4px;
+}
+/* Logo: full height of the text block, proportional width */
+.cf-logo {
+  width: auto;
+  height: 100%;
+  max-height: 90px;       /* cap so it doesn't get huge on screen */
+  object-fit: contain;
+  object-position: center left;
+  display: block;
+}
+/* Text block: centered text, natural height */
 .cf-header-text {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
-/* Hide logo in print but keep it visible on screen — or show it in print too */
 @media print {
-  .cf-logo { width: 70px; height: 70px; }
+  .cf-header-logo-row { gap: 14px; }
 }
