@@ -7482,60 +7482,58 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
 
     // ── Core data builder — shared by both render and PDF export ──
+    // ── Build month groups from Jan up to selected month ──
+    // Each group: { key, label, sameMonth[], prevPaid[] }
     function buildReportData(selMonth, selYear) {
       const pickedKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
 
-      // Section A: contracts whose date is in the selected month
-      const sectionA = (contractsStore || [])
-        .filter(c => monthKeyFromDate(c.date || "") === pickedKey)
-        .sort((a, b) => {
-          const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
-          const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-          return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
-        });
-
-      // Section B: contracts from previous months where lastPayment falls in the selected month
-      const sectionB = (contractsStore || [])
-        .filter(c => {
-          const cKey = monthKeyFromDate(c.date || "");
-          if (cKey === pickedKey) return false; // already in section A
-          const lpKey = monthKeyFromDate(c.lastPayment || "");
-          return lpKey === pickedKey;
-        })
-        .sort((a, b) => {
-          const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
-          const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-          return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
-        });
-
-      return { pickedKey, sectionA, sectionB };
-    }
-
-    function calcTotals(rows) {
-      const t = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-      for (const c of rows) {
-        const cp = calcComputed(c);
-        t.amount       += Number(c.amount)       || 0;
-        t.gcash        += Number(c.gcash)        || 0;
-        t.cash         += Number(c.cash)         || 0;
-        t.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-        t.discount     += Number(c.discount)     || 0;
-        t.dswdDiscount += Number(c.dswdDiscount) || 0;
-        t.baiAssist    += Number(c.baiAssist)    || 0;
-        t.totalPaid    += cp.totalPaid;
-        t.remaining    += cp.remaining;
+      // Collect all month keys that have contracts or relevant lastPayments, up to pickedKey
+      const monthKeysSet = new Set();
+      for (const c of (contractsStore || [])) {
+        const ck = monthKeyFromDate(c.date || "");
+        if (ck && ck <= pickedKey && ck !== "unknown") monthKeysSet.add(ck);
+        // also include the month of lastPayment if it's <= pickedKey
+        const lk = monthKeyFromDate(c.lastPayment || "");
+        if (lk && lk <= pickedKey && lk !== "unknown") monthKeysSet.add(lk);
       }
-      return t;
+
+      const monthKeys = Array.from(monthKeysSet).sort(); // Jan → selected month
+
+      const sortFn = (a, b) => {
+        const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+        const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+        return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
+      };
+
+      const groups = [];
+      for (const mKey of monthKeys) {
+        // Same-month contracts: contract date is in this month
+        const sameMonth = (contractsStore || [])
+          .filter(c => monthKeyFromDate(c.date || "") === mKey)
+          .sort(sortFn);
+
+        // Previous contracts: contract date is BEFORE this month, lastPayment is in this month
+        const prevPaid = (contractsStore || [])
+          .filter(c => {
+            const ck = monthKeyFromDate(c.date || "");
+            return ck < mKey && monthKeyFromDate(c.lastPayment || "") === mKey;
+          })
+          .sort(sortFn);
+
+        if (sameMonth.length === 0 && prevPaid.length === 0) continue;
+        groups.push({ key: mKey, label: monthLabelFromKey(mKey), sameMonth, prevPaid });
+      }
+
+      return { pickedKey, groups };
     }
 
     // ── Render into the on-screen table ──
     function renderMonthlyReport() {
+
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year."); return; }
 
-      const { pickedKey, sectionA, sectionB } = buildReportData(selMonth, selYear);
-      const monthLabel = monthLabelFromKey(pickedKey);
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
       const NUM_COLS = 15;
@@ -7600,32 +7598,39 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         totalDataRows++;
       }
 
+      const pickedKey = `${selYear}-${String(selMonth).padStart(2,"0")}`;
+      const { groups } = buildReportData(selMonth, selYear);
       const grandTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
       const addToGrand = t => { for (const k in grandTot) grandTot[k] += t[k] || 0; };
-      const anyData = sectionA.length + sectionB.length > 0;
+      const anyData = groups.length > 0;
 
-      if (sectionA.length > 0) {
-        appendHeader(`Contracts — ${monthLabel}`);
-        sectionA.forEach(c => appendDataRow(c));
-        const tA = calcTotals(sectionA);
-        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, tA, "monthTotal");
-        addToGrand(tA);
-      }
+      groups.forEach((grp, gi) => {
+        if (gi > 0) appendSpacer();
 
-      if (sectionB.length > 0) {
-        if (sectionA.length > 0) appendSpacer();
-        appendHeader(`Previous Contracts — Last Payment in ${monthLabel}`);
-        sectionB.forEach(c => appendDataRow(c));
-        const tB = calcTotals(sectionB);
-        appendSubtotal("SUBTOTAL — PREVIOUS CONTRACTS", tB, "monthTotal");
-        addToGrand(tB);
-      }
+        // ── Same-month contracts ──
+        if (grp.sameMonth.length > 0) {
+          appendHeader(`${grp.label} — New Contracts`);
+          grp.sameMonth.forEach(c => appendDataRow(c));
+        }
+
+        // ── Previous contracts paid this month ──
+        if (grp.prevPaid.length > 0) {
+          if (grp.sameMonth.length > 0) appendSpacer();
+          appendHeader(`${grp.label} — Previous Contracts`);
+          grp.prevPaid.forEach(c => appendDataRow(c));
+        }
+
+        // ── Month subtotal covering both sub-sections ──
+        const grpTot = calcTotals([...grp.sameMonth, ...grp.prevPaid]);
+        appendSubtotal(`SUBTOTAL — ${grp.label.toUpperCase()}`, grpTot, "monthTotal");
+        addToGrand(grpTot);
+      });
 
       if (anyData) { appendSpacer(); appendSubtotal("GRAND TOTAL", grandTot, "grandTotal"); }
 
       mrGridWrap.style.display = anyData ? "" : "none";
       mrEmpty.style.display    = anyData ? "none" : "";
-      mrEmpty.textContent      = anyData ? "" : `No contracts or payments found for ${monthLabel}.`;
+      mrEmpty.textContent      = anyData ? "" : `No contracts or payments found for ${monthLabelFromKey(pickedKey)}.`;
       if (mrRowCount) mrRowCount.textContent = `Rows: ${totalDataRows}`;
     }
 
@@ -7635,10 +7640,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year first."); return; }
 
-      const { pickedKey, sectionA, sectionB } = buildReportData(selMonth, selYear);
+      const { pickedKey, groups } = buildReportData(selMonth, selYear);
       const monthLabel = monthLabelFromKey(pickedKey);
-      const anyData = sectionA.length + sectionB.length > 0;
-      if (!anyData) { alert(`No data found for ${monthLabel}.`); return; }
+      if (!groups.length) { alert(`No data found for ${monthLabel}.`); return; }
 
       const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -7707,23 +7711,27 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
       let tableBody = "";
 
-      if (sectionA.length > 0) {
-        tableBody += sectionHeaderRow(`Contracts — ${monthLabel}`);
-        tableBody += headerRow();
-        tableBody += sectionA.map(dataRow).join("");
-        const tA = calcTotals(sectionA);
-        tableBody += subtotalRow(`SUBTOTAL — ${monthLabel.toUpperCase()}`, tA, "subtotal");
-        addToGrand(tA);
-      }
-      if (sectionB.length > 0) {
-        if (sectionA.length > 0) tableBody += spacerRow();
-        tableBody += sectionHeaderRow(`Previous Contracts — Last Payment in ${monthLabel}`);
-        tableBody += headerRow();
-        tableBody += sectionB.map(dataRow).join("");
-        const tB = calcTotals(sectionB);
-        tableBody += subtotalRow("SUBTOTAL — PREVIOUS CONTRACTS", tB, "subtotal");
-        addToGrand(tB);
-      }
+      groups.forEach((grp, gi) => {
+        if (gi > 0) tableBody += spacerRow();
+
+        if (grp.sameMonth.length > 0) {
+          tableBody += sectionHeaderRow(`${grp.label} — New Contracts`);
+          tableBody += headerRow();
+          tableBody += grp.sameMonth.map(dataRow).join("");
+        }
+
+        if (grp.prevPaid.length > 0) {
+          if (grp.sameMonth.length > 0) tableBody += spacerRow();
+          tableBody += sectionHeaderRow(`${grp.label} — Previous Contracts`);
+          tableBody += headerRow();
+          tableBody += grp.prevPaid.map(dataRow).join("");
+        }
+
+        const grpTot = calcTotals([...grp.sameMonth, ...grp.prevPaid]);
+        tableBody += subtotalRow(`SUBTOTAL — ${grp.label.toUpperCase()}`, grpTot, "subtotal");
+        addToGrand(grpTot);
+      });
+
       tableBody += spacerRow();
       tableBody += subtotalRow("GRAND TOTAL", grandTot, "grand");
 
