@@ -7511,18 +7511,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return t;
     }
 
-    // ── Build chronological month groups up to selected month ──
+    // ── Build chronological month groups for the selected month ──
+    //
+    // Logic:
+    //   1. Find all contracts whose date is in the selected month → goes in selected-month group
+    //   2. Find all contracts from PREVIOUS months whose lastPayment is in the selected month
+    //      → grouped by their OWN contract month (e.g. a Jan contract paid in Feb → Jan group)
+    //   3. Sort all groups chronologically (oldest first, selected month last)
+    //
     function buildGroups(selMonth, selYear) {
       const pickedKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
-
-      // Gather all relevant month keys <= pickedKey
-      const keySet = new Set();
-      for (const c of (contractsStore || [])) {
-        const ck = monthKeyFromDate(c.date || "");
-        if (ck && ck !== "unknown" && ck <= pickedKey) keySet.add(ck);
-        const lk = monthKeyFromDate(c.lastPayment || "");
-        if (lk && lk !== "unknown" && lk <= pickedKey) keySet.add(lk);
-      }
 
       const sortFn = (a, b) => {
         const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
@@ -7530,24 +7528,50 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
       };
 
-      const groups = [];
-      for (const mKey of Array.from(keySet).sort()) {
-        const sameMonth = (contractsStore || [])
-          .filter(c => monthKeyFromDate(c.date || "") === mKey)
-          .sort(sortFn);
+      // Step 1 — contracts dated IN the selected month
+      const selectedMonthContracts = (contractsStore || [])
+        .filter(c => monthKeyFromDate(c.date || "") === pickedKey)
+        .sort(sortFn);
 
-        const prevPaid = (contractsStore || [])
-          .filter(c => {
-            const ck = monthKeyFromDate(c.date || "");
-            if (ck === mKey) return false; // already in sameMonth
-            const lk = monthKeyFromDate(c.lastPayment || "");
-            return lk === mKey;
-          })
-          .sort(sortFn);
-
-        if (sameMonth.length === 0 && prevPaid.length === 0) continue;
-        groups.push({ key: mKey, label: monthLabelFromKey(mKey), sameMonth, prevPaid });
+      // Step 2 — previous contracts whose lastPayment is in the selected month,
+      //           keyed by their own contract month
+      const prevGroupMap = new Map(); // contractMonthKey → contracts[]
+      for (const c of (contractsStore || [])) {
+        const ck = monthKeyFromDate(c.date || "");
+        if (ck === pickedKey || ck === "unknown") continue; // skip selected-month & unknown
+        if (ck > pickedKey) continue;                       // skip future contracts
+        const lk = monthKeyFromDate(c.lastPayment || "");
+        if (lk !== pickedKey) continue;                     // only those paid in selected month
+        if (!prevGroupMap.has(ck)) prevGroupMap.set(ck, []);
+        prevGroupMap.get(ck).push(c);
       }
+      // Sort each previous group internally
+      for (const [, arr] of prevGroupMap) arr.sort(sortFn);
+
+      // Step 3 — collect all group keys and sort chronologically
+      const allKeys = new Set(prevGroupMap.keys());
+      if (selectedMonthContracts.length > 0) allKeys.add(pickedKey);
+      const sortedKeys = Array.from(allKeys).sort();
+
+      // Step 4 — build final groups array
+      const groups = [];
+      for (const mKey of sortedKeys) {
+        if (mKey === pickedKey) {
+          // Selected month: only same-month contracts, no prevPaid sub-section
+          if (selectedMonthContracts.length > 0) {
+            groups.push({ key: mKey, label: monthLabelFromKey(mKey),
+              sameMonth: selectedMonthContracts, prevPaid: [] });
+          }
+        } else {
+          // Previous month group: only prevPaid contracts (paid in selected month)
+          const arr = prevGroupMap.get(mKey) || [];
+          if (arr.length > 0) {
+            groups.push({ key: mKey, label: monthLabelFromKey(mKey),
+              sameMonth: [], prevPaid: arr });
+          }
+        }
+      }
+
       return { pickedKey, groups };
     }
 
@@ -7623,15 +7647,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
       groups.forEach((grp, gi) => {
         if (gi > 0) spacer();
-        if (grp.sameMonth.length > 0) {
-          hdr(`${grp.label} — New Contracts`);
-          grp.sameMonth.forEach(c => dataRow(c));
-        }
+
+        // Previous-month group: contracts paid in the selected month
         if (grp.prevPaid.length > 0) {
-          if (grp.sameMonth.length > 0) spacer();
-          hdr(`${grp.label} — Previous Contracts`);
+          hdr(`${grp.label}`);
           grp.prevPaid.forEach(c => dataRow(c));
         }
+
+        // Selected-month group: new contracts from that month
+        if (grp.sameMonth.length > 0) {
+          hdr(`${grp.label}`);
+          grp.sameMonth.forEach(c => dataRow(c));
+        }
+
         const t = sumTotals([...grp.sameMonth, ...grp.prevPaid]);
         subtotal(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "monthTotal");
         for (const k in grand) grand[k] += t[k] || 0;
@@ -7700,17 +7728,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
       groups.forEach((grp, gi) => {
         if (gi > 0) body += spRow();
-        if (grp.sameMonth.length > 0) {
-          body += shRow(`${grp.label} — New Contracts`);
-          body += hdRow();
-          body += grp.sameMonth.map(dRow).join("");
-        }
+
         if (grp.prevPaid.length > 0) {
-          if (grp.sameMonth.length > 0) body += spRow();
-          body += shRow(`${grp.label} — Previous Contracts`);
+          body += shRow(`${grp.label}`);
           body += hdRow();
           body += grp.prevPaid.map(dRow).join("");
         }
+
+        if (grp.sameMonth.length > 0) {
+          body += shRow(`${grp.label}`);
+          body += hdRow();
+          body += grp.sameMonth.map(dRow).join("");
+        }
+
         const t = sumTotals([...grp.sameMonth, ...grp.prevPaid]);
         body += totRow(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "sub");
         for (const k in grand) grand[k] += t[k] || 0;
