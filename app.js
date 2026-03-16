@@ -7527,11 +7527,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       };
 
       // ── Section 1: group by contract month where lastPayment = pickedKey ──
+      //   Exclude contracts from the selected month — those are fully covered by Section 2.
       const paymentGroups = new Map(); // contractMonthKey → contracts[]
       for (const c of (contractsStore || [])) {
         const lk = monthKeyFromDate(c.lastPayment || "");
         if (lk !== pickedKey) continue; // only contracts paid in selected month
         const ck = monthKeyFromDate(c.date || "");
+        if (ck === pickedKey) continue; // skip same-month — already in Section 2
         const groupKey = (ck && ck !== "unknown") ? ck : "unknown";
         if (!paymentGroups.has(groupKey)) paymentGroups.set(groupKey, []);
         paymentGroups.get(groupKey).push(c);
