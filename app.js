@@ -1980,6 +1980,7 @@ function fmtMoney(n) {
     setTimeout(() => {
       if (typeof renderDswdTable === "function") renderDswdTable();
       if (typeof renderBaiTable  === "function") renderBaiTable();
+      initMonthlyReport();
     }, 0);
   });
 
@@ -2168,6 +2169,17 @@ function fmtMoney(n) {
       const bucket = bucketFor(r.particular);
       sums[bucket] += Number(r.amount) || 0;
 
+      const d = parseMMDDYYYY(r.date);
+      if (!d) continue;
+      const prev = latestByContract.get(cno);
+      const prevD = prev ? parseMMDDYYYY(prev) : null;
+      if (!prevD || d.getTime() > prevD.getTime()) latestByContract.set(cno, r.date);
+    }
+
+    // Also track lastPayment from bankStore entries
+    for (const r of (bankStore || [])) {
+      const cno = normalizeText(r.contract || "");
+      if (!cno) continue;
       const d = parseMMDDYYYY(r.date);
       if (!d) continue;
       const prev = latestByContract.get(cno);
@@ -7442,7 +7454,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   // ══════════════════════════════════════════════════════════
   // MONTHLY REPORT TAB
   // ══════════════════════════════════════════════════════════
-  (function initMonthlyReport() {
+  function initMonthlyReport() {
     const mrMonthSelect = document.getElementById("mrMonthSelect");
     const mrYearSelect  = document.getElementById("mrYearSelect");
     const btnGenerate   = document.getElementById("btnMrGenerate");
@@ -7463,16 +7475,20 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const d = parseMMDDYYYY(c.date || "");
         if (d) years.add(d.getFullYear());
       }
+      const prevYear  = mrYearSelect.value;
+      const prevMonth = mrMonthSelect.value;
       const sorted = Array.from(years).sort((a, b) => a - b);
-      const prev = mrYearSelect.value;
       mrYearSelect.innerHTML = "";
       for (const y of sorted) {
         const opt = document.createElement("option");
-        opt.value = y; opt.textContent = y;
+        opt.value = String(y); opt.textContent = y;
         mrYearSelect.appendChild(opt);
       }
-      mrMonthSelect.value = prev ? mrMonthSelect.value : (now.getMonth() + 1);
-      mrYearSelect.value  = prev || now.getFullYear();
+      // Restore previous selection or default to current month/year
+      mrYearSelect.value  = prevYear  || String(now.getFullYear());
+      mrMonthSelect.value = prevMonth || String(now.getMonth() + 1);
+      // Fallback if year wasn't in the list
+      if (!mrYearSelect.value) mrYearSelect.value = String(now.getFullYear());
     }
 
     populateYears();
@@ -7748,7 +7764,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       win.document.write(html);
       win.document.close();
     }
-  })();
+  }
 
   // ── Contract Form — Print button ──
   document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
