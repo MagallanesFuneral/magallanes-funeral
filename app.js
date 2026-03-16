@@ -7439,6 +7439,284 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     if(btn) btn.addEventListener("click", function(){ try{ exportDailyReportToPdf(); }catch(e){ alert("Export error: " + e.message); } });
   })();
 
+  // ══════════════════════════════════════════════════════════
+  // MONTHLY REPORT TAB
+  // ══════════════════════════════════════════════════════════
+  (function initMonthlyReport() {
+    const mrMonthPicker = document.getElementById("mrMonthPicker");
+    const btnGenerate   = document.getElementById("btnMrGenerate");
+    const mrTable       = document.getElementById("mrTable");
+    const mrGridWrap    = document.getElementById("mrGridWrap");
+    const mrEmpty       = document.getElementById("mrEmpty");
+    const mrRowCount    = document.getElementById("mrRowCount");
+
+    if (!btnGenerate || !mrTable) return;
+
+    // Default picker to current month
+    const now = new Date();
+    mrMonthPicker.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+
+    btnGenerate.addEventListener("click", renderMonthlyReport);
+
+    function monthKeyOf(dateStr) {
+      // dateStr is MM/DD/YYYY → returns "YYYY-MM" or ""
+      return monthKeyFromDate(dateStr || "");
+    }
+
+    function renderMonthlyReport() {
+      const picked = mrMonthPicker.value; // "YYYY-MM"
+      if (!picked) { alert("Please select a month."); return; }
+
+      const [pickedYear, pickedMonth] = picked.split("-").map(Number);
+      const pickedKey = picked; // "YYYY-MM"
+
+      const tbody = mrTable.tBodies[0];
+      tbody.innerHTML = "";
+
+      // ── Build a map: contractNo → total payments made IN the picked month
+      //    sourced from cashStore (cash) and bankStore (gcash/bank transfer)
+      const payInMonth = new Map(); // contractNo (normalized) → { gcash, cash }
+
+      for (const r of (cashStore || [])) {
+        const rKey = monthKeyOf(r.date || "");
+        if (rKey !== pickedKey) continue;
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+        // cash received entries count as cash
+        cur.cash += Number(r.amount) || 0;
+        payInMonth.set(cno, cur);
+      }
+
+      for (const r of (bankStore || [])) {
+        const rKey = monthKeyOf(r.date || "");
+        if (rKey !== pickedKey) continue;
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+        // bank/gcash entries count as gcash
+        cur.gcash += Number(r.amount) || 0;
+        payInMonth.set(cno, cur);
+      }
+
+      // ── Split contracts into two groups ──
+      // Group A: contract date is IN the picked month → show full contract row
+      // Group B: contract date is NOT in picked month, but has payments in picked month
+      const groupA = []; // same-month contracts
+      const groupB = []; // previous contracts with payments this month
+
+      for (const c of (contractsStore || [])) {
+        const cKey = monthKeyOf(c.date || "");
+        const cno  = normalizeText(c.contract || "");
+        if (cKey === pickedKey) {
+          groupA.push(c);
+        } else if (payInMonth.has(cno)) {
+          groupB.push(c);
+        }
+      }
+
+      // Sort both groups by date then contract#
+      const sortContracts = (arr) => arr.sort((a, b) => {
+        const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+        const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+        if (ad !== bd) return ad - bd;
+        return (a.contract || "").localeCompare(b.contract || "");
+      });
+      sortContracts(groupA);
+      sortContracts(groupB);
+
+      const NUM_COLS = 15;
+      let totalDataRows = 0;
+
+      // Helper: append a section header row
+      function appendSectionHeader(label) {
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "monthHeader";
+        tr.classList.add("group-row");
+        const td = document.createElement("td");
+        td.colSpan = NUM_COLS;
+        td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+
+      // Helper: append a subtotal row
+      function appendSubtotal(label, tot, rowType) {
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = rowType;
+        tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
+        for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+        const tdLabel = document.createElement("td");
+        tdLabel.textContent = label;
+        tdLabel.classList.add("total-label");
+        tr.appendChild(tdLabel);
+        const n = (v) => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
+        tr.appendChild(n(tot.amount));
+        tr.appendChild(n(tot.gcash));
+        tr.appendChild(n(tot.cash));
+        tr.appendChild(n(tot.dswdAfterTax));
+        tr.appendChild(n(tot.discount));
+        tr.appendChild(n(tot.dswdDiscount));
+        tr.appendChild(n(tot.baiAssist));
+        tr.appendChild(n(tot.totalPaid));
+        const tdLP = document.createElement("td"); tr.appendChild(tdLP);
+        tr.appendChild(n(tot.remaining));
+        tbody.appendChild(tr);
+      }
+
+      // Helper: append a spacer
+      function appendSpacer() {
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "spacer";
+        tr.classList.add("spacer-row");
+        const td = document.createElement("td"); td.colSpan = NUM_COLS;
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+      }
+
+      // Helper: build a data row from contract c, optionally overriding gcash/cash
+      function appendDataRow(c, overrideGcash, overrideCash) {
+        const gcashVal = overrideGcash !== undefined ? overrideGcash : (Number(c.gcash) || 0);
+        const cashVal  = overrideCash  !== undefined ? overrideCash  : (Number(c.cash)  || 0);
+
+        // For overridden rows recalc totalPaid and remaining with the month's payments
+        let totalPaid, remaining;
+        if (overrideGcash !== undefined || overrideCash !== undefined) {
+          totalPaid = Math.max(0, gcashVal + cashVal);
+          // remaining uses full contract data for deductions, but only this month's payments for totalPaid display
+          const full = calcComputed(c);
+          remaining = full.remaining; // still shows the true current remaining
+        } else {
+          const cp = calcComputed(c);
+          totalPaid = cp.totalPaid;
+          remaining = cp.remaining;
+        }
+
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "data";
+        tr.dataset.contract = c.contract;
+
+        const cells = [
+          { text: c.date },
+          { text: c.contract },
+          { text: c.deceased },
+          { text: c.casket },
+          { text: c.address },
+          { text: fmtMoney(c.amount),                  num: true },
+          { text: fmtMoney(gcashVal),                  num: true },
+          { text: fmtMoney(cashVal),                   num: true },
+          { text: fmtMoney(c.dswdAfterTax || 0),       num: true, computed: true },
+          { text: fmtMoney(c.discount),                num: true },
+          { text: fmtMoney(c.dswdDiscount || 0),       num: true, computed: true },
+          { text: fmtMoney(c.baiAssist || 0),          num: true, computed: true },
+          { text: fmtMoney(totalPaid),                 num: true, computed: true },
+          { text: c.lastPayment || "—" },
+          { text: fmtMoney(remaining),                 num: true, computed: true },
+        ];
+
+        cells.forEach(cell => {
+          const td = document.createElement("td");
+          td.textContent = cell.text ?? "";
+          if (cell.num)      td.classList.add("num");
+          if (cell.computed) td.classList.add("computed");
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+        totalDataRows++;
+      }
+
+      const grandTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+
+      // ── SECTION A: Contracts from the selected month ──
+      if (groupA.length > 0) {
+        const monthLabel = monthLabelFromKey(pickedKey);
+        appendSectionHeader(`Contracts — ${monthLabel}`);
+
+        const totA = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+
+        for (const c of groupA) {
+          const cp = calcComputed(c);
+          appendDataRow(c);
+          totA.amount       += Number(c.amount)       || 0;
+          totA.gcash        += Number(c.gcash)        || 0;
+          totA.cash         += Number(c.cash)         || 0;
+          totA.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+          totA.discount     += Number(c.discount)     || 0;
+          totA.dswdDiscount += Number(c.dswdDiscount) || 0;
+          totA.baiAssist    += Number(c.baiAssist)    || 0;
+          totA.totalPaid    += cp.totalPaid;
+          totA.remaining    += cp.remaining;
+        }
+
+        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, totA, "monthTotal");
+
+        grandTot.amount       += totA.amount;
+        grandTot.gcash        += totA.gcash;
+        grandTot.cash         += totA.cash;
+        grandTot.dswdAfterTax += totA.dswdAfterTax;
+        grandTot.discount     += totA.discount;
+        grandTot.dswdDiscount += totA.dswdDiscount;
+        grandTot.baiAssist    += totA.baiAssist;
+        grandTot.totalPaid    += totA.totalPaid;
+        grandTot.remaining    += totA.remaining;
+      }
+
+      // ── SECTION B: Previous contracts with payments this month ──
+      if (groupB.length > 0) {
+        if (groupA.length > 0) appendSpacer();
+
+        appendSectionHeader(`Payments Received in ${monthLabelFromKey(pickedKey)} — Previous Contracts`);
+
+        const totB = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+
+        for (const c of groupB) {
+          const cno = normalizeText(c.contract || "");
+          const pay = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+          const thisPaid = pay.gcash + pay.cash;
+          const full = calcComputed(c);
+
+          appendDataRow(c, pay.gcash, pay.cash);
+
+          totB.amount       += Number(c.amount)       || 0;
+          totB.gcash        += pay.gcash;
+          totB.cash         += pay.cash;
+          totB.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+          totB.discount     += Number(c.discount)     || 0;
+          totB.dswdDiscount += Number(c.dswdDiscount) || 0;
+          totB.baiAssist    += Number(c.baiAssist)    || 0;
+          totB.totalPaid    += thisPaid;
+          totB.remaining    += full.remaining;
+        }
+
+        appendSubtotal(`SUBTOTAL — PREVIOUS CONTRACTS`, totB, "monthTotal");
+
+        grandTot.amount       += totB.amount;
+        grandTot.gcash        += totB.gcash;
+        grandTot.cash         += totB.cash;
+        grandTot.dswdAfterTax += totB.dswdAfterTax;
+        grandTot.discount     += totB.discount;
+        grandTot.dswdDiscount += totB.dswdDiscount;
+        grandTot.baiAssist    += totB.baiAssist;
+        grandTot.totalPaid    += totB.totalPaid;
+        grandTot.remaining    += totB.remaining;
+      }
+
+      // ── GRAND TOTAL ──
+      if (groupA.length + groupB.length > 0) {
+        appendSpacer();
+        appendSubtotal("GRAND TOTAL", grandTot, "grandTotal");
+      }
+
+      // Show/hide table vs empty state
+      const hasData = groupA.length + groupB.length > 0;
+      mrGridWrap.style.display = hasData ? "" : "none";
+      mrEmpty.style.display    = hasData ? "none" : "";
+      mrEmpty.textContent      = hasData ? "" : `No contracts or payments found for ${monthLabelFromKey(pickedKey)}.`;
+      if (mrRowCount) mrRowCount.textContent = `Rows: ${totalDataRows}`;
+    }
+  })();
+
   // ── Contract Form — Print button ──
   document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
     // Move cfPaper to body temporarily so print CSS can target it cleanly

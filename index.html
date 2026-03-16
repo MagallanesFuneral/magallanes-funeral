@@ -142,6 +142,7 @@
     <nav class="tabs" role="tablist" aria-label="Main tabs">
       <button class="tab is-active" role="tab" aria-selected="true" data-tab="contracts">Contracts</button>      <button class="tab" role="tab" aria-selected="false" data-tab="transactions">Transactions</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="dailyreport">Daily Report</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="monthlyreport">Monthly Report</button>
       <button class="tab" role="tab" aria-selected="false" data-tab="contractform">Contract Form</button>
     </nav>
 
@@ -888,6 +889,58 @@
   <div id="dailyReportContent" class="dailyreport-content"></div></div>
     </section>
 </div>
+
+    <!-- MONTHLY REPORT TAB -->
+    <section class="panel" id="panel-monthlyreport" role="tabpanel">
+      <div class="panel-toolbar">
+        <div class="toolbar-left">
+          <h2>Monthly Report</h2>
+          <span class="hint">Payments received for the selected month.</span>
+        </div>
+        <div class="toolbar-right">
+          <label class="field-label" style="margin:0;font-size:13px;opacity:0.75;">Select Month</label>
+          <input type="month" id="mrMonthPicker" class="input" style="width:160px;" />
+          <button class="btn" id="btnMrGenerate">Generate</button>
+        </div>
+      </div>
+
+      <div class="grid-wrap" id="mrGridWrap" style="display:none;">
+        <div class="grid-scroller">
+          <table class="grid" id="mrTable">
+            <thead>
+              <tr>
+                <th style="min-width:110px">Date</th>
+                <th style="min-width:120px">Contract #</th>
+                <th style="min-width:180px">Deceased</th>
+                <th style="min-width:160px">Casket</th>
+                <th style="min-width:220px">Address</th>
+                <th style="min-width:120px">Amount</th>
+                <th style="min-width:140px">GCASH/BANK TRANSFER</th>
+                <th style="min-width:110px">CASH</th>
+                <th style="min-width:110px">DSWD</th>
+                <th style="min-width:110px">Discount</th>
+                <th style="min-width:120px">DSWD Discount</th>
+                <th style="min-width:120px">BAI</th>
+                <th style="min-width:120px">Total Paid</th>
+                <th style="min-width:130px">Last Payment</th>
+                <th style="min-width:120px">Remaining</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="mrEmpty" style="padding:40px;text-align:center;opacity:0.45;font-size:14px;">
+        Select a month and click Generate to view the report.
+      </div>
+
+      <div class="panel-footer">
+        <div class="footer-left">
+          <span class="pill" id="mrRowCount">Rows: 0</span>
+        </div>
+      </div>
+    </section>
 
     <!-- CONTRACT FORM TAB -->
     <section class="panel" id="panel-contractform" role="tabpanel">
