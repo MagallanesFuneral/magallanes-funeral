@@ -7492,19 +7492,23 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     // ══════════════════════════════════════════════════════════════
     // ROLLING MONTHLY REPORT
     //
-    // For each month from the earliest contract up to pickedKey:
+    // Each month group shows ONLY its own contracts, but the values
+    // shown are updated to reflect ALL payments made up to the
+    // selected month.
     //
-    //   The table for that month shows ALL active contracts:
-    //     - Contracts whose date is in THIS month → Amount = original contract amount
-    //     - Contracts from EARLIER months → Amount = remaining balance carried
-    //       forward from the previous month
+    // Algorithm:
+    //   1. Do a full rolling pass across all months up to pickedKey,
+    //      computing each contract's running balance month by month.
+    //   2. For each contract, store the computed row data for every
+    //      month it appears (keyed by its OWN contract month).
+    //   3. When building the output, each month group shows only its
+    //      own contracts, but using the LATEST computed values from
+    //      step 1 (i.e. as of the selected month).
     //
-    //   For every contract shown:
-    //     - cashPaid + bankPaid = sum of cashStore/bankStore entries dated in THIS month
-    //     - One-time deductions (discount, dswdAfterTax, dswdDiscount, baiAssist)
-    //       applied ONLY in the contract's own first month
-    //     - remaining = startAmount - paidThisMonth - (first-month deductions)
-    //     - remaining carries forward as next month's startAmount
+    // So when Feb is selected:
+    //   - JANUARY group: Jan contracts shown with Feb's running values
+    //     (startAmount = Jan remaining, cashPaid = Feb payments, etc.)
+    //   - FEBRUARY group: Feb contracts with their own first-month values
     //
     // ══════════════════════════════════════════════════════════════
     function buildRollingReport(selMonth, selYear) {
@@ -7519,30 +7523,23 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const allMonthKeys = Array.from(keySet).sort();
       if (!allMonthKeys.length) return { pickedKey, months: [] };
 
-      // ── Payment lookup: cashStore entries by contract + month ──
-      const cashPay = new Map(); // cno → Map(mk → amount)
+      // ── Payment lookups by contract + month ──
+      const cashPay = new Map();
+      const bankPay = new Map();
       for (const r of (cashStore || [])) {
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        const mk = monthKeyFromDate(r.date || "");
-        if (!mk || mk === "unknown") continue;
+        const cno = normalizeText(r.contract || ""); if (!cno) continue;
+        const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
         if (!cashPay.has(cno)) cashPay.set(cno, new Map());
         const m = cashPay.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
-
-      // ── Payment lookup: bankStore entries by contract + month ──
-      const bankPay = new Map(); // cno → Map(mk → amount)
       for (const r of (bankStore || [])) {
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        const mk = monthKeyFromDate(r.date || "");
-        if (!mk || mk === "unknown") continue;
+        const cno = normalizeText(r.contract || ""); if (!cno) continue;
+        const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
         if (!bankPay.has(cno)) bankPay.set(cno, new Map());
         const m = bankPay.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
-
       const getCashPaid = (cno, mk) => cashPay.get(cno)?.get(mk) || 0;
       const getBankPaid = (cno, mk) => bankPay.get(cno)?.get(mk) || 0;
 
@@ -7553,17 +7550,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return ad !== bd ? ad - bd : (a.contract||"").localeCompare(b.contract||"");
       });
 
-      // ── Rolling calculation ──
-      // carryOver[cno] = remaining balance going into the next month
-      const carryOver = new Map();
-
-      const months = [];
+      // ── Pass 1: Full rolling calculation across all months ──
+      // latestRow[cno] = the most recently computed row for that contract
+      const latestRow = new Map();
+      const carryOver = new Map(); // cno → remaining going into next month
 
       for (const mk of allMonthKeys) {
-
-        const rows = [];
-
-        // All contracts active as of this month (dated on or before this month)
         const activeContracts = sortedContracts.filter(c => {
           const ck = monthKeyFromDate(c.date || "");
           return ck && ck !== "unknown" && ck <= mk;
@@ -7571,20 +7563,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
         for (const c of activeContracts) {
           const cno     = normalizeText(c.contract || "");
-          const isFirst = monthKeyFromDate(c.date || "") === mk; // contract's own first month
+          const isFirst = monthKeyFromDate(c.date || "") === mk;
 
           const cashPaidThisMonth = getCashPaid(cno, mk);
           const bankPaidThisMonth = getBankPaid(cno, mk);
           const paidThisMonth     = cashPaidThisMonth + bankPaidThisMonth;
 
-          // Starting amount:
-          //   First month → original contract amount
-          //   Carried over → previous remaining balance
           const startAmount = isFirst
             ? (Number(c.amount) || 0)
             : (carryOver.has(cno) ? carryOver.get(cno) : (Number(c.amount) || 0));
 
-          // Deductions — applied only in the contract's own first month
           const discount     = isFirst ? (Number(c.discount)     || 0) : 0;
           const dswdAfterTax = isFirst ? (Number(c.dswdAfterTax) || 0) : 0;
           const dswdDiscount = isFirst ? (Number(c.dswdDiscount) || 0) : 0;
@@ -7595,21 +7583,26 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
           carryOver.set(cno, remaining);
 
-          rows.push({
-            c,
-            isFirst,
-            startAmount,
-            cashPaid: cashPaidThisMonth,
-            bankPaid: bankPaidThisMonth,
-            paidThisMonth,
-            discount,
-            dswdAfterTax,
-            dswdDiscount,
-            baiAssist,
-            remaining,
+          // Always overwrite with latest computed values
+          latestRow.set(cno, {
+            c, isFirst,
+            startAmount, cashPaid: cashPaidThisMonth,
+            bankPaid: bankPaidThisMonth, paidThisMonth,
+            discount, dswdAfterTax, dswdDiscount, baiAssist, remaining,
           });
         }
+      }
 
+      // ── Pass 2: Build output — each month group shows only its own
+      //    contracts, using their latest computed row values ──
+      const months = [];
+      for (const mk of allMonthKeys) {
+        const ownContracts = sortedContracts.filter(c =>
+          monthKeyFromDate(c.date || "") === mk
+        );
+        const rows = ownContracts
+          .map(c => latestRow.get(normalizeText(c.contract || "")))
+          .filter(Boolean);
         months.push({ key: mk, label: monthLabelFromKey(mk), rows });
       }
 
