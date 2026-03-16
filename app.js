@@ -7489,23 +7489,28 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!mrYearSelect.value) mrYearSelect.value = String(now.getFullYear());
     }
 
-    // ══════════════════════════════════════════════════════
-    // CORE: Build the rolling monthly report
+    // ══════════════════════════════════════════════════════════════
+    // ROLLING MONTHLY REPORT
     //
     // For each month from the earliest contract up to pickedKey:
-    //   - New contracts (dated that month): starting amount = contract.amount
-    //   - Carried-over contracts (from earlier months): starting amount
-    //     = remaining balance calculated in their LAST appearance
-    //   - paidThisMonth = sum of cashStore + bankStore entries for that
-    //     contract dated within that month
-    //   - remaining = startAmount - paidThisMonth - (one-time deductions
-    //     applied only in the contract's own month)
-    //   - remaining carries forward to the next month
-    // ══════════════════════════════════════════════════════
+    //
+    //   The table for that month shows ALL active contracts:
+    //     - Contracts whose date is in THIS month → Amount = original contract amount
+    //     - Contracts from EARLIER months → Amount = remaining balance carried
+    //       forward from the previous month
+    //
+    //   For every contract shown:
+    //     - cashPaid + bankPaid = sum of cashStore/bankStore entries dated in THIS month
+    //     - One-time deductions (discount, dswdAfterTax, dswdDiscount, baiAssist)
+    //       applied ONLY in the contract's own first month
+    //     - remaining = startAmount - paidThisMonth - (first-month deductions)
+    //     - remaining carries forward as next month's startAmount
+    //
+    // ══════════════════════════════════════════════════════════════
     function buildRollingReport(selMonth, selYear) {
       const pickedKey = `${selYear}-${String(selMonth).padStart(2,"0")}`;
 
-      // ── Step 1: Collect all month keys from earliest contract to pickedKey ──
+      // All month keys from earliest contract up to pickedKey
       const keySet = new Set();
       for (const c of (contractsStore || [])) {
         const ck = monthKeyFromDate(c.date || "");
@@ -7514,16 +7519,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const allMonthKeys = Array.from(keySet).sort();
       if (!allMonthKeys.length) return { pickedKey, months: [] };
 
-      // ── Step 2: Build payment and deduction lookup maps ──
-      // cashPay[contractNo][monthKey] = total cash paid that month
-      // bankPay[contractNo][monthKey] = total bank paid that month
-      // dswdDeduct[contractNo][monthKey] = afterTax + dswdDiscount received that month (by dateReceived)
-      // baiDeduct[contractNo][monthKey]  = BAI amount completed that month (by dateCompleted)
-      const cashPay  = new Map();
-      const bankPay  = new Map();
-      const dswdDed  = new Map(); // contractNo → Map(monthKey → { afterTax, dswdDiscount })
-      const baiDed   = new Map(); // contractNo → Map(monthKey → amount)
-
+      // ── Payment lookup: cashStore entries by contract + month ──
+      const cashPay = new Map(); // cno → Map(mk → amount)
       for (const r of (cashStore || [])) {
         const cno = normalizeText(r.contract || "");
         if (!cno) continue;
@@ -7533,6 +7530,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const m = cashPay.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
+
+      // ── Payment lookup: bankStore entries by contract + month ──
+      const bankPay = new Map(); // cno → Map(mk → amount)
       for (const r of (bankStore || [])) {
         const cno = normalizeText(r.contract || "");
         if (!cno) continue;
@@ -7543,98 +7543,64 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
 
-      // DSWD deductions — keyed by dateReceived (when refund was actually received)
-      for (const r of (dswdStore || [])) {
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        // Use dateReceived as the month the deduction applies
-        const mk = monthKeyFromDate(r.dateReceived || "");
-        if (!mk || mk === "unknown") continue;
-        if (!dswdDed.has(cno)) dswdDed.set(cno, new Map());
-        const m = dswdDed.get(cno);
-        const cur = m.get(mk) || { afterTax: 0, dswdDiscount: 0 };
-        cur.afterTax     += Number(r.afterTax)     || 0;
-        cur.dswdDiscount += Number(r.dswdDiscount) || 0;
-        m.set(mk, cur);
-      }
+      const getCashPaid = (cno, mk) => cashPay.get(cno)?.get(mk) || 0;
+      const getBankPaid = (cno, mk) => bankPay.get(cno)?.get(mk) || 0;
 
-      // BAI deductions — keyed by dateCompleted (when BAI was received/completed)
-      for (const r of (baiStore || [])) {
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        const mk = monthKeyFromDate(r.dateCompleted || "");
-        if (!mk || mk === "unknown") continue;
-        if (!baiDed.has(cno)) baiDed.set(cno, new Map());
-        const m = baiDed.get(cno);
-        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
-      }
-
-      const getCashPaid    = (cno, mk) => cashPay.get(cno)?.get(mk) || 0;
-      const getBankPaid    = (cno, mk) => bankPay.get(cno)?.get(mk) || 0;
-      const getDswdAfterTax   = (cno, mk) => dswdDed.get(cno)?.get(mk)?.afterTax     || 0;
-      const getDswdDiscount   = (cno, mk) => dswdDed.get(cno)?.get(mk)?.dswdDiscount || 0;
-      const getBaiAssist      = (cno, mk) => baiDed.get(cno)?.get(mk)  || 0;
-
-      // ── Step 3: Sort contracts by date then contract# ──
+      // ── Sort contracts by date then contract# ──
       const sortedContracts = (contractsStore || []).slice().sort((a, b) => {
         const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
         const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
         return ad !== bd ? ad - bd : (a.contract||"").localeCompare(b.contract||"");
       });
 
-      // ── Step 4: Rolling calculation ──
-      // carryOver[contractNo] = remaining balance going into next month
+      // ── Rolling calculation ──
+      // carryOver[cno] = remaining balance going into the next month
       const carryOver = new Map();
 
       const months = [];
 
       for (const mk of allMonthKeys) {
-        // Contracts active this month:
-        //   a) New contracts dated this month
-        //   b) Any contract from a previous month (already in carryOver)
-        const newContracts     = sortedContracts.filter(c => monthKeyFromDate(c.date||"") === mk);
-        const carriedContracts = sortedContracts.filter(c => {
-          const ck = monthKeyFromDate(c.date||"");
-          return ck < mk && ck !== "unknown";
-        });
 
         const rows = [];
 
-        // Process new contracts first, then carried-over
-        const processContract = (c, isNew) => {
-          const cno = normalizeText(c.contract || "");
+        // All contracts active as of this month (dated on or before this month)
+        const activeContracts = sortedContracts.filter(c => {
+          const ck = monthKeyFromDate(c.date || "");
+          return ck && ck !== "unknown" && ck <= mk;
+        });
+
+        for (const c of activeContracts) {
+          const cno     = normalizeText(c.contract || "");
+          const isFirst = monthKeyFromDate(c.date || "") === mk; // contract's own first month
+
           const cashPaidThisMonth = getCashPaid(cno, mk);
           const bankPaidThisMonth = getBankPaid(cno, mk);
           const paidThisMonth     = cashPaidThisMonth + bankPaidThisMonth;
 
-          let startAmount;
-          if (isNew) {
-            // First month: use original contract amount
-            startAmount = Number(c.amount) || 0;
-          } else {
-            // Carried over: use previous remaining balance
-            startAmount = carryOver.has(cno) ? carryOver.get(cno) : (Number(c.amount) || 0);
-          }
+          // Starting amount:
+          //   First month → original contract amount
+          //   Carried over → previous remaining balance
+          const startAmount = isFirst
+            ? (Number(c.amount) || 0)
+            : (carryOver.has(cno) ? carryOver.get(cno) : (Number(c.amount) || 0));
 
-          // Discount applied only in contract's own first month
-          const discount = isNew ? (Number(c.discount) || 0) : 0;
+          // Deductions — applied only in the contract's own first month
+          const discount     = isFirst ? (Number(c.discount)     || 0) : 0;
+          const dswdAfterTax = isFirst ? (Number(c.dswdAfterTax) || 0) : 0;
+          const dswdDiscount = isFirst ? (Number(c.dswdDiscount) || 0) : 0;
+          const baiAssist    = isFirst ? (Number(c.baiAssist)    || 0) : 0;
 
-          // DSWD and BAI deductions applied in the month they were actually received/completed
-          const dswdAfterTax = getDswdAfterTax(cno, mk);
-          const dswdDiscount = getDswdDiscount(cno, mk);
-          const baiAssist    = getBaiAssist(cno, mk);
+          const remaining = startAmount - paidThisMonth - discount
+                            - dswdAfterTax - dswdDiscount - baiAssist;
 
-          const remaining = startAmount - paidThisMonth - discount - dswdAfterTax - dswdDiscount - baiAssist;
-
-          // Update carry-over for next month
           carryOver.set(cno, remaining);
 
           rows.push({
             c,
-            isNew,
+            isFirst,
             startAmount,
-            cashPaid:    cashPaidThisMonth,
-            bankPaid:    bankPaidThisMonth,
+            cashPaid: cashPaidThisMonth,
+            bankPaid: bankPaidThisMonth,
             paidThisMonth,
             discount,
             dswdAfterTax,
@@ -7642,10 +7608,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             baiAssist,
             remaining,
           });
-        };
-
-        newContracts.forEach(c => processContract(c, true));
-        carriedContracts.forEach(c => processContract(c, false));
+        }
 
         months.push({ key: mk, label: monthLabelFromKey(mk), rows });
       }
@@ -7653,7 +7616,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return { pickedKey, months };
     }
 
-    // ── Render helpers ──
+    // ── Shared render helpers ──
     function makeHdr(label, tbody, NC) {
       const tr = document.createElement("tr");
       tr.dataset.rowType = "monthHeader"; tr.classList.add("group-row");
@@ -7674,12 +7637,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
       [t.startAmount, t.bankPaid, t.cashPaid, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.paidThisMonth]
         .forEach(v => tr.appendChild(n(v)));
-      tr.appendChild(document.createElement("td")); // last payment — blank in totals
+      tr.appendChild(document.createElement("td"));
       tr.appendChild(n(t.remaining));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
-      const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount, dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
+      const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount,
+              dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
       [
         { v: c.date },
@@ -7708,7 +7672,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return 1;
     }
 
-    // ── Render on-screen ──
+    // ── Render on-screen table ──
     function renderMonthlyReport() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
@@ -7733,15 +7697,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
         mon.rows.forEach(row => {
           rowCount += makeDataRow(row, tbody);
-          monTot.startAmount   += row.startAmount;
-          monTot.bankPaid      += row.bankPaid;
-          monTot.cashPaid      += row.cashPaid;
-          monTot.dswdAfterTax  += row.dswdAfterTax;
-          monTot.discount      += row.discount;
-          monTot.dswdDiscount  += row.dswdDiscount;
-          monTot.baiAssist     += row.baiAssist;
-          monTot.paidThisMonth += row.paidThisMonth;
-          monTot.remaining     += row.remaining;
+          for (const k in monTot) monTot[k] += row[k] || 0;
         });
 
         makeSubtotal(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "monthTotal", tbody);
@@ -7757,7 +7713,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (mrRowCount) mrRowCount.textContent = `Rows: ${rowCount}`;
     }
 
-    // ── PDF export ──
+    // ── PDF / Print export ──
     function exportMonthlyReportPdf() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
@@ -7823,12 +7779,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         if (gi > 0) body += spRow();
         body += shRow(mon.label);
         body += hdRow();
-        mon.rows.forEach(row => { body += dRow(row); });
-        const t = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
-                    discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
-        mon.rows.forEach(row => { for (const k in t) t[k] += row[k] || 0; });
-        body += totRow(`SUBTOTAL — ${mon.label.toUpperCase()}`, t, "sub");
-        for (const k in grandTot) grandTot[k] += t[k] || 0;
+        const monTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
+                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+        mon.rows.forEach(row => {
+          body += dRow(row);
+          for (const k in monTot) monTot[k] += row[k] || 0;
+        });
+        body += totRow(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "sub");
+        for (const k in grandTot) grandTot[k] += monTot[k] || 0;
       });
 
       body += spRow();
@@ -7853,10 +7811,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     // ── Wire buttons ──
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
-    btnGenerate.addEventListener("click", () => {
-      populateYears();
-      renderMonthlyReport();
-    });
+    btnGenerate.addEventListener("click", () => { populateYears(); renderMonthlyReport(); });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
   }
 
