@@ -2191,16 +2191,17 @@ function fmtMoney(n) {
       const key = normalizeText(c.contract);
       if (!key) continue;
       const sums = sumsByContract.get(key);
-      if (!sums) continue;
 
-      // Overwrite these payment columns based on Cash Received ledger for this contract.
-      // This keeps Contracts consistent with the Transactions ledger.
-      const fields = ["inhaus","bai","gl","gcash","cash"];
-      for (const f of fields) {
-        const nv = Number(sums[f]) || 0;
-        if ((Number(c[f]) || 0) !== nv) { c[f] = nv; changed = true; }
+      // Update payment sums only if cash entries exist for this contract
+      if (sums) {
+        const fields = ["inhaus","bai","gl","gcash","cash"];
+        for (const f of fields) {
+          const nv = Number(sums[f]) || 0;
+          if ((Number(c[f]) || 0) !== nv) { c[f] = nv; changed = true; }
+        }
       }
 
+      // Update lastPayment from either cashStore or bankStore — whichever is latest
       const latest = latestByContract.get(key);
       if (latest) {
         const cur = parseMMDDYYYY(String(c.lastPayment || "").trim());
@@ -7733,7 +7734,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     // ── Wire up buttons ──
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
-    btnGenerate.addEventListener("click", () => { populateYears(); renderMonthlyReport(); });
+    btnGenerate.addEventListener("click", () => {
+      // Always re-sync lastPayment from transactions before building the report,
+      // in case cashStore/bankStore loaded after contractsStore
+      if (typeof syncCashReceivedToContracts === "function") syncCashReceivedToContracts();
+      populateYears();
+      renderMonthlyReport();
+    });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
   }
 
