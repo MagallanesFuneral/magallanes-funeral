@@ -7466,13 +7466,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     if (!btnGenerate || !mrTable) return;
 
-    // ── Populate year dropdown fresh from live data ──
+    // ── Populate year dropdown ──
     function populateYears() {
       const years = new Set();
       const now = new Date();
-      // Always include a range of years around current year as fallback
       for (let y = now.getFullYear() - 5; y <= now.getFullYear() + 1; y++) years.add(y);
-      // Add years from actual contract dates
       for (const c of (contractsStore || [])) {
         const d = parseMMDDYYYY(c.date || "");
         if (d) years.add(d.getFullYear());
@@ -7493,33 +7491,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!mrYearSelect.value) mrYearSelect.value = String(now.getFullYear());
     }
 
-    // ── Helper: sum up totals for an array of contracts ──
+    // ── Sum totals for an array of contracts ──
     function sumTotals(rows) {
-      const t = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const t = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
+                  dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
       for (const c of rows) {
         const cp = calcComputed(c);
-        t.amount       += Number(c.amount)        || 0;
-        t.gcash        += Number(c.gcash)         || 0;
-        t.cash         += Number(c.cash)          || 0;
-        t.dswdAfterTax += Number(c.dswdAfterTax)  || 0;
-        t.discount     += Number(c.discount)      || 0;
-        t.dswdDiscount += Number(c.dswdDiscount)  || 0;
-        t.baiAssist    += Number(c.baiAssist)     || 0;
+        t.amount       += Number(c.amount)       || 0;
+        t.gcash        += Number(c.gcash)        || 0;
+        t.cash         += Number(c.cash)         || 0;
+        t.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+        t.discount     += Number(c.discount)     || 0;
+        t.dswdDiscount += Number(c.dswdDiscount) || 0;
+        t.baiAssist    += Number(c.baiAssist)    || 0;
         t.totalPaid    += cp.totalPaid;
         t.remaining    += cp.remaining;
       }
       return t;
     }
 
-    // ── Build chronological month groups for the selected month ──
+    // ── Core data builder ──
     //
-    // Logic:
-    //   1. Find all contracts whose date is in the selected month → goes in selected-month group
-    //   2. Find all contracts from PREVIOUS months whose lastPayment is in the selected month
-    //      → grouped by their OWN contract month (e.g. a Jan contract paid in Feb → Jan group)
-    //   3. Sort all groups chronologically (oldest first, selected month last)
+    // SECTION 1: Contracts whose lastPayment falls in the selected month,
+    //            grouped by their contract month (chronological order).
     //
-    function buildGroups(selMonth, selYear) {
+    // SECTION 2: All contracts whose contract date is in the selected month.
+    //
+    function buildReportData(selMonth, selYear) {
       const pickedKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
 
       const sortFn = (a, b) => {
@@ -7528,51 +7526,87 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
       };
 
-      // Step 1 — contracts dated IN the selected month
-      const selectedMonthContracts = (contractsStore || [])
+      // ── Section 1: group by contract month where lastPayment = pickedKey ──
+      const paymentGroups = new Map(); // contractMonthKey → contracts[]
+      for (const c of (contractsStore || [])) {
+        const lk = monthKeyFromDate(c.lastPayment || "");
+        if (lk !== pickedKey) continue; // only contracts paid in selected month
+        const ck = monthKeyFromDate(c.date || "");
+        const groupKey = (ck && ck !== "unknown") ? ck : "unknown";
+        if (!paymentGroups.has(groupKey)) paymentGroups.set(groupKey, []);
+        paymentGroups.get(groupKey).push(c);
+      }
+      // Sort each group internally and build sorted array of groups
+      const section1 = Array.from(paymentGroups.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, rows]) => ({
+          key,
+          label: key === "unknown" ? "Unknown Date" : monthLabelFromKey(key),
+          rows: rows.sort(sortFn)
+        }));
+
+      // ── Section 2: contracts dated in the selected month ──
+      const section2 = (contractsStore || [])
         .filter(c => monthKeyFromDate(c.date || "") === pickedKey)
         .sort(sortFn);
 
-      // Step 2 — previous contracts whose lastPayment is in the selected month,
-      //           keyed by their own contract month
-      const prevGroupMap = new Map(); // contractMonthKey → contracts[]
-      for (const c of (contractsStore || [])) {
-        const ck = monthKeyFromDate(c.date || "");
-        if (ck === pickedKey || ck === "unknown") continue; // skip selected-month & unknown
-        if (ck > pickedKey) continue;                       // skip future contracts
-        const lk = monthKeyFromDate(c.lastPayment || "");
-        if (lk !== pickedKey) continue;                     // only those paid in selected month
-        if (!prevGroupMap.has(ck)) prevGroupMap.set(ck, []);
-        prevGroupMap.get(ck).push(c);
-      }
-      // Sort each previous group internally
-      for (const [, arr] of prevGroupMap) arr.sort(sortFn);
+      return { pickedKey, section1, section2 };
+    }
 
-      // Step 3 — collect all group keys and sort chronologically
-      const allKeys = new Set(prevGroupMap.keys());
-      if (selectedMonthContracts.length > 0) allKeys.add(pickedKey);
-      const sortedKeys = Array.from(allKeys).sort();
-
-      // Step 4 — build final groups array
-      const groups = [];
-      for (const mKey of sortedKeys) {
-        if (mKey === pickedKey) {
-          // Selected month: only same-month contracts, no prevPaid sub-section
-          if (selectedMonthContracts.length > 0) {
-            groups.push({ key: mKey, label: monthLabelFromKey(mKey),
-              sameMonth: selectedMonthContracts, prevPaid: [] });
-          }
-        } else {
-          // Previous month group: only prevPaid contracts (paid in selected month)
-          const arr = prevGroupMap.get(mKey) || [];
-          if (arr.length > 0) {
-            groups.push({ key: mKey, label: monthLabelFromKey(mKey),
-              sameMonth: [], prevPaid: arr });
-          }
-        }
-      }
-
-      return { pickedKey, groups };
+    // ── Shared row/table DOM helpers ──
+    function makeHdr(label, tbody, NC) {
+      const tr = document.createElement("tr");
+      tr.dataset.rowType = "monthHeader"; tr.classList.add("group-row");
+      const td = document.createElement("td"); td.colSpan = NC;
+      td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
+      tr.appendChild(td); tbody.appendChild(tr);
+    }
+    function makeSpacer(tbody, NC) {
+      const tr = document.createElement("tr"); tr.dataset.rowType = "spacer"; tr.classList.add("spacer-row");
+      const td = document.createElement("td"); td.colSpan = NC; tr.appendChild(td); tbody.appendChild(tr);
+    }
+    function makeSubtotal(label, t, rowType, tbody) {
+      const tr = document.createElement("tr");
+      tr.dataset.rowType = rowType;
+      tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
+      for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+      const lbl = document.createElement("td"); lbl.textContent = label;
+      lbl.classList.add("total-label"); tr.appendChild(lbl);
+      const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
+      [t.amount, t.gcash, t.cash, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.totalPaid]
+        .forEach(v => tr.appendChild(n(v)));
+      tr.appendChild(document.createElement("td"));
+      tr.appendChild(n(t.remaining));
+      tbody.appendChild(tr);
+    }
+    function makeDataRow(c, tbody, rowCount) {
+      const cp = calcComputed(c);
+      const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
+      [
+        { v: c.date },
+        { v: c.contract },
+        { v: c.deceased },
+        { v: c.casket },
+        { v: c.address },
+        { v: fmtMoney(c.amount),            num: true },
+        { v: fmtMoney(c.gcash),             num: true },
+        { v: fmtMoney(c.cash),              num: true },
+        { v: fmtMoney(c.dswdAfterTax||0),   num: true, comp: true },
+        { v: fmtMoney(c.discount),          num: true },
+        { v: fmtMoney(c.dswdDiscount||0),   num: true, comp: true },
+        { v: fmtMoney(c.baiAssist||0),      num: true, comp: true },
+        { v: fmtMoney(cp.totalPaid),        num: true, comp: true },
+        { v: c.lastPayment || "—" },
+        { v: fmtMoney(cp.remaining),        num: true, comp: true },
+      ].forEach(cell => {
+        const td = document.createElement("td");
+        td.textContent = cell.v ?? "";
+        if (cell.num)  td.classList.add("num");
+        if (cell.comp) td.classList.add("computed");
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+      return rowCount + 1;
     }
 
     // ── Render on-screen table ──
@@ -7581,96 +7615,50 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year."); return; }
 
-      const { pickedKey, groups } = buildGroups(selMonth, selYear);
+      const { pickedKey, section1, section2 } = buildReportData(selMonth, selYear);
+      const selectedLabel = monthLabelFromKey(pickedKey);
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
       const NC = 15;
       let rowCount = 0;
+      const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
+                      dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
-      function hdr(label) {
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = "monthHeader"; tr.classList.add("group-row");
-        const td = document.createElement("td"); td.colSpan = NC;
-        td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
-        tr.appendChild(td); tbody.appendChild(tr);
-      }
+      let hasAny = false;
 
-      function spacer() {
-        const tr = document.createElement("tr"); tr.dataset.rowType = "spacer"; tr.classList.add("spacer-row");
-        const td = document.createElement("td"); td.colSpan = NC; tr.appendChild(td); tbody.appendChild(tr);
-      }
-
-      function subtotal(label, t, rowType) {
-        const tr = document.createElement("tr");
-        tr.dataset.rowType = rowType;
-        tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
-        for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
-        const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
-        const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
-        [t.amount, t.gcash, t.cash, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.totalPaid].forEach(v => tr.appendChild(n(v)));
-        tr.appendChild(document.createElement("td"));
-        tr.appendChild(n(t.remaining));
-        tbody.appendChild(tr);
-      }
-
-      function dataRow(c) {
-        const cp = calcComputed(c);
-        const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
-        [
-          { v: c.date },
-          { v: c.contract },
-          { v: c.deceased },
-          { v: c.casket },
-          { v: c.address },
-          { v: fmtMoney(c.amount),           num: true },
-          { v: fmtMoney(c.gcash),            num: true },
-          { v: fmtMoney(c.cash),             num: true },
-          { v: fmtMoney(c.dswdAfterTax||0),  num: true, comp: true },
-          { v: fmtMoney(c.discount),         num: true },
-          { v: fmtMoney(c.dswdDiscount||0),  num: true, comp: true },
-          { v: fmtMoney(c.baiAssist||0),     num: true, comp: true },
-          { v: fmtMoney(cp.totalPaid),       num: true, comp: true },
-          { v: c.lastPayment || "—" },
-          { v: fmtMoney(cp.remaining),       num: true, comp: true },
-        ].forEach(cell => {
-          const td = document.createElement("td");
-          td.textContent = cell.v ?? "";
-          if (cell.num)  td.classList.add("num");
-          if (cell.comp) td.classList.add("computed");
-          tr.appendChild(td);
+      // ── Section 1: Payments received in selected month ──
+      if (section1.length > 0) {
+        hasAny = true;
+        section1.forEach((grp, gi) => {
+          if (gi > 0) makeSpacer(tbody, NC);
+          makeHdr(grp.label, tbody, NC);
+          grp.rows.forEach(c => { rowCount = makeDataRow(c, tbody, rowCount); });
+          const t = sumTotals(grp.rows);
+          makeSubtotal(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "monthTotal", tbody);
+          for (const k in grand) grand[k] += t[k] || 0;
         });
-        tbody.appendChild(tr);
-        rowCount++;
       }
 
-      const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-
-      groups.forEach((grp, gi) => {
-        if (gi > 0) spacer();
-
-        // Previous-month group: contracts paid in the selected month
-        if (grp.prevPaid.length > 0) {
-          hdr(`${grp.label}`);
-          grp.prevPaid.forEach(c => dataRow(c));
-        }
-
-        // Selected-month group: new contracts from that month
-        if (grp.sameMonth.length > 0) {
-          hdr(`${grp.label}`);
-          grp.sameMonth.forEach(c => dataRow(c));
-        }
-
-        const t = sumTotals([...grp.sameMonth, ...grp.prevPaid]);
-        subtotal(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "monthTotal");
+      // ── Section 2: Contracts from the selected month ──
+      if (section2.length > 0) {
+        hasAny = true;
+        if (section1.length > 0) makeSpacer(tbody, NC);
+        makeHdr(selectedLabel, tbody, NC);
+        section2.forEach(c => { rowCount = makeDataRow(c, tbody, rowCount); });
+        const t = sumTotals(section2);
+        makeSubtotal(`SUBTOTAL — ${selectedLabel.toUpperCase()}`, t, "monthTotal", tbody);
         for (const k in grand) grand[k] += t[k] || 0;
-      });
+      }
 
-      const anyData = groups.length > 0;
-      if (anyData) { spacer(); subtotal("GRAND TOTAL", grand, "grandTotal"); }
+      // ── Grand Total ──
+      if (hasAny) {
+        makeSpacer(tbody, NC);
+        makeSubtotal("GRAND TOTAL", grand, "grandTotal", tbody);
+      }
 
-      mrGridWrap.style.display = anyData ? ""      : "none";
-      mrEmpty.style.display    = anyData ? "none"  : "";
-      mrEmpty.textContent      = anyData ? ""      : `No data found for ${monthLabelFromKey(pickedKey)}.`;
+      mrGridWrap.style.display = hasAny ? ""     : "none";
+      mrEmpty.style.display    = hasAny ? "none" : "";
+      mrEmpty.textContent      = hasAny ? ""     : `No data found for ${selectedLabel}.`;
       if (mrRowCount) mrRowCount.textContent = `Rows: ${rowCount}`;
     }
 
@@ -7680,12 +7668,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year first."); return; }
 
-      const { pickedKey, groups } = buildGroups(selMonth, selYear);
-      const monthLabel = monthLabelFromKey(pickedKey);
-      if (!groups.length) { alert(`No data found for ${monthLabel}.`); return; }
+      const { pickedKey, section1, section2 } = buildReportData(selMonth, selYear);
+      const selectedLabel = monthLabelFromKey(pickedKey);
+      if (!section1.length && !section2.length) {
+        alert(`No data found for ${selectedLabel}.`); return;
+      }
 
-      const esc  = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      const NC   = 15;
+      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const NC  = 15;
       const cols = ["Date","Contract #","Deceased","Casket","Address",
         "Amount","GCASH/BANK","CASH","DSWD","Discount","DSWD Disc.","BAI",
         "Total Paid","Last Payment","Remaining"];
@@ -7699,59 +7689,73 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         th,td{border:1px solid #bbb;padding:2px 4px;white-space:nowrap}
         th{background:#f2f2f2;font-weight:700;text-align:center;font-size:7.5pt}
         td.num{text-align:right} td.comp{background:#f0f7ff}
-        tr.sh td{background:#d9d9d9;font-weight:800;text-align:center;border-top:2px solid #333;border-bottom:2px solid #333}
+        tr.sh td{background:#d9d9d9;font-weight:800;text-align:center;
+          border-top:2px solid #333;border-bottom:2px solid #333}
         tr.sub td{background:#fff2cc;font-weight:700;border-top:2px solid #333}
         tr.sub td.lbl{text-align:center;letter-spacing:.06em}
-        tr.grd td{background:#92d050;font-weight:800;border-top:2px solid #333;border-bottom:2px solid #333}
+        tr.grd td{background:#92d050;font-weight:800;
+          border-top:2px solid #333;border-bottom:2px solid #333}
         tr.grd td.lbl{text-align:center;letter-spacing:.06em}
         tr.sp td{border:none;height:6px}
         @media print{button{display:none}}
       </style>`;
 
-      const hdRow = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
-      const dRow  = c => {
+      const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
+      const dRow   = c  => {
         const cp = calcComputed(c);
         const n  = v => `<td class="num">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp">${fmtMoney(v)}</td>`;
         const t  = v => `<td>${esc(v)}</td>`;
-        return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}${n(c.amount)}${n(c.gcash)}${n(c.cash)}${nc(c.dswdAfterTax||0)}${n(c.discount)}${nc(c.dswdDiscount||0)}${nc(c.baiAssist||0)}${nc(cp.totalPaid)}${t(c.lastPayment||"")}${nc(cp.remaining)}</tr>`;
+        return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
+          `${n(c.amount)}${n(c.gcash)}${n(c.cash)}${nc(c.dswdAfterTax||0)}${n(c.discount)}` +
+          `${nc(c.dswdDiscount||0)}${nc(c.baiAssist||0)}${nc(cp.totalPaid)}` +
+          `${t(c.lastPayment||"")}${nc(cp.remaining)}</tr>`;
       };
-      const shRow = lbl => `<tr class="sh"><td colspan="${NC}">${esc(lbl)}</td></tr>`;
-      const spRow = ()  => `<tr class="sp"><td colspan="${NC}"></td></tr>`;
+      const shRow  = lbl => `<tr class="sh"><td colspan="${NC}">${esc(lbl)}</td></tr>`;
+      const spRow  = ()  => `<tr class="sp"><td colspan="${NC}"></td></tr>`;
       const totRow = (lbl, t, cls) => {
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
-        return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>${n(t.amount)}${n(t.gcash)}${n(t.cash)}${n(t.dswdAfterTax)}${n(t.discount)}${n(t.dswdDiscount)}${n(t.baiAssist)}${n(t.totalPaid)}<td></td>${n(t.remaining)}</tr>`;
+        return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
+          `${n(t.amount)}${n(t.gcash)}${n(t.cash)}${n(t.dswdAfterTax)}${n(t.discount)}` +
+          `${n(t.dswdDiscount)}${n(t.baiAssist)}${n(t.totalPaid)}<td></td>${n(t.remaining)}</tr>`;
       };
 
-      const grand = { amount:0,gcash:0,cash:0,dswdAfterTax:0,discount:0,dswdDiscount:0,baiAssist:0,totalPaid:0,remaining:0 };
+      const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
+                      dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
       let body = "";
 
-      groups.forEach((grp, gi) => {
+      // Section 1
+      section1.forEach((grp, gi) => {
         if (gi > 0) body += spRow();
-
-        if (grp.prevPaid.length > 0) {
-          body += shRow(`${grp.label}`);
-          body += hdRow();
-          body += grp.prevPaid.map(dRow).join("");
-        }
-
-        if (grp.sameMonth.length > 0) {
-          body += shRow(`${grp.label}`);
-          body += hdRow();
-          body += grp.sameMonth.map(dRow).join("");
-        }
-
-        const t = sumTotals([...grp.sameMonth, ...grp.prevPaid]);
+        body += shRow(grp.label);
+        body += hdRow();
+        body += grp.rows.map(dRow).join("");
+        const t = sumTotals(grp.rows);
         body += totRow(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "sub");
         for (const k in grand) grand[k] += t[k] || 0;
       });
+
+      // Section 2
+      if (section2.length > 0) {
+        if (section1.length > 0) body += spRow();
+        body += shRow(selectedLabel);
+        body += hdRow();
+        body += section2.map(dRow).join("");
+        const t = sumTotals(section2);
+        body += totRow(`SUBTOTAL — ${selectedLabel.toUpperCase()}`, t, "sub");
+        for (const k in grand) grand[k] += t[k] || 0;
+      }
+
       body += spRow();
       body += totRow("GRAND TOTAL", grand, "grd");
 
-      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Monthly Report — ${monthLabel}</title>${css}</head><body>
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+        <title>Monthly Report — ${selectedLabel}</title>${css}</head><body>
         <h2>Magallanes Funeral Services</h2>
-        <h3>Monthly Report — ${esc(monthLabel)}</h3>
-        <button onclick="window.print()" style="margin-bottom:8px;padding:5px 16px;cursor:pointer;">🖨 Print / Save as PDF</button>
+        <h3>Monthly Report — ${esc(selectedLabel)}</h3>
+        <button onclick="window.print()" style="margin-bottom:8px;padding:5px 16px;cursor:pointer;">
+          🖨 Print / Save as PDF
+        </button>
         <table><tbody>${body}</tbody></table>
       </body></html>`;
 
@@ -7761,12 +7765,10 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       win.document.close();
     }
 
-    // ── Wire up buttons ──
+    // ── Wire buttons ──
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
     btnGenerate.addEventListener("click", () => {
-      // Always re-sync lastPayment from transactions before building the report,
-      // in case cashStore/bankStore loaded after contractsStore
       if (typeof syncCashReceivedToContracts === "function") syncCashReceivedToContracts();
       populateYears();
       renderMonthlyReport();
