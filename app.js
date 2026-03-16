@@ -1980,7 +1980,6 @@ function fmtMoney(n) {
     setTimeout(() => {
       if (typeof renderDswdTable === "function") renderDswdTable();
       if (typeof renderBaiTable  === "function") renderBaiTable();
-      initMonthlyReport();
     }, 0);
   });
 
@@ -7494,7 +7493,10 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
 
-    btnGenerate.addEventListener("click", renderMonthlyReport);
+    btnGenerate.addEventListener("click", () => {
+      populateYears();
+      renderMonthlyReport();
+    });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
 
     // ── Core data builder — shared by both render and PDF export ──
@@ -7765,6 +7767,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       win.document.close();
     }
   }
+
+  // Wire Monthly Report buttons (DOM is ready, data loads async — Generate reads live stores)
+  initMonthlyReport();
 
   // ── Contract Form — Print button ──
   document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
