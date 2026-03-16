@@ -7474,8 +7474,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       for (const c of (contractsStore || [])) {
         const d = parseMMDDYYYY(c.date || "");
         if (d) years.add(d.getFullYear());
-        const lp = parseMMDDYYYY(c.lastPayment || "");
-        if (lp) years.add(lp.getFullYear());
       }
       const prevYear  = mrYearSelect.value;
       const prevMonth = mrMonthSelect.value;
@@ -7491,71 +7489,171 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!mrYearSelect.value) mrYearSelect.value = String(now.getFullYear());
     }
 
-    // ── Sum totals for an array of contracts ──
-    function sumTotals(rows) {
-      const t = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
-                  dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-      for (const c of rows) {
-        const cp = calcComputed(c);
-        t.amount       += Number(c.amount)       || 0;
-        t.gcash        += Number(c.gcash)        || 0;
-        t.cash         += Number(c.cash)         || 0;
-        t.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-        t.discount     += Number(c.discount)     || 0;
-        t.dswdDiscount += Number(c.dswdDiscount) || 0;
-        t.baiAssist    += Number(c.baiAssist)    || 0;
-        t.totalPaid    += cp.totalPaid;
-        t.remaining    += cp.remaining;
+    // ══════════════════════════════════════════════════════
+    // CORE: Build the rolling monthly report
+    //
+    // For each month from the earliest contract up to pickedKey:
+    //   - New contracts (dated that month): starting amount = contract.amount
+    //   - Carried-over contracts (from earlier months): starting amount
+    //     = remaining balance calculated in their LAST appearance
+    //   - paidThisMonth = sum of cashStore + bankStore entries for that
+    //     contract dated within that month
+    //   - remaining = startAmount - paidThisMonth - (one-time deductions
+    //     applied only in the contract's own month)
+    //   - remaining carries forward to the next month
+    // ══════════════════════════════════════════════════════
+    function buildRollingReport(selMonth, selYear) {
+      const pickedKey = `${selYear}-${String(selMonth).padStart(2,"0")}`;
+
+      // ── Step 1: Collect all month keys from earliest contract to pickedKey ──
+      const keySet = new Set();
+      for (const c of (contractsStore || [])) {
+        const ck = monthKeyFromDate(c.date || "");
+        if (ck && ck !== "unknown" && ck <= pickedKey) keySet.add(ck);
       }
-      return t;
-    }
+      const allMonthKeys = Array.from(keySet).sort();
+      if (!allMonthKeys.length) return { pickedKey, months: [] };
 
-    // ── Core data builder ──
-    //
-    // SECTION 1: Contracts whose lastPayment falls in the selected month,
-    //            grouped by their contract month (chronological order).
-    //
-    // SECTION 2: All contracts whose contract date is in the selected month.
-    //
-    function buildReportData(selMonth, selYear) {
-      const pickedKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
+      // ── Step 2: Build payment and deduction lookup maps ──
+      // cashPay[contractNo][monthKey] = total cash paid that month
+      // bankPay[contractNo][monthKey] = total bank paid that month
+      // dswdDeduct[contractNo][monthKey] = afterTax + dswdDiscount received that month (by dateReceived)
+      // baiDeduct[contractNo][monthKey]  = BAI amount completed that month (by dateCompleted)
+      const cashPay  = new Map();
+      const bankPay  = new Map();
+      const dswdDed  = new Map(); // contractNo → Map(monthKey → { afterTax, dswdDiscount })
+      const baiDed   = new Map(); // contractNo → Map(monthKey → amount)
 
-      const sortFn = (a, b) => {
+      for (const r of (cashStore || [])) {
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        const mk = monthKeyFromDate(r.date || "");
+        if (!mk || mk === "unknown") continue;
+        if (!cashPay.has(cno)) cashPay.set(cno, new Map());
+        const m = cashPay.get(cno);
+        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
+      }
+      for (const r of (bankStore || [])) {
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        const mk = monthKeyFromDate(r.date || "");
+        if (!mk || mk === "unknown") continue;
+        if (!bankPay.has(cno)) bankPay.set(cno, new Map());
+        const m = bankPay.get(cno);
+        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
+      }
+
+      // DSWD deductions — keyed by dateReceived (when refund was actually received)
+      for (const r of (dswdStore || [])) {
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        // Use dateReceived as the month the deduction applies
+        const mk = monthKeyFromDate(r.dateReceived || "");
+        if (!mk || mk === "unknown") continue;
+        if (!dswdDed.has(cno)) dswdDed.set(cno, new Map());
+        const m = dswdDed.get(cno);
+        const cur = m.get(mk) || { afterTax: 0, dswdDiscount: 0 };
+        cur.afterTax     += Number(r.afterTax)     || 0;
+        cur.dswdDiscount += Number(r.dswdDiscount) || 0;
+        m.set(mk, cur);
+      }
+
+      // BAI deductions — keyed by dateCompleted (when BAI was received/completed)
+      for (const r of (baiStore || [])) {
+        const cno = normalizeText(r.contract || "");
+        if (!cno) continue;
+        const mk = monthKeyFromDate(r.dateCompleted || "");
+        if (!mk || mk === "unknown") continue;
+        if (!baiDed.has(cno)) baiDed.set(cno, new Map());
+        const m = baiDed.get(cno);
+        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
+      }
+
+      const getCashPaid    = (cno, mk) => cashPay.get(cno)?.get(mk) || 0;
+      const getBankPaid    = (cno, mk) => bankPay.get(cno)?.get(mk) || 0;
+      const getDswdAfterTax   = (cno, mk) => dswdDed.get(cno)?.get(mk)?.afterTax     || 0;
+      const getDswdDiscount   = (cno, mk) => dswdDed.get(cno)?.get(mk)?.dswdDiscount || 0;
+      const getBaiAssist      = (cno, mk) => baiDed.get(cno)?.get(mk)  || 0;
+
+      // ── Step 3: Sort contracts by date then contract# ──
+      const sortedContracts = (contractsStore || []).slice().sort((a, b) => {
         const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
         const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-        return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
-      };
+        return ad !== bd ? ad - bd : (a.contract||"").localeCompare(b.contract||"");
+      });
 
-      // ── Section 1: group by contract month where lastPayment = pickedKey ──
-      //   Exclude contracts from the selected month — those are fully covered by Section 2.
-      const paymentGroups = new Map(); // contractMonthKey → contracts[]
-      for (const c of (contractsStore || [])) {
-        const lk = monthKeyFromDate(c.lastPayment || "");
-        if (lk !== pickedKey) continue; // only contracts paid in selected month
-        const ck = monthKeyFromDate(c.date || "");
-        if (ck === pickedKey) continue; // skip same-month — already in Section 2
-        const groupKey = (ck && ck !== "unknown") ? ck : "unknown";
-        if (!paymentGroups.has(groupKey)) paymentGroups.set(groupKey, []);
-        paymentGroups.get(groupKey).push(c);
+      // ── Step 4: Rolling calculation ──
+      // carryOver[contractNo] = remaining balance going into next month
+      const carryOver = new Map();
+
+      const months = [];
+
+      for (const mk of allMonthKeys) {
+        // Contracts active this month:
+        //   a) New contracts dated this month
+        //   b) Any contract from a previous month (already in carryOver)
+        const newContracts     = sortedContracts.filter(c => monthKeyFromDate(c.date||"") === mk);
+        const carriedContracts = sortedContracts.filter(c => {
+          const ck = monthKeyFromDate(c.date||"");
+          return ck < mk && ck !== "unknown";
+        });
+
+        const rows = [];
+
+        // Process new contracts first, then carried-over
+        const processContract = (c, isNew) => {
+          const cno = normalizeText(c.contract || "");
+          const cashPaidThisMonth = getCashPaid(cno, mk);
+          const bankPaidThisMonth = getBankPaid(cno, mk);
+          const paidThisMonth     = cashPaidThisMonth + bankPaidThisMonth;
+
+          let startAmount;
+          if (isNew) {
+            // First month: use original contract amount
+            startAmount = Number(c.amount) || 0;
+          } else {
+            // Carried over: use previous remaining balance
+            startAmount = carryOver.has(cno) ? carryOver.get(cno) : (Number(c.amount) || 0);
+          }
+
+          // Discount applied only in contract's own first month
+          const discount = isNew ? (Number(c.discount) || 0) : 0;
+
+          // DSWD and BAI deductions applied in the month they were actually received/completed
+          const dswdAfterTax = getDswdAfterTax(cno, mk);
+          const dswdDiscount = getDswdDiscount(cno, mk);
+          const baiAssist    = getBaiAssist(cno, mk);
+
+          const remaining = startAmount - paidThisMonth - discount - dswdAfterTax - dswdDiscount - baiAssist;
+
+          // Update carry-over for next month
+          carryOver.set(cno, remaining);
+
+          rows.push({
+            c,
+            isNew,
+            startAmount,
+            cashPaid:    cashPaidThisMonth,
+            bankPaid:    bankPaidThisMonth,
+            paidThisMonth,
+            discount,
+            dswdAfterTax,
+            dswdDiscount,
+            baiAssist,
+            remaining,
+          });
+        };
+
+        newContracts.forEach(c => processContract(c, true));
+        carriedContracts.forEach(c => processContract(c, false));
+
+        months.push({ key: mk, label: monthLabelFromKey(mk), rows });
       }
-      // Sort each group internally and build sorted array of groups
-      const section1 = Array.from(paymentGroups.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, rows]) => ({
-          key,
-          label: key === "unknown" ? "Unknown Date" : monthLabelFromKey(key),
-          rows: rows.sort(sortFn)
-        }));
 
-      // ── Section 2: contracts dated in the selected month ──
-      const section2 = (contractsStore || [])
-        .filter(c => monthKeyFromDate(c.date || "") === pickedKey)
-        .sort(sortFn);
-
-      return { pickedKey, section1, section2 };
+      return { pickedKey, months };
     }
 
-    // ── Shared row/table DOM helpers ──
+    // ── Render helpers ──
     function makeHdr(label, tbody, NC) {
       const tr = document.createElement("tr");
       tr.dataset.rowType = "monthHeader"; tr.classList.add("group-row");
@@ -7572,17 +7670,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tr.dataset.rowType = rowType;
       tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
       for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
-      const lbl = document.createElement("td"); lbl.textContent = label;
-      lbl.classList.add("total-label"); tr.appendChild(lbl);
+      const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
       const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
-      [t.amount, t.gcash, t.cash, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.totalPaid]
+      [t.startAmount, t.bankPaid, t.cashPaid, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.paidThisMonth]
         .forEach(v => tr.appendChild(n(v)));
-      tr.appendChild(document.createElement("td"));
+      tr.appendChild(document.createElement("td")); // last payment — blank in totals
       tr.appendChild(n(t.remaining));
       tbody.appendChild(tr);
     }
-    function makeDataRow(c, tbody, rowCount) {
-      const cp = calcComputed(c);
+    function makeDataRow(row, tbody) {
+      const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount, dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
       [
         { v: c.date },
@@ -7590,16 +7687,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         { v: c.deceased },
         { v: c.casket },
         { v: c.address },
-        { v: fmtMoney(c.amount),            num: true },
-        { v: fmtMoney(c.gcash),             num: true },
-        { v: fmtMoney(c.cash),              num: true },
-        { v: fmtMoney(c.dswdAfterTax||0),   num: true, comp: true },
-        { v: fmtMoney(c.discount),          num: true },
-        { v: fmtMoney(c.dswdDiscount||0),   num: true, comp: true },
-        { v: fmtMoney(c.baiAssist||0),      num: true, comp: true },
-        { v: fmtMoney(cp.totalPaid),        num: true, comp: true },
+        { v: fmtMoney(startAmount),   num: true },
+        { v: fmtMoney(bankPaid),      num: true },
+        { v: fmtMoney(cashPaid),      num: true },
+        { v: fmtMoney(dswdAfterTax),  num: true, comp: true },
+        { v: fmtMoney(discount),      num: true },
+        { v: fmtMoney(dswdDiscount),  num: true, comp: true },
+        { v: fmtMoney(baiAssist),     num: true, comp: true },
+        { v: fmtMoney(paidThisMonth), num: true, comp: true },
         { v: c.lastPayment || "—" },
-        { v: fmtMoney(cp.remaining),        num: true, comp: true },
+        { v: fmtMoney(remaining),     num: true, comp: true },
       ].forEach(cell => {
         const td = document.createElement("td");
         td.textContent = cell.v ?? "";
@@ -7608,73 +7705,69 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
-      return rowCount + 1;
+      return 1;
     }
 
-    // ── Render on-screen table ──
+    // ── Render on-screen ──
     function renderMonthlyReport() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year."); return; }
 
-      const { pickedKey, section1, section2 } = buildReportData(selMonth, selYear);
-      const selectedLabel = monthLabelFromKey(pickedKey);
+      if (typeof syncCashReceivedToContracts === "function") syncCashReceivedToContracts();
+
+      const { pickedKey, months } = buildRollingReport(selMonth, selYear);
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
       const NC = 15;
       let rowCount = 0;
-      const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
-                      dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const grandTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
+                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
 
-      let hasAny = false;
+      months.forEach((mon, gi) => {
+        if (gi > 0) makeSpacer(tbody, NC);
+        makeHdr(mon.label, tbody, NC);
 
-      // ── Section 1: Payments received in selected month ──
-      if (section1.length > 0) {
-        hasAny = true;
-        section1.forEach((grp, gi) => {
-          if (gi > 0) makeSpacer(tbody, NC);
-          makeHdr(grp.label, tbody, NC);
-          grp.rows.forEach(c => { rowCount = makeDataRow(c, tbody, rowCount); });
-          const t = sumTotals(grp.rows);
-          makeSubtotal(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "monthTotal", tbody);
-          for (const k in grand) grand[k] += t[k] || 0;
+        const monTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
+                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+
+        mon.rows.forEach(row => {
+          rowCount += makeDataRow(row, tbody);
+          monTot.startAmount   += row.startAmount;
+          monTot.bankPaid      += row.bankPaid;
+          monTot.cashPaid      += row.cashPaid;
+          monTot.dswdAfterTax  += row.dswdAfterTax;
+          monTot.discount      += row.discount;
+          monTot.dswdDiscount  += row.dswdDiscount;
+          monTot.baiAssist     += row.baiAssist;
+          monTot.paidThisMonth += row.paidThisMonth;
+          monTot.remaining     += row.remaining;
         });
-      }
 
-      // ── Section 2: Contracts from the selected month ──
-      if (section2.length > 0) {
-        hasAny = true;
-        if (section1.length > 0) makeSpacer(tbody, NC);
-        makeHdr(selectedLabel, tbody, NC);
-        section2.forEach(c => { rowCount = makeDataRow(c, tbody, rowCount); });
-        const t = sumTotals(section2);
-        makeSubtotal(`SUBTOTAL — ${selectedLabel.toUpperCase()}`, t, "monthTotal", tbody);
-        for (const k in grand) grand[k] += t[k] || 0;
-      }
+        makeSubtotal(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "monthTotal", tbody);
+        for (const k in grandTot) grandTot[k] += monTot[k] || 0;
+      });
 
-      // ── Grand Total ──
-      if (hasAny) {
-        makeSpacer(tbody, NC);
-        makeSubtotal("GRAND TOTAL", grand, "grandTotal", tbody);
-      }
+      const hasData = months.length > 0;
+      if (hasData) { makeSpacer(tbody, NC); makeSubtotal("GRAND TOTAL", grandTot, "grandTotal", tbody); }
 
-      mrGridWrap.style.display = hasAny ? ""     : "none";
-      mrEmpty.style.display    = hasAny ? "none" : "";
-      mrEmpty.textContent      = hasAny ? ""     : `No data found for ${selectedLabel}.`;
+      mrGridWrap.style.display = hasData ? ""     : "none";
+      mrEmpty.style.display    = hasData ? "none" : "";
+      mrEmpty.textContent      = hasData ? ""     : `No contracts found up to ${monthLabelFromKey(pickedKey)}.`;
       if (mrRowCount) mrRowCount.textContent = `Rows: ${rowCount}`;
     }
 
-    // ── PDF / Print export ──
+    // ── PDF export ──
     function exportMonthlyReportPdf() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
       if (!selMonth || !selYear) { alert("Please select a month and year first."); return; }
 
-      const { pickedKey, section1, section2 } = buildReportData(selMonth, selYear);
+      if (typeof syncCashReceivedToContracts === "function") syncCashReceivedToContracts();
+
+      const { pickedKey, months } = buildRollingReport(selMonth, selYear);
       const selectedLabel = monthLabelFromKey(pickedKey);
-      if (!section1.length && !section2.length) {
-        alert(`No data found for ${selectedLabel}.`); return;
-      }
+      if (!months.length) { alert(`No data found for ${selectedLabel}.`); return; }
 
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const NC  = 15;
@@ -7702,54 +7795,44 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         @media print{button{display:none}}
       </style>`;
 
-      const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
-      const dRow   = c  => {
-        const cp = calcComputed(c);
+      const hdRow = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
+      const dRow  = row => {
+        const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount,
+                dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
         const n  = v => `<td class="num">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp">${fmtMoney(v)}</td>`;
         const t  = v => `<td>${esc(v)}</td>`;
         return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
-          `${n(c.amount)}${n(c.gcash)}${n(c.cash)}${nc(c.dswdAfterTax||0)}${n(c.discount)}` +
-          `${nc(c.dswdDiscount||0)}${nc(c.baiAssist||0)}${nc(cp.totalPaid)}` +
-          `${t(c.lastPayment||"")}${nc(cp.remaining)}</tr>`;
+          `${n(startAmount)}${n(bankPaid)}${n(cashPaid)}${nc(dswdAfterTax)}${n(discount)}` +
+          `${nc(dswdDiscount)}${nc(baiAssist)}${nc(paidThisMonth)}${t(c.lastPayment||"")}${nc(remaining)}</tr>`;
       };
       const shRow  = lbl => `<tr class="sh"><td colspan="${NC}">${esc(lbl)}</td></tr>`;
       const spRow  = ()  => `<tr class="sp"><td colspan="${NC}"></td></tr>`;
       const totRow = (lbl, t, cls) => {
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
         return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
-          `${n(t.amount)}${n(t.gcash)}${n(t.cash)}${n(t.dswdAfterTax)}${n(t.discount)}` +
-          `${n(t.dswdDiscount)}${n(t.baiAssist)}${n(t.totalPaid)}<td></td>${n(t.remaining)}</tr>`;
+          `${n(t.startAmount)}${n(t.bankPaid)}${n(t.cashPaid)}${n(t.dswdAfterTax)}` +
+          `${n(t.discount)}${n(t.dswdDiscount)}${n(t.baiAssist)}${n(t.paidThisMonth)}<td></td>${n(t.remaining)}</tr>`;
       };
 
-      const grand = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0,
-                      dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      const grandTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
+                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
       let body = "";
 
-      // Section 1
-      section1.forEach((grp, gi) => {
+      months.forEach((mon, gi) => {
         if (gi > 0) body += spRow();
-        body += shRow(grp.label);
+        body += shRow(mon.label);
         body += hdRow();
-        body += grp.rows.map(dRow).join("");
-        const t = sumTotals(grp.rows);
-        body += totRow(`SUBTOTAL — ${grp.label.toUpperCase()}`, t, "sub");
-        for (const k in grand) grand[k] += t[k] || 0;
+        mon.rows.forEach(row => { body += dRow(row); });
+        const t = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
+                    discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+        mon.rows.forEach(row => { for (const k in t) t[k] += row[k] || 0; });
+        body += totRow(`SUBTOTAL — ${mon.label.toUpperCase()}`, t, "sub");
+        for (const k in grandTot) grandTot[k] += t[k] || 0;
       });
 
-      // Section 2
-      if (section2.length > 0) {
-        if (section1.length > 0) body += spRow();
-        body += shRow(selectedLabel);
-        body += hdRow();
-        body += section2.map(dRow).join("");
-        const t = sumTotals(section2);
-        body += totRow(`SUBTOTAL — ${selectedLabel.toUpperCase()}`, t, "sub");
-        for (const k in grand) grand[k] += t[k] || 0;
-      }
-
       body += spRow();
-      body += totRow("GRAND TOTAL", grand, "grd");
+      body += totRow("GRAND TOTAL", grandTot, "grd");
 
       const html = `<!doctype html><html><head><meta charset="utf-8">
         <title>Monthly Report — ${selectedLabel}</title>${css}</head><body>
@@ -7771,7 +7854,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
     btnGenerate.addEventListener("click", () => {
-      if (typeof syncCashReceivedToContracts === "function") syncCashReceivedToContracts();
       populateYears();
       renderMonthlyReport();
     });
@@ -7780,6 +7862,161 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
   // Wire Monthly Report buttons (DOM is ready, data loads async — Generate reads live stores)
   initMonthlyReport();
+
+  // ══════════════════════════════════════════════════════════
+  // CONTRACT FORM — Data, Auto-fill, Save, Print
+  // ══════════════════════════════════════════════════════════
+  (function initContractForm() {
+
+    // ── Field references ──
+    const $ = id => document.getElementById(id);
+    const cfNo       = $("cfNo");
+    const cfDate     = $("cfDate");
+    const cfYear     = $("cfYear");
+    const cfClientName = $("cfClientName");
+    const cfAddress  = $("cfAddress");
+    const cfContact  = $("cfContact");
+    const cfFb       = $("cfFb");
+    const cfDeceased1 = $("cfDeceased1");
+    const cfDeceased2 = $("cfDeceased2");
+    const cfTotal    = $("cfTotal");
+    const cfSignature = $("cfSignature");
+    const cfRelation  = $("cfRelation");
+    const svcIds  = ["cfSvc1","cfSvc2","cfSvc3","cfSvc4","cfSvc5","cfSvc6","cfSvc7","cfSvc8"];
+    const amtIds  = ["cfAmt1","cfAmt2","cfAmt3","cfAmt4","cfAmt5","cfAmt6","cfAmt7","cfAmt8","cfAmt9","cfAmt10","cfAmt11","cfAmt12"];
+
+    const btnLoad  = $("btnCfLoad");
+    const btnSave  = $("btnCfSave");
+    const btnNew   = $("btnCfNew");
+    const cfLookup = $("cfLookupNo");
+
+    let currentFormId = null; // Supabase id of loaded form (null = new)
+
+    // ── Read all fields into an object ──
+    function readForm() {
+      const r = {
+        id:         currentFormId || undefined,
+        formNo:     cfNo?.value.trim()       || "",
+        formDate:   cfDate?.value.trim()     || "",
+        clientName: cfClientName?.value.trim() || "",
+        address:    cfAddress?.value.trim()  || "",
+        contact:    cfContact?.value.trim()  || "",
+        fbAccount:  cfFb?.value.trim()       || "",
+        deceased1:  cfDeceased1?.value.trim() || "",
+        deceased2:  cfDeceased2?.value.trim() || "",
+        total:      cfTotal?.value.trim()    || "",
+        relation:   cfRelation?.value.trim() || "",
+      };
+      svcIds.forEach((id, i) => r[`svc${i+1}`] = $(id)?.value.trim() || "");
+      amtIds.forEach((id, i) => r[`amt${i+1}`] = $(id)?.value.trim() || "");
+      return r;
+    }
+
+    // ── Populate all fields from an object ──
+    function fillForm(r) {
+      if (cfNo)        cfNo.value        = r.formNo     || "";
+      if (cfDate)      cfDate.value      = r.formDate   || "";
+      if (cfYear)      cfYear.value      = (r.formDate || "").slice(-4) || "";
+      if (cfClientName) cfClientName.value = r.clientName || "";
+      if (cfAddress)   cfAddress.value   = r.address    || "";
+      if (cfContact)   cfContact.value   = r.contact    || "";
+      if (cfFb)        cfFb.value        = r.fbAccount  || "";
+      if (cfDeceased1) cfDeceased1.value = r.deceased1  || "";
+      if (cfDeceased2) cfDeceased2.value = r.deceased2  || "";
+      if (cfTotal)     cfTotal.value     = r.total      || "";
+      if (cfRelation)  cfRelation.value  = r.relation   || "";
+      svcIds.forEach((id, i) => { const el = $(id); if (el) el.value = r[`svc${i+1}`] || ""; });
+      amtIds.forEach((id, i) => { const el = $(id); if (el) el.value = r[`amt${i+1}`] || ""; });
+    }
+
+    // ── Clear the whole form ──
+    function clearForm() {
+      currentFormId = null;
+      if (cfLookup) cfLookup.value = "";
+      fillForm({});
+      // Set today's date as default
+      const now = new Date();
+      const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      if (cfDate) cfDate.value = months[now.getMonth()];
+      if (cfYear) cfYear.value = String(now.getFullYear());
+    }
+
+    // ── Auto-fill from contractsStore by contract number ──
+    function autoFillFromContract(contractNo) {
+      const key = normalizeText(contractNo || "");
+      if (!key) return false;
+      const c = (contractsStore || []).find(x => normalizeText(x.contract || "") === key);
+      if (!c) return false;
+      // Fill what we can from the contracts data
+      if (cfNo)        cfNo.value        = c.contract  || "";
+      if (cfDeceased1) cfDeceased1.value = c.deceased  || "";
+      if (cfAddress)   cfAddress.value   = c.address   || "";
+      if (cfSvc1)      {}  // casket goes to service line 1
+      const svc1el = $("cfSvc1");
+      if (svc1el)      svc1el.value      = c.casket    || "";
+      if (cfTotal)     cfTotal.value     = c.amount ? String(c.amount) : "";
+      return true;
+    }
+
+    // ── Load button — try saved form first, then auto-fill from contracts ──
+    btnLoad?.addEventListener("click", async () => {
+      const no = (cfLookup?.value || "").trim();
+      if (!no) { alert("Enter a Contract Number to load."); return; }
+
+      // 1. Try to find a saved contract form with this number
+      try {
+        const forms = await DB.getContractForms();
+        const saved = forms.find(f => normalizeText(f.formNo || "") === normalizeText(no));
+        if (saved) {
+          currentFormId = saved.id;
+          fillForm(saved);
+          // sync year field from date
+          if (cfYear && cfDate) cfYear.value = (cfDate.value || "").slice(-4) || "";
+          alert(`Loaded saved form for ${no}.`);
+          return;
+        }
+      } catch(e) { console.error("Load form error:", e); }
+
+      // 2. Fall back to auto-fill from contracts
+      const filled = autoFillFromContract(no);
+      if (filled) {
+        currentFormId = null; // new form, not yet saved
+        alert(`Auto-filled from Contracts data for ${no}. Fill in remaining details and Save.`);
+      } else {
+        // 3. Nothing found — just set the number and let them fill manually
+        currentFormId = null;
+        if (cfNo) cfNo.value = no;
+        alert(`No existing record found for "${no}". Form is ready for manual entry.`);
+      }
+    });
+
+    // ── Save button ──
+    btnSave?.addEventListener("click", async () => {
+      const r = readForm();
+      if (!r.formNo) { alert("Please enter a Contract Number (No.) before saving."); return; }
+      try {
+        const saved = await DB.saveContractForm(r);
+        if (saved) {
+          currentFormId = saved.id;
+          alert(`Form ${r.formNo} saved successfully!`);
+        } else {
+          alert("Save failed — please try again.");
+        }
+      } catch(e) {
+        console.error("Save contract form error:", e);
+        alert("Save error: " + e.message);
+      }
+    });
+
+    // ── New button — clear form ──
+    btnNew?.addEventListener("click", () => {
+      if (confirm("Clear the form and start a new one?")) clearForm();
+    });
+
+    // ── Initialize with today's date ──
+    clearForm();
+
+  })();
 
   // ── Contract Form — Print button ──
   document.querySelector("#btnPrintContractForm")?.addEventListener("click", () => {
