@@ -7443,7 +7443,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   // MONTHLY REPORT TAB
   // ══════════════════════════════════════════════════════════
   (function initMonthlyReport() {
-    const mrMonthPicker = document.getElementById("mrMonthPicker");
+    const mrMonthSelect = document.getElementById("mrMonthSelect");
+    const mrYearSelect  = document.getElementById("mrYearSelect");
     const btnGenerate   = document.getElementById("btnMrGenerate");
     const mrTable       = document.getElementById("mrTable");
     const mrGridWrap    = document.getElementById("mrGridWrap");
@@ -7452,83 +7453,82 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     if (!btnGenerate || !mrTable) return;
 
-    // Default picker to current month
-    const now = new Date();
-    mrMonthPicker.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    // ── Populate year dropdown from data + current year ──
+    function populateYears() {
+      const years = new Set();
+      const now = new Date();
+      years.add(now.getFullYear());
+      for (const c of (contractsStore || [])) {
+        const d = parseMMDDYYYY(c.date || "");
+        if (d) years.add(d.getFullYear());
+      }
+      for (const r of (cashStore || [])) {
+        const d = parseMMDDYYYY(r.date || "");
+        if (d) years.add(d.getFullYear());
+      }
+      for (const r of (bankStore || [])) {
+        const d = parseMMDDYYYY(r.date || "");
+        if (d) years.add(d.getFullYear());
+      }
+      const sorted = Array.from(years).sort((a, b) => a - b);
+      mrYearSelect.innerHTML = "";
+      for (const y of sorted) {
+        const opt = document.createElement("option");
+        opt.value = y;
+        opt.textContent = y;
+        mrYearSelect.appendChild(opt);
+      }
+      // Default to current month/year
+      mrMonthSelect.value = now.getMonth() + 1;
+      mrYearSelect.value  = now.getFullYear();
+    }
+
+    populateYears();
+
+    // Re-populate years whenever the tab is activated
+    document.querySelector(".tab[data-tab='monthlyreport']")
+      ?.addEventListener("click", populateYears);
 
     btnGenerate.addEventListener("click", renderMonthlyReport);
 
     function monthKeyOf(dateStr) {
-      // dateStr is MM/DD/YYYY → returns "YYYY-MM" or ""
       return monthKeyFromDate(dateStr || "");
     }
 
     function renderMonthlyReport() {
-      const picked = mrMonthPicker.value; // "YYYY-MM"
-      if (!picked) { alert("Please select a month."); return; }
+      const selMonth = parseInt(mrMonthSelect.value, 10);
+      const selYear  = parseInt(mrYearSelect.value,  10);
+      if (!selMonth || !selYear) { alert("Please select a month and year."); return; }
 
-      const [pickedYear, pickedMonth] = picked.split("-").map(Number);
-      const pickedKey = picked; // "YYYY-MM"
+      // "YYYY-MM" key for the selected end month
+      const endKey = `${selYear}-${String(selMonth).padStart(2, "0")}`;
 
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
 
-      // ── Build a map: contractNo → total payments made IN the picked month
-      //    sourced from cashStore (cash) and bankStore (gcash/bank transfer)
-      const payInMonth = new Map(); // contractNo (normalized) → { gcash, cash }
-
-      for (const r of (cashStore || [])) {
-        const rKey = monthKeyOf(r.date || "");
-        if (rKey !== pickedKey) continue;
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-        // cash received entries count as cash
-        cur.cash += Number(r.amount) || 0;
-        payInMonth.set(cno, cur);
-      }
-
-      for (const r of (bankStore || [])) {
-        const rKey = monthKeyOf(r.date || "");
-        if (rKey !== pickedKey) continue;
-        const cno = normalizeText(r.contract || "");
-        if (!cno) continue;
-        const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-        // bank/gcash entries count as gcash
-        cur.gcash += Number(r.amount) || 0;
-        payInMonth.set(cno, cur);
-      }
-
-      // ── Split contracts into two groups ──
-      // Group A: contract date is IN the picked month → show full contract row
-      // Group B: contract date is NOT in picked month, but has payments in picked month
-      const groupA = []; // same-month contracts
-      const groupB = []; // previous contracts with payments this month
-
+      // ── Collect all unique month keys that exist in data, up to and including endKey ──
+      const monthKeysSet = new Set();
       for (const c of (contractsStore || [])) {
-        const cKey = monthKeyOf(c.date || "");
-        const cno  = normalizeText(c.contract || "");
-        if (cKey === pickedKey) {
-          groupA.push(c);
-        } else if (payInMonth.has(cno)) {
-          groupB.push(c);
-        }
+        const k = monthKeyOf(c.date || "");
+        if (k && k <= endKey) monthKeysSet.add(k);
+      }
+      // Also include months that only have payments (no contracts that month)
+      for (const r of (cashStore || [])) {
+        const k = monthKeyOf(r.date || "");
+        if (k && k <= endKey) monthKeysSet.add(k);
+      }
+      for (const r of (bankStore || [])) {
+        const k = monthKeyOf(r.date || "");
+        if (k && k <= endKey) monthKeysSet.add(k);
       }
 
-      // Sort both groups by date then contract#
-      const sortContracts = (arr) => arr.sort((a, b) => {
-        const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
-        const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
-        if (ad !== bd) return ad - bd;
-        return (a.contract || "").localeCompare(b.contract || "");
-      });
-      sortContracts(groupA);
-      sortContracts(groupB);
+      // Sort chronologically Jan → selected month
+      const monthKeys = Array.from(monthKeysSet).filter(k => k !== "unknown").sort();
 
       const NUM_COLS = 15;
       let totalDataRows = 0;
 
-      // Helper: append a section header row
+      // ── Helpers ──
       function appendSectionHeader(label) {
         const tr = document.createElement("tr");
         tr.dataset.rowType = "monthHeader";
@@ -7540,7 +7540,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tbody.appendChild(tr);
       }
 
-      // Helper: append a subtotal row
       function appendSubtotal(label, tot, rowType) {
         const tr = document.createElement("tr");
         tr.dataset.rowType = rowType;
@@ -7559,12 +7558,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tr.appendChild(n(tot.dswdDiscount));
         tr.appendChild(n(tot.baiAssist));
         tr.appendChild(n(tot.totalPaid));
-        const tdLP = document.createElement("td"); tr.appendChild(tdLP);
+        tr.appendChild(document.createElement("td"));
         tr.appendChild(n(tot.remaining));
         tbody.appendChild(tr);
       }
 
-      // Helper: append a spacer
       function appendSpacer() {
         const tr = document.createElement("tr");
         tr.dataset.rowType = "spacer";
@@ -7574,46 +7572,38 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tbody.appendChild(tr);
       }
 
-      // Helper: build a data row from contract c, optionally overriding gcash/cash
       function appendDataRow(c, overrideGcash, overrideCash) {
         const gcashVal = overrideGcash !== undefined ? overrideGcash : (Number(c.gcash) || 0);
         const cashVal  = overrideCash  !== undefined ? overrideCash  : (Number(c.cash)  || 0);
-
-        // For overridden rows recalc totalPaid and remaining with the month's payments
         let totalPaid, remaining;
         if (overrideGcash !== undefined || overrideCash !== undefined) {
           totalPaid = Math.max(0, gcashVal + cashVal);
-          // remaining uses full contract data for deductions, but only this month's payments for totalPaid display
-          const full = calcComputed(c);
-          remaining = full.remaining; // still shows the true current remaining
+          remaining = calcComputed(c).remaining;
         } else {
           const cp = calcComputed(c);
           totalPaid = cp.totalPaid;
           remaining = cp.remaining;
         }
-
         const tr = document.createElement("tr");
         tr.dataset.rowType = "data";
         tr.dataset.contract = c.contract;
-
         const cells = [
           { text: c.date },
           { text: c.contract },
           { text: c.deceased },
           { text: c.casket },
           { text: c.address },
-          { text: fmtMoney(c.amount),                  num: true },
-          { text: fmtMoney(gcashVal),                  num: true },
-          { text: fmtMoney(cashVal),                   num: true },
-          { text: fmtMoney(c.dswdAfterTax || 0),       num: true, computed: true },
-          { text: fmtMoney(c.discount),                num: true },
-          { text: fmtMoney(c.dswdDiscount || 0),       num: true, computed: true },
-          { text: fmtMoney(c.baiAssist || 0),          num: true, computed: true },
-          { text: fmtMoney(totalPaid),                 num: true, computed: true },
+          { text: fmtMoney(c.amount),             num: true },
+          { text: fmtMoney(gcashVal),              num: true },
+          { text: fmtMoney(cashVal),               num: true },
+          { text: fmtMoney(c.dswdAfterTax || 0),  num: true, computed: true },
+          { text: fmtMoney(c.discount),            num: true },
+          { text: fmtMoney(c.dswdDiscount || 0),  num: true, computed: true },
+          { text: fmtMoney(c.baiAssist || 0),     num: true, computed: true },
+          { text: fmtMoney(totalPaid),             num: true, computed: true },
           { text: c.lastPayment || "—" },
-          { text: fmtMoney(remaining),                 num: true, computed: true },
+          { text: fmtMoney(remaining),             num: true, computed: true },
         ];
-
         cells.forEach(cell => {
           const td = document.createElement("td");
           td.textContent = cell.text ?? "";
@@ -7621,98 +7611,127 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           if (cell.computed) td.classList.add("computed");
           tr.appendChild(td);
         });
-
         tbody.appendChild(tr);
         totalDataRows++;
       }
 
       const grandTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+      let anyData = false;
+      let firstSection = true;
 
-      // ── SECTION A: Contracts from the selected month ──
-      if (groupA.length > 0) {
-        const monthLabel = monthLabelFromKey(pickedKey);
-        appendSectionHeader(`Contracts — ${monthLabel}`);
+      // ── Render one section per month chronologically ──
+      for (const mKey of monthKeys) {
+        const monthLabel = monthLabelFromKey(mKey);
 
-        const totA = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
-
-        for (const c of groupA) {
-          const cp = calcComputed(c);
-          appendDataRow(c);
-          totA.amount       += Number(c.amount)       || 0;
-          totA.gcash        += Number(c.gcash)        || 0;
-          totA.cash         += Number(c.cash)         || 0;
-          totA.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-          totA.discount     += Number(c.discount)     || 0;
-          totA.dswdDiscount += Number(c.dswdDiscount) || 0;
-          totA.baiAssist    += Number(c.baiAssist)    || 0;
-          totA.totalPaid    += cp.totalPaid;
-          totA.remaining    += cp.remaining;
+        // Build payInMonth map for THIS month key
+        const payInMonth = new Map();
+        for (const r of (cashStore || [])) {
+          if (monthKeyOf(r.date || "") !== mKey) continue;
+          const cno = normalizeText(r.contract || "");
+          if (!cno) continue;
+          const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+          cur.cash += Number(r.amount) || 0;
+          payInMonth.set(cno, cur);
+        }
+        for (const r of (bankStore || [])) {
+          if (monthKeyOf(r.date || "") !== mKey) continue;
+          const cno = normalizeText(r.contract || "");
+          if (!cno) continue;
+          const cur = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+          cur.gcash += Number(r.amount) || 0;
+          payInMonth.set(cno, cur);
         }
 
-        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, totA, "monthTotal");
+        // Contracts from this month
+        const sameMonth = (contractsStore || [])
+          .filter(c => monthKeyOf(c.date || "") === mKey)
+          .sort((a, b) => {
+            const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+            const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+            return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
+          });
 
-        grandTot.amount       += totA.amount;
-        grandTot.gcash        += totA.gcash;
-        grandTot.cash         += totA.cash;
-        grandTot.dswdAfterTax += totA.dswdAfterTax;
-        grandTot.discount     += totA.discount;
-        grandTot.dswdDiscount += totA.dswdDiscount;
-        grandTot.baiAssist    += totA.baiAssist;
-        grandTot.totalPaid    += totA.totalPaid;
-        grandTot.remaining    += totA.remaining;
-      }
+        // Previous contracts with payments this month
+        const prevPaid = (contractsStore || [])
+          .filter(c => {
+            const cKey = monthKeyOf(c.date || "");
+            return cKey !== mKey && payInMonth.has(normalizeText(c.contract || ""));
+          })
+          .sort((a, b) => {
+            const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+            const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+            return ad !== bd ? ad - bd : (a.contract || "").localeCompare(b.contract || "");
+          });
 
-      // ── SECTION B: Previous contracts with payments this month ──
-      if (groupB.length > 0) {
-        if (groupA.length > 0) appendSpacer();
+        if (sameMonth.length === 0 && prevPaid.length === 0) continue;
+        anyData = true;
 
-        appendSectionHeader(`Payments Received in ${monthLabelFromKey(pickedKey)} — Previous Contracts`);
+        if (!firstSection) appendSpacer();
+        firstSection = false;
 
-        const totB = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
+        const monthTot = { amount:0, gcash:0, cash:0, dswdAfterTax:0, discount:0, dswdDiscount:0, baiAssist:0, totalPaid:0, remaining:0 };
 
-        for (const c of groupB) {
-          const cno = normalizeText(c.contract || "");
-          const pay = payInMonth.get(cno) || { gcash: 0, cash: 0 };
-          const thisPaid = pay.gcash + pay.cash;
-          const full = calcComputed(c);
-
-          appendDataRow(c, pay.gcash, pay.cash);
-
-          totB.amount       += Number(c.amount)       || 0;
-          totB.gcash        += pay.gcash;
-          totB.cash         += pay.cash;
-          totB.dswdAfterTax += Number(c.dswdAfterTax) || 0;
-          totB.discount     += Number(c.discount)     || 0;
-          totB.dswdDiscount += Number(c.dswdDiscount) || 0;
-          totB.baiAssist    += Number(c.baiAssist)    || 0;
-          totB.totalPaid    += thisPaid;
-          totB.remaining    += full.remaining;
+        // Same-month contracts
+        if (sameMonth.length > 0) {
+          appendSectionHeader(`Contracts — ${monthLabel}`);
+          for (const c of sameMonth) {
+            const cp = calcComputed(c);
+            appendDataRow(c);
+            monthTot.amount       += Number(c.amount)       || 0;
+            monthTot.gcash        += Number(c.gcash)        || 0;
+            monthTot.cash         += Number(c.cash)         || 0;
+            monthTot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+            monthTot.discount     += Number(c.discount)     || 0;
+            monthTot.dswdDiscount += Number(c.dswdDiscount) || 0;
+            monthTot.baiAssist    += Number(c.baiAssist)    || 0;
+            monthTot.totalPaid    += cp.totalPaid;
+            monthTot.remaining    += cp.remaining;
+          }
         }
 
-        appendSubtotal(`SUBTOTAL — PREVIOUS CONTRACTS`, totB, "monthTotal");
+        // Previous contracts that paid this month
+        if (prevPaid.length > 0) {
+          if (sameMonth.length > 0) appendSpacer();
+          appendSectionHeader(`Payments in ${monthLabel} — Previous Contracts`);
+          for (const c of prevPaid) {
+            const cno = normalizeText(c.contract || "");
+            const pay = payInMonth.get(cno) || { gcash: 0, cash: 0 };
+            appendDataRow(c, pay.gcash, pay.cash);
+            monthTot.amount       += Number(c.amount)       || 0;
+            monthTot.gcash        += pay.gcash;
+            monthTot.cash         += pay.cash;
+            monthTot.dswdAfterTax += Number(c.dswdAfterTax) || 0;
+            monthTot.discount     += Number(c.discount)     || 0;
+            monthTot.dswdDiscount += Number(c.dswdDiscount) || 0;
+            monthTot.baiAssist    += Number(c.baiAssist)    || 0;
+            monthTot.totalPaid    += pay.gcash + pay.cash;
+            monthTot.remaining    += calcComputed(c).remaining;
+          }
+        }
 
-        grandTot.amount       += totB.amount;
-        grandTot.gcash        += totB.gcash;
-        grandTot.cash         += totB.cash;
-        grandTot.dswdAfterTax += totB.dswdAfterTax;
-        grandTot.discount     += totB.discount;
-        grandTot.dswdDiscount += totB.dswdDiscount;
-        grandTot.baiAssist    += totB.baiAssist;
-        grandTot.totalPaid    += totB.totalPaid;
-        grandTot.remaining    += totB.remaining;
+        // Subtotal for this month
+        appendSubtotal(`SUBTOTAL — ${monthLabel.toUpperCase()}`, monthTot, "monthTotal");
+
+        grandTot.amount       += monthTot.amount;
+        grandTot.gcash        += monthTot.gcash;
+        grandTot.cash         += monthTot.cash;
+        grandTot.dswdAfterTax += monthTot.dswdAfterTax;
+        grandTot.discount     += monthTot.discount;
+        grandTot.dswdDiscount += monthTot.dswdDiscount;
+        grandTot.baiAssist    += monthTot.baiAssist;
+        grandTot.totalPaid    += monthTot.totalPaid;
+        grandTot.remaining    += monthTot.remaining;
       }
 
-      // ── GRAND TOTAL ──
-      if (groupA.length + groupB.length > 0) {
+      // Grand total
+      if (anyData) {
         appendSpacer();
         appendSubtotal("GRAND TOTAL", grandTot, "grandTotal");
       }
 
-      // Show/hide table vs empty state
-      const hasData = groupA.length + groupB.length > 0;
-      mrGridWrap.style.display = hasData ? "" : "none";
-      mrEmpty.style.display    = hasData ? "none" : "";
-      mrEmpty.textContent      = hasData ? "" : `No contracts or payments found for ${monthLabelFromKey(pickedKey)}.`;
+      mrGridWrap.style.display = anyData ? "" : "none";
+      mrEmpty.style.display    = anyData ? "none" : "";
+      mrEmpty.textContent      = anyData ? "" : `No data found up to ${monthLabelFromKey(endKey)}.`;
       if (mrRowCount) mrRowCount.textContent = `Rows: ${totalDataRows}`;
     }
   })();
