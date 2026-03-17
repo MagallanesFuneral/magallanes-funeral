@@ -7658,41 +7658,57 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const tr = document.createElement("tr");
       tr.dataset.rowType = rowType;
       tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
-      for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
-      const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
       const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
+      // Col 1-4: blank
+      for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+      // Col 5: label
+      const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
+      // Col 6: Contract Amount
       tr.appendChild(n(t.contractAmount));
+      // Col 7: BAI
       tr.appendChild(n(t.bai));
+      // Col 8: Total A/R
       tr.appendChild(n(t.totalAR));
+      // Col 9: Accounts Receivable
       tr.appendChild(n(t.acctReceivable));
-      tr.appendChild(document.createElement("td")); // date of payment — blank in totals
+      // Col 10: Date of Payment — blank
+      tr.appendChild(document.createElement("td"));
+      // Col 11: Payment This Month
       tr.appendChild(n(t.paidThisMonth));
+      // Col 12: Outstanding Balance
       tr.appendChild(n(t.outstanding));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
       const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
-      [
-        { v: c.date },
-        { v: c.contract },
-        { v: c.deceased },
-        { v: c.casket },
-        { v: c.address },
-        { v: fmtMoney(contractAmount), num: true },
-        { v: fmtMoney(bai),            num: true },
-        { v: fmtMoney(totalAR),        num: true },
-        { v: fmtMoney(acctReceivable), num: true, comp: true },
-        { v: payDate || "—" },
-        { v: fmtMoney(paidThisMonth),  num: true },
-        { v: fmtMoney(outstanding),    num: true, comp: true },
-      ].forEach(cell => {
-        const td = document.createElement("td");
-        td.textContent = cell.v ?? "";
-        if (cell.num)  td.classList.add("num");
-        if (cell.comp) td.classList.add("computed");
-        tr.appendChild(td);
-      });
+
+      // Explicitly build each cell to avoid any array/column mismatch
+      // Col 1: Date
+      const td1 = document.createElement("td"); td1.textContent = c.date || ""; tr.appendChild(td1);
+      // Col 2: Contract #
+      const td2 = document.createElement("td"); td2.textContent = c.contract || ""; tr.appendChild(td2);
+      // Col 3: Deceased
+      const td3 = document.createElement("td"); td3.textContent = c.deceased || ""; tr.appendChild(td3);
+      // Col 4: Casket
+      const td4 = document.createElement("td"); td4.textContent = c.casket || ""; tr.appendChild(td4);
+      // Col 5: Address
+      const td5 = document.createElement("td"); td5.textContent = c.address || ""; tr.appendChild(td5);
+      // Col 6: Contract Amount
+      const td6 = document.createElement("td"); td6.classList.add("num"); td6.textContent = fmtMoney(contractAmount); tr.appendChild(td6);
+      // Col 7: BAI
+      const td7 = document.createElement("td"); td7.classList.add("num"); td7.textContent = fmtMoney(bai); tr.appendChild(td7);
+      // Col 8: Total (A/R)
+      const td8 = document.createElement("td"); td8.classList.add("num"); td8.textContent = fmtMoney(totalAR); tr.appendChild(td8);
+      // Col 9: Accounts Receivable (carry-forward)
+      const td9 = document.createElement("td"); td9.classList.add("num","computed"); td9.textContent = fmtMoney(acctReceivable); tr.appendChild(td9);
+      // Col 10: Date of Payment
+      const td10 = document.createElement("td"); td10.textContent = payDate || "—"; tr.appendChild(td10);
+      // Col 11: Payment This Month
+      const td11 = document.createElement("td"); td11.classList.add("num"); td11.textContent = fmtMoney(paidThisMonth); tr.appendChild(td11);
+      // Col 12: Outstanding Balance
+      const td12 = document.createElement("td"); td12.classList.add("num","computed"); td12.textContent = fmtMoney(outstanding); tr.appendChild(td12);
+
       tbody.appendChild(tr);
       return 1;
     }
