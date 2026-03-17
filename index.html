@@ -929,16 +929,12 @@
                 <th style="min-width:180px">Deceased</th>
                 <th style="min-width:160px">Casket</th>
                 <th style="min-width:220px">Address</th>
-                <th style="min-width:120px">Amount</th>
-                <th style="min-width:140px">GCASH/BANK TRANSFER</th>
-                <th style="min-width:110px">CASH</th>
-                <th style="min-width:110px">DSWD</th>
-                <th style="min-width:110px">Discount</th>
-                <th style="min-width:120px">DSWD Discount</th>
-                <th style="min-width:120px">BAI</th>
-                <th style="min-width:120px">Total Paid</th>
-                <th style="min-width:130px">Last Payment</th>
-                <th style="min-width:120px">Remaining</th>
+                <th style="min-width:120px">Contract Amount</th>
+                <th style="min-width:110px">BAI</th>
+                <th style="min-width:120px">Total (A/R)</th>
+                <th style="min-width:140px">Accounts Receivable</th>
+                <th style="min-width:140px">Payment This Month</th>
+                <th style="min-width:130px">Outstanding Balance</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -965,7 +961,12 @@
           <span class="hint">Fill in customer contract details. Prints as 8.5" × 11".</span>
         </div>
         <div class="toolbar-right">
-          <button class="btn" id="btnPrintContractForm" type="button">🖨 Print</button>
+          <label class="field-label" style="margin:0;font-size:12px;opacity:0.7;">Contract No.</label>
+          <input type="text" id="cfLookupNo" class="input" style="width:130px;" placeholder="e.g. MC-0001" />
+          <button class="btn btn-secondary" id="btnCfLoad" type="button">Load</button>
+          <button class="btn" id="btnCfSave" type="button">💾 Save</button>
+          <button class="btn btn-secondary" id="btnCfNew" type="button">+ New</button>
+          <button class="btn btn-secondary" id="btnPrintContractForm" type="button">🖨 Print</button>
         </div>
       </div>
 
@@ -993,14 +994,14 @@
           <div class="cf-no-date-row">
             <div class="cf-no-block">
               <span class="cf-label"><strong>No.</strong></span>
-              <input class="cf-input cf-input-no" type="text" />
+              <input class="cf-input cf-input-no" id="cfNo" type="text" />
             </div>
             <div class="cf-date-block">
               <span class="cf-label"><strong>Date:</strong></span>
-              <input class="cf-input cf-input-date" type="text" />
+              <input class="cf-input cf-input-date" id="cfDate" type="text" />
               <span class="cf-label"><strong>,</strong></span>
               <span class="cf-label"><strong>20</strong></span>
-              <input class="cf-input cf-input-year" type="text" maxlength="4" />
+              <input class="cf-input cf-input-year" id="cfYear" type="text" maxlength="4" />
             </div>
           </div>
 
@@ -1010,17 +1011,17 @@
             <div class="cf-indent">
               <div class="cf-field-row">
                 <span class="cf-label">Name:</span>
-                <input class="cf-input cf-input-full" type="text" />
+                <input class="cf-input cf-input-full" id="cfClientName" type="text" />
               </div>
               <div class="cf-field-row" style="margin-top:10px;">
                 <span class="cf-label">Address:</span>
-                <input class="cf-input cf-input-full" type="text" />
+                <input class="cf-input cf-input-full" id="cfAddress" type="text" />
               </div>
               <div class="cf-field-row" style="margin-top:10px;">
                 <span class="cf-label">Contact No.:</span>
-                <input class="cf-input cf-input-contact" type="text" />
+                <input class="cf-input cf-input-contact" id="cfContact" type="text" />
                 <span class="cf-label" style="margin-left:10px;">FB Account:</span>
-                <input class="cf-input cf-input-fb" type="text" />
+                <input class="cf-input cf-input-fb" id="cfFb" type="text" />
               </div>
             </div>
           </div>
@@ -1029,8 +1030,8 @@
           <div class="cf-section">
             <div class="cf-text">For funeral services rendered to the late:</div>
             <div class="cf-deceased-lines">
-              <input class="cf-input cf-input-deceased" type="text" />
-              <input class="cf-input cf-input-deceased" type="text" style="margin-top:8px;" />
+              <input class="cf-input cf-input-deceased" id="cfDeceased1" type="text" />
+              <input class="cf-input cf-input-deceased" id="cfDeceased2" type="text" style="margin-top:8px;" />
             </div>
           </div>
 
@@ -1043,60 +1044,60 @@
 
               <div class="cf-service-block">
                 <div class="cf-service-label">Type of Casket</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc1" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">Embalming</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc2" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">Services arrangement at the</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc3" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">Funeral Car for burial</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc4" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">Other services</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc5" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">&nbsp;</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc6" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">&nbsp;</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc7" type="text" />
               </div>
 
               <div class="cf-service-block">
                 <div class="cf-service-label">&nbsp;</div>
-                <input class="cf-input cf-input-service" type="text" />
+                <input class="cf-input cf-input-service" id="cfSvc8" type="text" />
               </div>
 
             </div><!-- /cf-contract-left -->
 
             <div class="cf-contract-right">
               <div class="cf-amount-header">&#8369;</div>
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
-              <input class="cf-input cf-input-amount" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt1" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt2" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt3" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt4" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt5" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt6" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt7" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt8" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt9" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt10" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt11" type="text" />
+              <input class="cf-input cf-input-amount" id="cfAmt12" type="text" />
             </div><!-- /cf-contract-right -->
           </div><!-- /cf-contract-body -->
 
@@ -1112,7 +1113,7 @@
             <span class="cf-label">TOTAL:</span>
             <div class="cf-total-amount">
               <span class="cf-label">&#8369;</span>
-              <input class="cf-input cf-input-total" type="text" />
+              <input class="cf-input cf-input-total" id="cfTotal" type="text" />
             </div>
           </div>
 
@@ -1130,9 +1131,9 @@
           <div class="cf-conforme-title">Conforme:</div>
           <div class="cf-signatures">
             <div class="cf-sig-left">
-              <input class="cf-input cf-input-sig" type="text" />
+              <input class="cf-input cf-input-sig" id="cfSignature" type="text" />
               <div class="cf-sig-label">Signature</div>
-              <input class="cf-input cf-input-sig" style="margin-top:18px;" type="text" />
+              <input class="cf-input cf-input-sig" id="cfRelation" style="margin-top:18px;" type="text" />
               <div class="cf-sig-label">Relation to the Deceased</div>
             </div>
             <div class="cf-sig-right">

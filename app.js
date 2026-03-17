@@ -7490,32 +7490,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ══════════════════════════════════════════════════════════════
-    // ROLLING MONTHLY REPORT
+    // ROLLING MONTHLY REPORT — based on PDF analysis
     //
-    // Each month group shows ONLY its own contracts, but the values
-    // shown are updated to reflect ALL payments made up to the
-    // selected month.
+    // COLUMNS: Date | C# | Deceased | Casket | Address |
+    //          Contract Amount | BAI | Total(A/R) |
+    //          Accounts Receivable (prev balance) |
+    //          Payment This Month | Outstanding Balance
     //
-    // Algorithm:
-    //   1. Do a full rolling pass across all months up to pickedKey,
-    //      computing each contract's running balance month by month.
-    //   2. For each contract, store the computed row data for every
-    //      month it appears (keyed by its OWN contract month).
-    //   3. When building the output, each month group shows only its
-    //      own contracts, but using the LATEST computed values from
-    //      step 1 (i.e. as of the selected month).
+    // LOGIC per contract per month:
+    //   First month (contract's own month):
+    //     - Total(A/R)  = Contract Amount - BAI (lifetime BAI from baiStore)
+    //     - Accts Rec   = blank / same as Total (no prior balance)
+    //     - Payment     = sum of cashStore + bankStore entries dated THIS month
+    //     - Outstanding = Total(A/R) - Payment This Month
     //
-    // So when Feb is selected:
-    //   - JANUARY group: Jan contracts shown with Feb's running values
-    //     (startAmount = Jan remaining, cashPaid = Feb payments, etc.)
-    //   - FEBRUARY group: Feb contracts with their own first-month values
+    //   Subsequent months:
+    //     - Contract Amount = unchanged (always original)
+    //     - BAI             = unchanged (always lifetime BAI)
+    //     - Total(A/R)      = unchanged (always original A/R)
+    //     - Accts Rec       = Outstanding Balance from PREVIOUS month
+    //     - Payment         = sum of cashStore + bankStore entries dated THIS month
+    //     - Outstanding     = Accts Rec - Payment This Month
     //
+    //   Each month group shows ONLY its own contracts,
+    //   but values reflect the rolling carry-forward.
     // ══════════════════════════════════════════════════════════════
     function buildRollingReport(selMonth, selYear) {
       const pickedKey = `${selYear}-${String(selMonth).padStart(2,"0")}`;
-
-      // ── READ-ONLY: never touch contractsStore, cashStore, bankStore data ──
-      // All computations are done locally from raw source records.
 
       // All month keys from earliest contract up to pickedKey
       const keySet = new Set();
@@ -7526,44 +7527,29 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const allMonthKeys = Array.from(keySet).sort();
       if (!allMonthKeys.length) return { pickedKey, months: [] };
 
-      // ── Build per-contract per-month payment totals from RAW entries ──
-      // cashStore entries are CASH payments; bankStore entries are GCASH/BANK payments.
-      // These are the actual transaction records — we sum them per month ourselves.
-      const cashPay = new Map(); // cno → Map(monthKey → amount)
-      const bankPay = new Map(); // cno → Map(monthKey → amount)
-
+      // ── Payment totals per contract per month (from raw entries) ──
+      const payments = new Map(); // cno → Map(monthKey → total paid)
       for (const r of (cashStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
         const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
-        if (!cashPay.has(cno)) cashPay.set(cno, new Map());
-        const m = cashPay.get(cno);
+        if (!payments.has(cno)) payments.set(cno, new Map());
+        const m = payments.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
       for (const r of (bankStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
         const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
-        if (!bankPay.has(cno)) bankPay.set(cno, new Map());
-        const m = bankPay.get(cno);
+        if (!payments.has(cno)) payments.set(cno, new Map());
+        const m = payments.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
       }
-      const getCashPaid = (cno, mk) => cashPay.get(cno)?.get(mk) || 0;
-      const getBankPaid = (cno, mk) => bankPay.get(cno)?.get(mk) || 0;
+      const getPaid = (cno, mk) => payments.get(cno)?.get(mk) || 0;
 
-      // ── One-time deductions per contract (from raw dswdStore / baiStore) ──
-      // These are lifetime totals per contract — applied only in the contract's
-      // own first month so they don't compound across months.
-      const dswdDed = new Map(); // cno → { afterTax, dswdDiscount }
-      for (const r of (dswdStore || [])) {
-        const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        const cur = dswdDed.get(cno) || { afterTax: 0, dswdDiscount: 0 };
-        cur.afterTax     += Number(r.afterTax)     || 0;
-        cur.dswdDiscount += Number(r.dswdDiscount) || 0;
-        dswdDed.set(cno, cur);
-      }
-      const baiDed = new Map(); // cno → total BAI amount
+      // ── Lifetime BAI per contract (from raw baiStore) ──
+      const baiByCno = new Map();
       for (const r of (baiStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        baiDed.set(cno, (baiDed.get(cno) || 0) + (Number(r.amount) || 0));
+        baiByCno.set(cno, (baiByCno.get(cno) || 0) + (Number(r.amount) || 0));
       }
 
       // ── Sort contracts by date then contract# ──
@@ -7573,10 +7559,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return ad !== bd ? ad - bd : (a.contract||"").localeCompare(b.contract||"");
       });
 
-      // ── Pass 1: Roll through every month, computing running balances ──
-      // latestRow[cno] = most recently computed snapshot for that contract
+      // ── Pass 1: Roll through all months tracking outstanding balance ──
+      // outstandingAfter[cno] = outstanding balance after processing a month
+      const outstandingAfter = new Map();
+
+      // Store per-contract per-month row data for Pass 2
+      // latestRow[cno] = final computed row for this contract
       const latestRow = new Map();
-      const carryOver = new Map(); // cno → remaining balance going into next month
 
       for (const mk of allMonthKeys) {
         // All contracts active as of this month
@@ -7589,41 +7578,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           const cno     = normalizeText(c.contract || "");
           const isFirst = monthKeyFromDate(c.date || "") === mk;
 
-          const cashPaidThisMonth = getCashPaid(cno, mk);
-          const bankPaidThisMonth = getBankPaid(cno, mk);
-          const paidThisMonth     = cashPaidThisMonth + bankPaidThisMonth;
+          const contractAmount = Number(c.amount) || 0;
+          const bai            = baiByCno.get(cno) || 0;
+          const totalAR        = contractAmount - bai; // fixed, never changes
+          const paidThisMonth  = getPaid(cno, mk);
 
-          // Starting amount:
-          //   First appearance → original contract amount (from contractsStore, read-only)
-          //   Subsequent months → carried-over remaining from previous month
-          const startAmount = isFirst
-            ? (Number(c.amount) || 0)
-            : (carryOver.has(cno) ? carryOver.get(cno) : (Number(c.amount) || 0));
+          // Accounts Receivable = previous outstanding balance
+          // First month: use totalAR (no prior balance)
+          const acctReceivable = isFirst
+            ? totalAR
+            : (outstandingAfter.has(cno) ? outstandingAfter.get(cno) : totalAR);
 
-          // Deductions from raw dswdStore/baiStore — applied ONCE in first month only
-          const discount     = isFirst ? (Number(c.discount) || 0) : 0;
-          const dswdAfterTax = isFirst ? (dswdDed.get(cno)?.afterTax     || 0) : 0;
-          const dswdDiscount = isFirst ? (dswdDed.get(cno)?.dswdDiscount || 0) : 0;
-          const baiAssist    = isFirst ? (baiDed.get(cno) || 0) : 0;
+          const outstanding = acctReceivable - paidThisMonth;
+          outstandingAfter.set(cno, outstanding);
 
-          const remaining = startAmount - paidThisMonth - discount
-                            - dswdAfterTax - dswdDiscount - baiAssist;
-
-          carryOver.set(cno, remaining);
-
-          // Overwrite with the latest computed values for this contract
           latestRow.set(cno, {
-            c, isFirst,
-            startAmount, cashPaid: cashPaidThisMonth,
-            bankPaid: bankPaidThisMonth, paidThisMonth,
-            discount, dswdAfterTax, dswdDiscount, baiAssist, remaining,
+            c,
+            contractAmount,
+            bai,
+            totalAR,
+            acctReceivable,
+            paidThisMonth,
+            outstanding,
           });
         }
       }
 
-      // ── Pass 2: Group output by each contract's OWN month ──
-      // Each month section shows only its own contracts,
-      // but values reflect the full rolling computation above.
+      // ── Pass 2: Group by each contract's OWN month ──
       const months = [];
       for (const mk of allMonthKeys) {
         const ownContracts = sortedContracts.filter(c =>
@@ -7638,15 +7619,18 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return { pickedKey, months };
     }
 
-    // ── Shared render helpers ──
-    function makeHdr(label, tbody, NC) {
+    // ── Number of columns ──
+    const NC = 11;
+
+    // ── Render helpers ──
+    function makeHdr(label, tbody) {
       const tr = document.createElement("tr");
       tr.dataset.rowType = "monthHeader"; tr.classList.add("group-row");
       const td = document.createElement("td"); td.colSpan = NC;
       td.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${label}</span></span>`;
       tr.appendChild(td); tbody.appendChild(tr);
     }
-    function makeSpacer(tbody, NC) {
+    function makeSpacer(tbody) {
       const tr = document.createElement("tr"); tr.dataset.rowType = "spacer"; tr.classList.add("spacer-row");
       const td = document.createElement("td"); td.colSpan = NC; tr.appendChild(td); tbody.appendChild(tr);
     }
@@ -7657,15 +7641,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
       const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
       const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
-      [t.startAmount, t.bankPaid, t.cashPaid, t.dswdAfterTax, t.discount, t.dswdDiscount, t.baiAssist, t.paidThisMonth]
-        .forEach(v => tr.appendChild(n(v)));
-      tr.appendChild(document.createElement("td"));
-      tr.appendChild(n(t.remaining));
+      tr.appendChild(n(t.contractAmount));
+      tr.appendChild(n(t.bai));
+      tr.appendChild(n(t.totalAR));
+      tr.appendChild(n(t.acctReceivable));
+      tr.appendChild(n(t.paidThisMonth));
+      tr.appendChild(n(t.outstanding));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
-      const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount,
-              dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
+      const { c, contractAmount, bai, totalAR, acctReceivable, paidThisMonth, outstanding } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
       [
         { v: c.date },
@@ -7673,16 +7658,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         { v: c.deceased },
         { v: c.casket },
         { v: c.address },
-        { v: fmtMoney(startAmount),   num: true },
-        { v: fmtMoney(bankPaid),      num: true },
-        { v: fmtMoney(cashPaid),      num: true },
-        { v: fmtMoney(dswdAfterTax),  num: true, comp: true },
-        { v: fmtMoney(discount),      num: true },
-        { v: fmtMoney(dswdDiscount),  num: true, comp: true },
-        { v: fmtMoney(baiAssist),     num: true, comp: true },
-        { v: fmtMoney(paidThisMonth), num: true, comp: true },
-        { v: c.lastPayment || "—" },
-        { v: fmtMoney(remaining),     num: true, comp: true },
+        { v: fmtMoney(contractAmount), num: true },
+        { v: fmtMoney(bai),            num: true },
+        { v: fmtMoney(totalAR),        num: true },
+        { v: fmtMoney(acctReceivable), num: true, comp: true },
+        { v: fmtMoney(paidThisMonth),  num: true },
+        { v: fmtMoney(outstanding),    num: true, comp: true },
       ].forEach(cell => {
         const td = document.createElement("td");
         td.textContent = cell.v ?? "";
@@ -7694,7 +7675,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return 1;
     }
 
-    // ── Render on-screen table ──
+    // ── Render on-screen ──
     function renderMonthlyReport() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
@@ -7703,29 +7684,26 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const { pickedKey, months } = buildRollingReport(selMonth, selYear);
       const tbody = mrTable.tBodies[0];
       tbody.innerHTML = "";
-      const NC = 15;
       let rowCount = 0;
-      const grandTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
-                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const grandTot = zeroTot();
 
       months.forEach((mon, gi) => {
-        if (gi > 0) makeSpacer(tbody, NC);
-        makeHdr(mon.label, tbody, NC);
+        if (gi > 0) makeSpacer(tbody);
+        makeHdr(mon.label, tbody);
 
-        const monTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
-                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
-
+        const monTot = zeroTot();
         mon.rows.forEach(row => {
           rowCount += makeDataRow(row, tbody);
           for (const k in monTot) monTot[k] += row[k] || 0;
         });
-
         makeSubtotal(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "monthTotal", tbody);
         for (const k in grandTot) grandTot[k] += monTot[k] || 0;
       });
 
       const hasData = months.length > 0;
-      if (hasData) { makeSpacer(tbody, NC); makeSubtotal("GRAND TOTAL", grandTot, "grandTotal", tbody); }
+      if (hasData) { makeSpacer(tbody); makeSubtotal("GRAND TOTAL", grandTot, "grandTotal", tbody); }
 
       mrGridWrap.style.display = hasData ? ""     : "none";
       mrEmpty.style.display    = hasData ? "none" : "";
@@ -7733,7 +7711,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (mrRowCount) mrRowCount.textContent = `Rows: ${rowCount}`;
     }
 
-    // ── PDF / Print export ──
+    // ── PDF export ──
     function exportMonthlyReportPdf() {
       const selMonth = parseInt(mrMonthSelect.value, 10);
       const selYear  = parseInt(mrYearSelect.value,  10);
@@ -7744,10 +7722,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!months.length) { alert(`No data found for ${selectedLabel}.`); return; }
 
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      const NC  = 15;
       const cols = ["Date","Contract #","Deceased","Casket","Address",
-        "Amount","GCASH/BANK","CASH","DSWD","Discount","DSWD Disc.","BAI",
-        "Total Paid","Last Payment","Remaining"];
+        "Contract Amount","BAI","Total (A/R)","Accounts Receivable","Payment This Month","Outstanding Balance"];
 
       const css = `<style>
         @page{size:landscape;margin:0.35in}
@@ -7755,7 +7731,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         h2{text-align:center;font-size:12pt;margin:0 0 2px}
         h3{text-align:center;font-size:9pt;font-weight:normal;margin:0 0 8px;color:#555}
         table{border-collapse:collapse;width:100%}
-        th,td{border:1px solid #bbb;padding:2px 4px;white-space:nowrap}
+        th,td{border:1px solid #bbb;padding:2px 5px;white-space:nowrap}
         th{background:#f2f2f2;font-weight:700;text-align:center;font-size:7.5pt}
         td.num{text-align:right} td.comp{background:#f0f7ff}
         tr.sh td{background:#d9d9d9;font-weight:800;text-align:center;
@@ -7769,36 +7745,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         @media print{button{display:none}}
       </style>`;
 
-      const hdRow = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
-      const dRow  = row => {
-        const { c, startAmount, bankPaid, cashPaid, dswdAfterTax, discount,
-                dswdDiscount, baiAssist, paidThisMonth, remaining } = row;
+      const NC_PDF = 11;
+      const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
+      const dRow   = row => {
+        const { c, contractAmount, bai, totalAR, acctReceivable, paidThisMonth, outstanding } = row;
         const n  = v => `<td class="num">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp">${fmtMoney(v)}</td>`;
         const t  = v => `<td>${esc(v)}</td>`;
         return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
-          `${n(startAmount)}${n(bankPaid)}${n(cashPaid)}${nc(dswdAfterTax)}${n(discount)}` +
-          `${nc(dswdDiscount)}${nc(baiAssist)}${nc(paidThisMonth)}${t(c.lastPayment||"")}${nc(remaining)}</tr>`;
+          `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${n(paidThisMonth)}${nc(outstanding)}</tr>`;
       };
-      const shRow  = lbl => `<tr class="sh"><td colspan="${NC}">${esc(lbl)}</td></tr>`;
-      const spRow  = ()  => `<tr class="sp"><td colspan="${NC}"></td></tr>`;
+      const shRow  = lbl => `<tr class="sh"><td colspan="${NC_PDF}">${esc(lbl)}</td></tr>`;
+      const spRow  = ()  => `<tr class="sp"><td colspan="${NC_PDF}"></td></tr>`;
       const totRow = (lbl, t, cls) => {
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
         return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
-          `${n(t.startAmount)}${n(t.bankPaid)}${n(t.cashPaid)}${n(t.dswdAfterTax)}` +
-          `${n(t.discount)}${n(t.dswdDiscount)}${n(t.baiAssist)}${n(t.paidThisMonth)}<td></td>${n(t.remaining)}</tr>`;
+          `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}${n(t.paidThisMonth)}${n(t.outstanding)}</tr>`;
       };
 
-      const grandTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
-                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const grandTot = zeroTot();
       let body = "";
 
       months.forEach((mon, gi) => {
         if (gi > 0) body += spRow();
         body += shRow(mon.label);
         body += hdRow();
-        const monTot = { startAmount:0, bankPaid:0, cashPaid:0, dswdAfterTax:0,
-                         discount:0, dswdDiscount:0, baiAssist:0, paidThisMonth:0, remaining:0 };
+        const monTot = zeroTot();
         mon.rows.forEach(row => {
           body += dRow(row);
           for (const k in monTot) monTot[k] += row[k] || 0;
@@ -7806,14 +7779,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         body += totRow(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "sub");
         for (const k in grandTot) grandTot[k] += monTot[k] || 0;
       });
-
       body += spRow();
       body += totRow("GRAND TOTAL", grandTot, "grd");
 
       const html = `<!doctype html><html><head><meta charset="utf-8">
         <title>Monthly Report — ${selectedLabel}</title>${css}</head><body>
         <h2>Magallanes Funeral Services</h2>
-        <h3>Monthly Report — ${esc(selectedLabel)}</h3>
+        <h3>Analysis of Income vs Collection — As of ${esc(selectedLabel)}</h3>
         <button onclick="window.print()" style="margin-bottom:8px;padding:5px 16px;cursor:pointer;">
           🖨 Print / Save as PDF
         </button>
