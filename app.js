@@ -7527,23 +7527,40 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const allMonthKeys = Array.from(keySet).sort();
       if (!allMonthKeys.length) return { pickedKey, months: [] };
 
-      // ── Payment totals per contract per month (from raw entries) ──
-      const payments = new Map(); // cno → Map(monthKey → total paid)
+      // ── Payment totals + latest date per contract per month ──
+      const payments  = new Map(); // cno → Map(monthKey → total paid)
+      const payDates  = new Map(); // cno → Map(monthKey → latest date string)
+
+      const addPayEntry = (cno, mk, amount, dateStr) => {
+        if (!payments.has(cno)) payments.set(cno, new Map());
+        const m = payments.get(cno);
+        m.set(mk, (m.get(mk) || 0) + (Number(amount) || 0));
+
+        if (!payDates.has(cno)) payDates.set(cno, new Map());
+        const dm = payDates.get(cno);
+        const existing = dm.get(mk);
+        // Keep the latest date within the month
+        if (!existing) {
+          dm.set(mk, dateStr);
+        } else {
+          const ed = parseMMDDYYYY(existing);
+          const nd = parseMMDDYYYY(dateStr || "");
+          if (nd && (!ed || nd.getTime() > ed.getTime())) dm.set(mk, dateStr);
+        }
+      };
+
       for (const r of (cashStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
         const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
-        if (!payments.has(cno)) payments.set(cno, new Map());
-        const m = payments.get(cno);
-        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
+        addPayEntry(cno, mk, r.amount, r.date);
       }
       for (const r of (bankStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
         const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
-        if (!payments.has(cno)) payments.set(cno, new Map());
-        const m = payments.get(cno);
-        m.set(mk, (m.get(mk) || 0) + (Number(r.amount) || 0));
+        addPayEntry(cno, mk, r.amount, r.date);
       }
-      const getPaid = (cno, mk) => payments.get(cno)?.get(mk) || 0;
+      const getPaid    = (cno, mk) => payments.get(cno)?.get(mk) || 0;
+      const getPayDate = (cno, mk) => payDates.get(cno)?.get(mk) || "";
 
       // ── Lifetime BAI per contract (from raw baiStore) ──
       const baiByCno = new Map();
@@ -7592,12 +7609,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           const outstanding = acctReceivable - paidThisMonth;
           outstandingAfter.set(cno, outstanding);
 
+          const payDate = getPaid(cno, mk) > 0 ? getPayDate(cno, mk) : "";
+
           latestRow.set(cno, {
             c,
             contractAmount,
             bai,
             totalAR,
             acctReceivable,
+            payDate,
             paidThisMonth,
             outstanding,
           });
@@ -7620,7 +7640,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ── Number of columns ──
-    const NC = 11;
+    const NC = 12;
 
     // ── Render helpers ──
     function makeHdr(label, tbody) {
@@ -7645,12 +7665,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tr.appendChild(n(t.bai));
       tr.appendChild(n(t.totalAR));
       tr.appendChild(n(t.acctReceivable));
+      tr.appendChild(document.createElement("td")); // date of payment — blank in totals
       tr.appendChild(n(t.paidThisMonth));
       tr.appendChild(n(t.outstanding));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
-      const { c, contractAmount, bai, totalAR, acctReceivable, paidThisMonth, outstanding } = row;
+      const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
       [
         { v: c.date },
@@ -7662,6 +7683,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         { v: fmtMoney(bai),            num: true },
         { v: fmtMoney(totalAR),        num: true },
         { v: fmtMoney(acctReceivable), num: true, comp: true },
+        { v: payDate || "—" },
         { v: fmtMoney(paidThisMonth),  num: true },
         { v: fmtMoney(outstanding),    num: true, comp: true },
       ].forEach(cell => {
@@ -7723,7 +7745,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const cols = ["Date","Contract #","Deceased","Casket","Address",
-        "Contract Amount","BAI","Total (A/R)","Accounts Receivable","Payment This Month","Outstanding Balance"];
+        "Contract Amount","BAI","Total (A/R)","Accounts Receivable","Date of Payment","Payment This Month","Outstanding Balance"];
 
       const css = `<style>
         @page{size:landscape;margin:0.35in}
@@ -7745,22 +7767,22 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         @media print{button{display:none}}
       </style>`;
 
-      const NC_PDF = 11;
+      const NC_PDF = 12;
       const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
       const dRow   = row => {
-        const { c, contractAmount, bai, totalAR, acctReceivable, paidThisMonth, outstanding } = row;
+        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
         const n  = v => `<td class="num">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp">${fmtMoney(v)}</td>`;
         const t  = v => `<td>${esc(v)}</td>`;
         return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
-          `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${n(paidThisMonth)}${nc(outstanding)}</tr>`;
+          `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${t(payDate||"—")}${n(paidThisMonth)}${nc(outstanding)}</tr>`;
       };
       const shRow  = lbl => `<tr class="sh"><td colspan="${NC_PDF}">${esc(lbl)}</td></tr>`;
       const spRow  = ()  => `<tr class="sp"><td colspan="${NC_PDF}"></td></tr>`;
       const totRow = (lbl, t, cls) => {
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
         return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
-          `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}${n(t.paidThisMonth)}${n(t.outstanding)}</tr>`;
+          `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}<td></td>${n(t.paidThisMonth)}${n(t.outstanding)}</tr>`;
       };
 
       const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
