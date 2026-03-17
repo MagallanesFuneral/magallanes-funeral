@@ -7459,6 +7459,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const mrYearSelect  = document.getElementById("mrYearSelect");
     const btnGenerate   = document.getElementById("btnMrGenerate");
     const btnMrPdf      = document.getElementById("btnMrPdf");
+    const btnMrExcel    = document.getElementById("btnMrExcel");
     const mrTable       = document.getElementById("mrTable");
     const mrGridWrap    = document.getElementById("mrGridWrap");
     const mrEmpty       = document.getElementById("mrEmpty");
@@ -7836,11 +7837,140 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       win.document.close();
     }
 
+    // ── Excel export ──
+    function exportMonthlyReportExcel() {
+      const selMonth = parseInt(mrMonthSelect.value, 10);
+      const selYear  = parseInt(mrYearSelect.value,  10);
+      if (!selMonth || !selYear) { alert("Please select a month and year first."); return; }
+
+      const { pickedKey, months } = buildRollingReport(selMonth, selYear);
+      const selectedLabel = monthLabelFromKey(pickedKey);
+      if (!months.length) { alert(`No data found for ${selectedLabel}.`); return; }
+
+      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
+      const msoText  = 'mso-number-format:"\@"';
+      const NC = 12;
+
+      const cols = [
+        "Date","Contract #","Deceased","Casket","Address",
+        "Contract Amount","BAI","Total (A/R)",
+        "Accounts Receivable","Date of Payment",
+        "Payment This Month","Outstanding Balance"
+      ];
+
+      const css = `<style>
+        table { border-collapse:collapse; font-family:Calibri,Arial,sans-serif; font-size:11pt; }
+        th, td { border:1px solid #cfcfcf; padding:4px 6px; white-space:nowrap; }
+        th { font-weight:700; background:#f2f2f2; text-align:center; }
+        td.num { text-align:right; }
+        td.comp { background:#f0f7ff; }
+        tr.month-header td {
+          font-weight:800; text-align:center; background:#d9d9d9;
+          border-top:2px solid #000; border-bottom:2px solid #000; font-size:12pt;
+        }
+        tr.col-header th { background:#e8e8e8; }
+        tr.subtotal td {
+          font-weight:700; background:#fff2cc; border-top:2px solid #000;
+        }
+        tr.subtotal td.lbl { text-align:center; letter-spacing:.08em; }
+        tr.grand td {
+          font-weight:800; background:#92d050;
+          border-top:2px solid #000; border-bottom:2px solid #000;
+        }
+        tr.grand td.lbl { text-align:center; letter-spacing:.08em; }
+        tr.spacer td { border:none; height:8px; background:#fff; }
+      </style>`;
+
+      // Column widths matching content
+      const colgroup = `<colgroup>
+        <col style="width:90px"/>
+        <col style="width:100px"/>
+        <col style="width:180px"/>
+        <col style="width:120px"/>
+        <col style="width:160px"/>
+        <col style="width:120px"/>
+        <col style="width:90px"/>
+        <col style="width:100px"/>
+        <col style="width:130px"/>
+        <col style="width:110px"/>
+        <col style="width:130px"/>
+        <col style="width:130px"/>
+      </colgroup>`;
+
+      const hdrRow = () => `<tr class="col-header">${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
+
+      const dataRow = row => {
+        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
+        const n  = v => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
+        const nc = v => `<td class="num comp" style="${msoMoney}">${fmtMoney(v)}</td>`;
+        const t  = v => `<td style="${msoText}">${esc(v)}</td>`;
+        return `<tr>
+          ${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}
+          ${n(contractAmount)}${n(bai)}${n(totalAR)}
+          ${nc(acctReceivable)}${t(payDate||"")}
+          ${n(paidThisMonth)}${nc(outstanding)}
+        </tr>`;
+      };
+
+      const totRow = (lbl, t, cls) => {
+        const n = v => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
+        return `<tr class="${cls}">
+          <td colspan="4"></td>
+          <td class="lbl">${esc(lbl)}</td>
+          ${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}
+          ${n(t.acctReceivable)}<td></td>
+          ${n(t.paidThisMonth)}${n(t.outstanding)}
+        </tr>`;
+      };
+
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const grandTot = zeroTot();
+      let body = "";
+
+      months.forEach((mon, gi) => {
+        if (gi > 0) body += `<tr class="spacer"><td colspan="${NC}"></td></tr>`;
+
+        // Month header spanning all columns
+        body += `<tr class="month-header"><td colspan="${NC}" style="${msoText}">${esc(mon.label.toUpperCase())}</td></tr>`;
+        // Column headers repeated under each month
+        body += hdrRow();
+
+        const monTot = zeroTot();
+        mon.rows.forEach(row => {
+          body += dataRow(row);
+          for (const k in monTot) monTot[k] += row[k] || 0;
+        });
+
+        body += totRow(`SUBTOTAL — ${mon.label.toUpperCase()}`, monTot, "subtotal");
+        for (const k in grandTot) grandTot[k] += monTot[k] || 0;
+      });
+
+      body += `<tr class="spacer"><td colspan="${NC}"></td></tr>`;
+      body += totRow("GRAND TOTAL", grandTot, "grand");
+
+      const html = `<!doctype html><html><head><meta charset="utf-8">${css}</head><body>
+        <table>${colgroup}<thead><tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead>
+        <tbody>${body}</tbody></table>
+      </body></html>`;
+
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `MonthlyReport_${selectedLabel.replace(/ /g,"_")}_${new Date().toISOString().slice(0,10)}.xls`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
     // ── Wire buttons ──
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
     btnGenerate.addEventListener("click", () => { populateYears(); renderMonthlyReport(); });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
+    btnMrExcel?.addEventListener("click", exportMonthlyReportExcel);
   }
 
   // Wire Monthly Report buttons (DOM is ready, data loads async — Generate reads live stores)
