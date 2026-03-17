@@ -7954,15 +7954,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <tbody>${body}</tbody></table>
       </body></html>`;
 
-      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `MonthlyReport_${selectedLabel.replace(/ /g,"_")}_${new Date().toISOString().slice(0,10)}.xls`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      try {
+        const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `MonthlyReport_${selectedLabel.replace(/ /g,"_")}_${new Date().toISOString().slice(0,10)}.xls`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
+      } catch(e) {
+        alert("Export error: " + e.message);
+      }
     }
 
     // ── Wire buttons ──
@@ -7970,7 +7974,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
     btnGenerate.addEventListener("click", () => { populateYears(); renderMonthlyReport(); });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
-    btnMrExcel?.addEventListener("click", exportMonthlyReportExcel);
+    btnMrExcel?.addEventListener("click", () => {
+      // If no data shown yet, generate first then export
+      if (mrTable.tBodies[0].rows.length === 0) {
+        populateYears();
+        renderMonthlyReport();
+      }
+      exportMonthlyReportExcel();
+    });
   }
 
   // Wire Monthly Report buttons (DOM is ready, data loads async — Generate reads live stores)
