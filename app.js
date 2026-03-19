@@ -7529,10 +7529,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!allMonthKeys.length) return { pickedKey, months: [] };
 
       // ── Payment totals + latest date per contract per month ──
+      // Sources: cashStore (cash payments), bankStore (gcash/bank),
+      //          dswdStore (DSWD afterTax + dswdDiscount, keyed by dateReceived)
       const payments  = new Map(); // cno → Map(monthKey → total paid)
       const payDates  = new Map(); // cno → Map(monthKey → latest date string)
 
       const addPayEntry = (cno, mk, amount, dateStr) => {
+        if (!mk || mk === "unknown" || !cno) return;
         if (!payments.has(cno)) payments.set(cno, new Map());
         const m = payments.get(cno);
         m.set(mk, (m.get(mk) || 0) + (Number(amount) || 0));
@@ -7540,7 +7543,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         if (!payDates.has(cno)) payDates.set(cno, new Map());
         const dm = payDates.get(cno);
         const existing = dm.get(mk);
-        // Keep the latest date within the month
         if (!existing) {
           dm.set(mk, dateStr);
         } else {
@@ -7550,16 +7552,27 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         }
       };
 
+      // Cash payments
       for (const r of (cashStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
+        const mk  = monthKeyFromDate(r.date || "");
         addPayEntry(cno, mk, r.amount, r.date);
       }
+      // Bank/GCash payments
       for (const r of (bankStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        const mk  = monthKeyFromDate(r.date || ""); if (!mk || mk === "unknown") continue;
+        const mk  = monthKeyFromDate(r.date || "");
         addPayEntry(cno, mk, r.amount, r.date);
       }
+      // DSWD payments — afterTax + dswdDiscount keyed by dateReceived
+      for (const r of (dswdStore || [])) {
+        const cno = normalizeText(r.contract || ""); if (!cno) continue;
+        const mk  = monthKeyFromDate(r.dateReceived || "");
+        if (!mk || mk === "unknown") continue;
+        const dswdAmount = (Number(r.afterTax) || 0) + (Number(r.dswdDiscount) || 0);
+        if (dswdAmount > 0) addPayEntry(cno, mk, dswdAmount, r.dateReceived);
+      }
+
       const getPaid    = (cno, mk) => payments.get(cno)?.get(mk) || 0;
       const getPayDate = (cno, mk) => payDates.get(cno)?.get(mk) || "";
 
@@ -7568,6 +7581,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       for (const r of (baiStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
         baiByCno.set(cno, (baiByCno.get(cno) || 0) + (Number(r.amount) || 0));
+      }
+
+      // ── Lifetime DSWD deductions per contract (afterTax + dswdDiscount from dswdStore) ──
+      const dswdByCno = new Map(); // cno → { afterTax, dswdDiscount }
+      for (const r of (dswdStore || [])) {
+        const cno = normalizeText(r.contract || ""); if (!cno) continue;
+        const cur = dswdByCno.get(cno) || { afterTax: 0, dswdDiscount: 0 };
+        cur.afterTax     += Number(r.afterTax)     || 0;
+        cur.dswdDiscount += Number(r.dswdDiscount) || 0;
+        dswdByCno.set(cno, cur);
       }
 
       // ── Sort contracts by date then contract# ──
