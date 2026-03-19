@@ -7665,6 +7665,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         months.push({ key: mk, label: monthLabelFromKey(mk), rows });
       }
 
+      // Debug: log first row of first month to console
+      if (months.length && months[0].rows.length) {
+        const r = months[0].rows[0];
+        console.log("[MR Debug] first row keys:", Object.keys(r));
+        console.log("[MR Debug] outstanding:", r.outstanding, "refund:", r.refund, "dswdAid:", r.dswdAid);
+      }
+
       return { pickedKey, months };
     }
 
@@ -7713,7 +7720,18 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
-      const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
+      const {
+        c,
+        contractAmount = 0,
+        bai            = 0,
+        totalAR        = 0,
+        acctReceivable = 0,
+        payDate        = "",
+        paidThisMonth  = 0,
+        dswdAid        = 0,
+        outstanding    = 0,
+        refund         = 0,
+      } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
 
       // Explicitly build each cell to avoid any array/column mismatch
