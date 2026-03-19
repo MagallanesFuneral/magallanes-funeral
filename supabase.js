@@ -21,6 +21,7 @@ const TABLE = {
   dswd:         "dswd",
   bai:          "bai",
   settings:     "settings",
+  contractForms: "contract_forms",
 };
 
 // ── Field name translators (JS camelCase ↔ DB snake_case) ────
@@ -167,6 +168,57 @@ function dswdFromDb(r) {
   };
 }
 
+function contractFormToDb(r) {
+  return {
+    id:           r.id || undefined,
+    form_no:      r.formNo      || null,
+    form_date:    r.formDate    || null,
+    client_name:  r.clientName  || null,
+    address:      r.address     || null,
+    contact:      r.contact     || null,
+    fb_account:   r.fbAccount   || null,
+    deceased1:    r.deceased1   || null,
+    deceased2:    r.deceased2   || null,
+    svc1:         r.svc1        || null,  svc2: r.svc2 || null,
+    svc3:         r.svc3        || null,  svc4: r.svc4 || null,
+    svc5:         r.svc5        || null,  svc6: r.svc6 || null,
+    svc7:         r.svc7        || null,  svc8: r.svc8 || null,
+    amt1:         r.amt1        || null,  amt2:  r.amt2  || null,
+    amt3:         r.amt3        || null,  amt4:  r.amt4  || null,
+    amt5:         r.amt5        || null,  amt6:  r.amt6  || null,
+    amt7:         r.amt7        || null,  amt8:  r.amt8  || null,
+    amt9:         r.amt9        || null,  amt10: r.amt10 || null,
+    amt11:        r.amt11       || null,  amt12: r.amt12 || null,
+    total:        r.total       || null,
+    relation:     r.relation    || null,
+  };
+}
+function contractFormFromDb(r) {
+  return {
+    id:         r.id,
+    formNo:     r.form_no     || "",
+    formDate:   r.form_date   || "",
+    clientName: r.client_name || "",
+    address:    r.address     || "",
+    contact:    r.contact     || "",
+    fbAccount:  r.fb_account  || "",
+    deceased1:  r.deceased1   || "",
+    deceased2:  r.deceased2   || "",
+    svc1:  r.svc1  || "", svc2:  r.svc2  || "",
+    svc3:  r.svc3  || "", svc4:  r.svc4  || "",
+    svc5:  r.svc5  || "", svc6:  r.svc6  || "",
+    svc7:  r.svc7  || "", svc8:  r.svc8  || "",
+    amt1:  r.amt1  || "", amt2:  r.amt2  || "",
+    amt3:  r.amt3  || "", amt4:  r.amt4  || "",
+    amt5:  r.amt5  || "", amt6:  r.amt6  || "",
+    amt7:  r.amt7  || "", amt8:  r.amt8  || "",
+    amt9:  r.amt9  || "", amt10: r.amt10 || "",
+    amt11: r.amt11 || "", amt12: r.amt12 || "",
+    total:    r.total    || "",
+    relation: r.relation || "",
+  };
+}
+
 // ── Generic DB helpers ────────────────────────────────────────
 
 async function dbGetAll(table, fromDb) {
@@ -252,6 +304,11 @@ window.DB = {
     const { error } = await _sb.from(TABLE.settings).upsert(payload, { onConflict: "id" });
     if (error) console.error("saveSettings", error);
   },
+
+  // Contract Forms
+  async getContractForms()        { return dbGetAll(TABLE.contractForms, contractFormFromDb); },
+  async saveContractForm(r)       { return dbUpsert(TABLE.contractForms, r, contractFormToDb); },
+  async deleteContractForm(id)    { return dbDelete(TABLE.contractForms, id); },
 
   // ── Delete All (Fresh Restart) ────────────────────────────
   async deleteAllContracts()    { const { error } = await _sb.from(TABLE.contracts).delete().gte("id", "00000000-0000-0000-0000-000000000000");    if (error) throw error; },
