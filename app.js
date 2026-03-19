@@ -7564,14 +7564,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const mk  = monthKeyFromDate(r.date || "");
         addPayEntry(cno, mk, r.amount, r.date);
       }
-      // DSWD payments — afterTax + dswdDiscount keyed by dateReceived
-      for (const r of (dswdStore || [])) {
-        const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        const mk  = monthKeyFromDate(r.dateReceived || "");
-        if (!mk || mk === "unknown") continue;
-        const dswdAmount = (Number(r.afterTax) || 0) + (Number(r.dswdDiscount) || 0);
-        if (dswdAmount > 0) addPayEntry(cno, mk, dswdAmount, r.dateReceived);
-      }
+      // Note: DSWD is handled as a separate deduction column, not mixed into payments
 
       const getPaid    = (cno, mk) => payments.get(cno)?.get(mk) || 0;
       const getPayDate = (cno, mk) => payDates.get(cno)?.get(mk) || "";
@@ -7583,15 +7576,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         baiByCno.set(cno, (baiByCno.get(cno) || 0) + (Number(r.amount) || 0));
       }
 
-      // ── Lifetime DSWD deductions per contract (afterTax + dswdDiscount from dswdStore) ──
-      const dswdByCno = new Map(); // cno → { afterTax, dswdDiscount }
+      // ── DSWD aid per contract per month (keyed by dateReceived) ──
+      // afterTax + dswdDiscount = total DSWD aid received that month
+      const dswdByMonth = new Map(); // cno → Map(monthKey → dswdAmount)
       for (const r of (dswdStore || [])) {
         const cno = normalizeText(r.contract || ""); if (!cno) continue;
-        const cur = dswdByCno.get(cno) || { afterTax: 0, dswdDiscount: 0 };
-        cur.afterTax     += Number(r.afterTax)     || 0;
-        cur.dswdDiscount += Number(r.dswdDiscount) || 0;
-        dswdByCno.set(cno, cur);
+        const mk  = monthKeyFromDate(r.dateReceived || "");
+        if (!mk || mk === "unknown") continue;
+        const amt = (Number(r.afterTax) || 0) + (Number(r.dswdDiscount) || 0);
+        if (!dswdByMonth.has(cno)) dswdByMonth.set(cno, new Map());
+        const m = dswdByMonth.get(cno);
+        m.set(mk, (m.get(mk) || 0) + amt);
       }
+      const getDswdAid = (cno, mk) => dswdByMonth.get(cno)?.get(mk) || 0;
 
       // ── Sort contracts by date then contract# ──
       const sortedContracts = (contractsStore || []).slice().sort((a, b) => {
@@ -7623,6 +7620,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           const bai            = baiByCno.get(cno) || 0;
           const totalAR        = contractAmount - bai; // fixed, never changes
           const paidThisMonth  = getPaid(cno, mk);
+          const dswdAid        = getDswdAid(cno, mk);
 
           // Accounts Receivable = previous outstanding balance
           // First month: use totalAR (no prior balance)
@@ -7630,7 +7628,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             ? totalAR
             : (outstandingAfter.has(cno) ? outstandingAfter.get(cno) : totalAR);
 
-          const outstanding = acctReceivable - paidThisMonth;
+          // Raw balance = A/R - payments - DSWD aid (can go negative if overpaid)
+          const rawBalance  = acctReceivable - paidThisMonth - dswdAid;
+          // Outstanding is always >= 0; if negative it means a refund is due
+          const outstanding = Math.max(0, rawBalance);
+          const refund      = rawBalance < 0 ? Math.abs(rawBalance) : 0;
+
           outstandingAfter.set(cno, outstanding);
 
           const payDate = getPaid(cno, mk) > 0 ? getPayDate(cno, mk) : "";
@@ -7643,7 +7646,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             acctReceivable,
             payDate,
             paidThisMonth,
+            dswdAid,
             outstanding,
+            refund,
           });
         }
       }
@@ -7664,7 +7669,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ── Number of columns ──
-    const NC = 12;
+    const NC = 14;
 
     // ── Render helpers ──
     function makeHdr(label, tbody) {
@@ -7699,12 +7704,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tr.appendChild(document.createElement("td"));
       // Col 11: Payment This Month
       tr.appendChild(n(t.paidThisMonth));
-      // Col 12: Outstanding Balance
+      // Col 12: DSWD Aid
+      tr.appendChild(n(t.dswdAid));
+      // Col 13: Outstanding Balance
       tr.appendChild(n(t.outstanding));
+      // Col 14: Refund
+      tr.appendChild(n(t.refund));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
-      const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
+      const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
       const tr = document.createElement("tr"); tr.dataset.rowType = "data"; tr.dataset.contract = c.contract;
 
       // Explicitly build each cell to avoid any array/column mismatch
@@ -7730,8 +7739,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const td10 = document.createElement("td"); td10.textContent = payDate || "—"; tr.appendChild(td10);
       // Col 11: Payment This Month
       const td11 = document.createElement("td"); td11.classList.add("num"); td11.textContent = fmtMoney(paidThisMonth); tr.appendChild(td11);
-      // Col 12: Outstanding Balance
-      const td12 = document.createElement("td"); td12.classList.add("num","computed"); td12.textContent = fmtMoney(outstanding); tr.appendChild(td12);
+      // Col 12: DSWD Aid
+      const td12 = document.createElement("td"); td12.classList.add("num","computed"); td12.textContent = dswdAid > 0 ? fmtMoney(dswdAid) : "—"; tr.appendChild(td12);
+      // Col 13: Outstanding Balance
+      const td13 = document.createElement("td"); td13.classList.add("num","computed"); td13.textContent = fmtMoney(outstanding); tr.appendChild(td13);
+      // Col 14: Refund (green highlight if > 0)
+      const td14 = document.createElement("td"); td14.classList.add("num");
+      if (refund > 0) { td14.textContent = fmtMoney(refund); td14.style.background = "#d4edda"; td14.style.color = "#155724"; td14.style.fontWeight = "700"; }
+      else { td14.textContent = "—"; td14.style.opacity = "0.35"; }
+      tr.appendChild(td14);
 
       tbody.appendChild(tr);
       return 1;
@@ -7748,7 +7764,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tbody.innerHTML = "";
       let rowCount = 0;
 
-      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, dswdAid:0, outstanding:0, refund:0 });
       const grandTot = zeroTot();
 
       months.forEach((mon, gi) => {
@@ -7807,25 +7823,30 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         @media print{button{display:none}}
       </style>`;
 
-      const NC_PDF = 12;
+      const NC_PDF = 14;
       const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
       const dRow   = row => {
-        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
+        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
         const n  = v => `<td class="num">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp">${fmtMoney(v)}</td>`;
         const t  = v => `<td>${esc(v)}</td>`;
+        const refundCell = refund > 0
+          ? `<td class="num" style="background:#d4edda;color:#155724;font-weight:700">${fmtMoney(refund)}</td>`
+          : `<td style="opacity:0.35;text-align:center">—</td>`;
         return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
-          `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${t(payDate||"—")}${n(paidThisMonth)}${nc(outstanding)}</tr>`;
+          `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${t(payDate||"—")}` +
+          `${n(paidThisMonth)}${nc(dswdAid > 0 ? dswdAid : 0)}${nc(outstanding)}${refundCell}</tr>`;
       };
       const shRow  = lbl => `<tr class="sh"><td colspan="${NC_PDF}">${esc(lbl)}</td></tr>`;
       const spRow  = ()  => `<tr class="sp"><td colspan="${NC_PDF}"></td></tr>`;
       const totRow = (lbl, t, cls) => {
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
         return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
-          `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}<td></td>${n(t.paidThisMonth)}${n(t.outstanding)}</tr>`;
+          `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}<td></td>` +
+          `${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}</tr>`;
       };
 
-      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, dswdAid:0, outstanding:0, refund:0 });
       const grandTot = zeroTot();
       let body = "";
 
@@ -7873,13 +7894,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
       const msoText  = 'mso-number-format:"\@"';
-      const NC = 12;
+      const NC = 14;
 
       const cols = [
         "Date","Contract #","Deceased","Casket","Address",
         "Contract Amount","BAI","Total (A/R)",
         "Accounts Receivable","Date of Payment",
-        "Payment This Month","Outstanding Balance"
+        "Payment This Month","DSWD Aid","Outstanding Balance","Refund"
       ];
 
       const css = `<style>
@@ -7917,22 +7938,25 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <col style="width:100px"/>
         <col style="width:130px"/>
         <col style="width:110px"/>
+        <col style="width:110px"/>
         <col style="width:130px"/>
-        <col style="width:130px"/>
+        <col style="width:110px"/>
       </colgroup>`;
 
       const hdrRow = () => `<tr class="col-header">${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
 
       const dataRow = row => {
-        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, outstanding } = row;
+        const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
         const n  = v => `<td class="num" style="${msoMoney}">${fmtMoney(v)}</td>`;
         const nc = v => `<td class="num comp" style="${msoMoney}">${fmtMoney(v)}</td>`;
         const t  = v => `<td style="${msoText}">${esc(v)}</td>`;
+        const refundStyle = refund > 0 ? 'style="background:#d4edda;color:#155724;font-weight:700"' : 'style="opacity:0.35"';
         return `<tr>
           ${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}
           ${n(contractAmount)}${n(bai)}${n(totalAR)}
           ${nc(acctReceivable)}${t(payDate||"")}
-          ${n(paidThisMonth)}${nc(outstanding)}
+          ${n(paidThisMonth)}${nc(dswdAid > 0 ? dswdAid : 0)}${nc(outstanding)}
+          <td class="num" ${refundStyle} style="${msoMoney}">${refund > 0 ? fmtMoney(refund) : "—"}</td>
         </tr>`;
       };
 
@@ -7943,11 +7967,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td class="lbl">${esc(lbl)}</td>
           ${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}
           ${n(t.acctReceivable)}<td></td>
-          ${n(t.paidThisMonth)}${n(t.outstanding)}
+          ${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}
         </tr>`;
       };
 
-      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, outstanding:0 });
+      const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, dswdAid:0, outstanding:0, refund:0 });
       const grandTot = zeroTot();
       let body = "";
 
