@@ -1947,7 +1947,7 @@ function fmtMoney(n) {
     DB.getBai(),
     DB.getRefundLog(),
     DB.getBankReceived(),
-  ]).then(([contracts, dswd, bai, bank]) => {
+  ]).then(([contracts, dswd, bai, refundLog, bank]) => {
     contractsStore = contracts;
     dswdStore      = dswd;
     baiStore       = bai;
@@ -8083,16 +8083,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const modal   = document.getElementById("refundLogModal");
       const sel     = document.getElementById("refundLogFilter");
       if (sel) sel.value = filter;
-      overlay?.classList.add("active"); modal?.classList.remove("hidden");
-      overlay?.removeAttribute("aria-hidden"); modal?.removeAttribute("aria-hidden");
+      overlay?.classList.add("is-open"); modal?.classList.add("is-open");
       renderRefundLog();
     }
 
     function closeRefundListModal() {
       const overlay = document.getElementById("refundLogOverlay");
       const modal   = document.getElementById("refundLogModal");
-      overlay?.classList.remove("active"); modal?.classList.add("hidden");
-      overlay?.setAttribute("aria-hidden","true"); modal?.setAttribute("aria-hidden","true");
+      overlay?.classList.remove("is-open"); modal?.classList.remove("is-open");
     }
 
     function renderRefundLog() {
@@ -8219,15 +8217,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       document.getElementById("mrfDate").value =
         `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
       document.getElementById("mrfNotes").value = "";
-      overlay?.classList.add("active"); modal?.classList.remove("hidden");
-      overlay?.removeAttribute("aria-hidden"); modal?.removeAttribute("aria-hidden");
+      overlay?.classList.add("is-open"); modal?.classList.add("is-open");
     }
 
     function closeMarkRefundedModal() {
       const overlay = document.getElementById("markRefundedOverlay");
       const modal   = document.getElementById("markRefundedModal");
-      overlay?.classList.remove("active"); modal?.classList.add("hidden");
-      overlay?.setAttribute("aria-hidden","true"); modal?.setAttribute("aria-hidden","true");
+      overlay?.classList.remove("is-open"); modal?.classList.remove("is-open");
     }
 
     // ── Wire buttons ──
