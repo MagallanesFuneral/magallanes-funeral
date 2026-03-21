@@ -7950,11 +7950,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <title>Monthly Report — ${selectedLabel}</title>${css}</head><body>
         <h2>Magallanes Funeral Services</h2>
         <h3>Analysis of Income vs Collection — As of ${esc(selectedLabel)}</h3>
-        ${sigBlock}
         <button onclick="window.print()" style="margin-bottom:8px;padding:5px 16px;cursor:pointer;">
           🖨 Print / Save as PDF
         </button>
         <table><tbody>${body}</tbody></table>
+        <br/>
+        ${sigBlock}
       </body></html>`;
 
       const win = window.open("", "_blank");
@@ -8084,7 +8085,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       body += `<tr class="spacer"><td colspan="${NC}"></td></tr>`;
       body += totRow("GRAND TOTAL", grandTot, "grand");
 
-      // ── Header rows ──
+      // ── Header rows (title + subtitle only) ──
       const msoT = 'mso-number-format:"\@"';
       const headerRows = `
         <tr>
@@ -8097,22 +8098,26 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             Analysis of Income vs Collection — As of ${esc(selectedLabel)}
           </td>
         </tr>
-        <tr><td colspan="${NC}" style="border:none;height:6px;"></td></tr>
+        <tr><td colspan="${NC}" style="border:none;height:8px;"></td></tr>`;
+
+      // ── Signatory rows — placed after last data row ──
+      const sigRows = `
+        <tr><td colspan="${NC}" style="border:none;height:14px;"></td></tr>
         <tr>
-          <td colspan="5" style="${msoT};border:none;font-size:9pt;">
-            Prepared by: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            Checked by: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            Noted by:
-          </td>
+          <td style="${msoT};border:none;font-size:9pt;">Prepared by:</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;font-size:9pt;">Checked by:</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;font-size:9pt;">Noted by:</td>
           <td colspan="${NC - 5}" style="border:none;"></td>
         </tr>
-        <tr><td colspan="${NC}" style="border:none;height:18px;"></td></tr>
+        <tr><td colspan="${NC}" style="border:none;height:22px;"></td></tr>
         <tr>
-          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
-          <td style="border:none;width:3%;"></td>
-          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
-          <td style="border:none;width:3%;"></td>
-          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;">&nbsp;</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;">&nbsp;</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;">&nbsp;</td>
           <td colspan="${NC - 5}" style="border:none;"></td>
         </tr>
         <tr>
@@ -8122,8 +8127,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td style="border:none;"></td>
           <td style="${msoT};border:none;font-size:8pt;">Finance Manager</td>
           <td colspan="${NC - 5}" style="border:none;"></td>
-        </tr>
-        <tr><td colspan="${NC}" style="border:none;height:10px;"></td></tr>`;
+        </tr>`;
 
       const html = `<!doctype html><html><head><meta charset="utf-8">${css}</head><body>
         <table>${colgroup}
@@ -8131,6 +8135,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             ${headerRows}
             <tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
             ${body}
+            ${sigRows}
           </tbody>
         </table>
       </body></html>`;
