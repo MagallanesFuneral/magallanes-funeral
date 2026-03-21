@@ -455,6 +455,7 @@ function fmtMoney(n) {
   let bankStore      = [];  // declared early for Promise.all cross-section access
   let dswdStore      = [];  // declared early for Promise.all cross-section access
   let baiStore       = [];  // declared early for Promise.all cross-section access
+  let refundLogStore = [];  // refund log entries
 
   function saveStore() {
     // No-op: individual saves happen via DB.saveContract() per operation
@@ -1944,11 +1945,13 @@ function fmtMoney(n) {
     DB.getContracts(),
     DB.getDswd(),
     DB.getBai(),
+    DB.getRefundLog(),
     DB.getBankReceived(),
   ]).then(([contracts, dswd, bai, bank]) => {
     contractsStore = contracts;
     dswdStore      = dswd;
     baiStore       = bai;
+    refundLogStore = refundLog || [];
     bankStore      = bank;
     // Write all assisted/linked payment amounts directly onto contractsStore before render
     for (const c of contractsStore) {
@@ -7676,7 +7679,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ── Number of columns ──
-    const NC = 14;
+    const NC = 15;
 
     // ── Render helpers ──
     function makeHdr(label, tbody) {
@@ -7717,6 +7720,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tr.appendChild(n(t.outstanding));
       // Col 14: Refund
       tr.appendChild(n(t.refund));
+      // Col 15: Refund Status — blank in totals
+      tr.appendChild(document.createElement("td"));
       tbody.appendChild(tr);
     }
     function makeDataRow(row, tbody) {
@@ -7766,6 +7771,32 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (refund > 0) { td14.textContent = fmtMoney(refund); td14.style.background = "#d4edda"; td14.style.color = "#155724"; td14.style.fontWeight = "700"; }
       else { td14.textContent = "—"; td14.style.opacity = "0.35"; }
       tr.appendChild(td14);
+
+      // Col 15: Refund Status
+      const td15 = document.createElement("td"); td15.style.whiteSpace = "nowrap";
+      if (refund > 0) {
+        const cno = normalizeText(c.contract || "");
+        const logEntry = (refundLogStore || []).find(r => normalizeText(r.contractNo || "") === cno);
+        if (logEntry) {
+          td15.innerHTML = `<span style="color:#155724;font-weight:700;">✓ Refunded</span><br><span style="font-size:11px;opacity:0.7;">${logEntry.dateRefunded || ""}</span>`;
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondary";
+          btn.style.cssText = "font-size:11px;padding:2px 8px;";
+          btn.textContent = "Mark Refunded";
+          btn.dataset.contractNo = c.contract || "";
+          btn.dataset.deceased   = c.deceased  || "";
+          btn.dataset.amount     = String(refund);
+          btn.addEventListener("click", e => {
+            e.stopPropagation();
+            openMarkRefundedModal(btn.dataset.contractNo, btn.dataset.deceased, Number(btn.dataset.amount));
+          });
+          td15.appendChild(btn);
+        }
+      } else {
+        td15.textContent = "—"; td15.style.opacity = "0.35";
+      }
+      tr.appendChild(td15);
 
       tbody.appendChild(tr);
       return 1;
@@ -7841,7 +7872,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         @media print{button{display:none}}
       </style>`;
 
-      const NC_PDF = 14;
+      const NC_PDF = 15;
       const hdRow  = () => `<tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
       const dRow   = row => {
         const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
@@ -7851,9 +7882,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const refundCell = refund > 0
           ? `<td class="num" style="background:#d4edda;color:#155724;font-weight:700">${fmtMoney(refund)}</td>`
           : `<td style="opacity:0.35;text-align:center">—</td>`;
+        const cno = normalizeText(c.contract || "");
+        const logE = (refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === cno);
+        const statusCell = refund > 0
+          ? (logE ? `<td style="color:#155724;font-weight:700">✓ Refunded ${esc(logE.dateRefunded||"")}</td>`
+                  : `<td style="color:#856404;">Pending</td>`)
+          : `<td style="opacity:0.35">—</td>`;
         return `<tr>${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}` +
           `${n(contractAmount)}${n(bai)}${n(totalAR)}${nc(acctReceivable)}${t(payDate||"—")}` +
-          `${n(paidThisMonth)}${nc(dswdAid > 0 ? dswdAid : 0)}${nc(outstanding)}${refundCell}</tr>`;
+          `${n(paidThisMonth)}${nc(dswdAid > 0 ? dswdAid : 0)}${nc(outstanding)}${refundCell}${statusCell}</tr>`;
       };
       const shRow  = lbl => `<tr class="sh"><td colspan="${NC_PDF}">${esc(lbl)}</td></tr>`;
       const spRow  = ()  => `<tr class="sp"><td colspan="${NC_PDF}"></td></tr>`;
@@ -7861,7 +7898,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const n = v => `<td class="num">${fmtMoney(v)}</td>`;
         return `<tr class="${cls}"><td colspan="4"></td><td class="lbl">${esc(lbl)}</td>` +
           `${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}${n(t.acctReceivable)}<td></td>` +
-          `${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}</tr>`;
+          `${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}<td></td></tr>`;
       };
 
       const zeroTot = () => ({ contractAmount:0, bai:0, totalAR:0, acctReceivable:0, paidThisMonth:0, dswdAid:0, outstanding:0, refund:0 });
@@ -7912,13 +7949,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
       const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
       const msoText  = 'mso-number-format:"\@"';
-      const NC = 14;
+      const NC = 15;
 
       const cols = [
         "Date","Contract #","Deceased","Casket","Address",
         "Contract Amount","BAI","Total (A/R)",
         "Accounts Receivable","Date of Payment",
-        "Payment This Month","DSWD Aid","Outstanding Balance","Refund"
+        "Payment This Month","DSWD Aid","Outstanding Balance","Refund","Refund Status"
       ];
 
       const css = `<style>
@@ -7969,12 +8006,18 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const nc = v => `<td class="num comp" style="${msoMoney}">${fmtMoney(v)}</td>`;
         const t  = v => `<td style="${msoText}">${esc(v)}</td>`;
         const refundStyle = refund > 0 ? 'style="background:#d4edda;color:#155724;font-weight:700"' : 'style="opacity:0.35"';
+        const xcno  = normalizeText(c.contract || "");
+        const xlogE = (refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === xcno);
+        const xStatus = refund > 0
+          ? (xlogE ? `✓ Refunded ${xlogE.dateRefunded||""}` : "Pending")
+          : "—";
         return `<tr>
           ${t(c.date)}${t(c.contract)}${t(c.deceased)}${t(c.casket)}${t(c.address)}
           ${n(contractAmount)}${n(bai)}${n(totalAR)}
           ${nc(acctReceivable)}${t(payDate||"")}
           ${n(paidThisMonth)}${nc(dswdAid > 0 ? dswdAid : 0)}${nc(outstanding)}
           <td class="num" ${refundStyle} style="${msoMoney}">${refund > 0 ? fmtMoney(refund) : "—"}</td>
+          <td style="${msoText}">${esc(xStatus)}</td>
         </tr>`;
       };
 
@@ -7985,7 +8028,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td class="lbl">${esc(lbl)}</td>
           ${n(t.contractAmount)}${n(t.bai)}${n(t.totalAR)}
           ${n(t.acctReceivable)}<td></td>
-          ${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}
+          ${n(t.paidThisMonth)}${n(t.dswdAid)}${n(t.outstanding)}${n(t.refund)}<td></td>
         </tr>`;
       };
 
@@ -8034,18 +8077,218 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       }
     }
 
+    // ── Refunds List modal ──
+    function openRefundListModal(filter = "all") {
+      const overlay = document.getElementById("refundLogOverlay");
+      const modal   = document.getElementById("refundLogModal");
+      const sel     = document.getElementById("refundLogFilter");
+      if (sel) sel.value = filter;
+      overlay?.classList.add("active"); modal?.classList.remove("hidden");
+      overlay?.removeAttribute("aria-hidden"); modal?.removeAttribute("aria-hidden");
+      renderRefundLog();
+    }
+
+    function closeRefundListModal() {
+      const overlay = document.getElementById("refundLogOverlay");
+      const modal   = document.getElementById("refundLogModal");
+      overlay?.classList.remove("active"); modal?.classList.add("hidden");
+      overlay?.setAttribute("aria-hidden","true"); modal?.setAttribute("aria-hidden","true");
+    }
+
+    function renderRefundLog() {
+      const tbody  = document.getElementById("refundLogBody");
+      const filter = document.getElementById("refundLogFilter")?.value || "all";
+      const count  = document.getElementById("refundLogCount");
+      if (!tbody) return;
+
+      // Build a list of all contracts that have a refund > 0 from latest report
+      // Re-run buildRollingReport for all months to find them
+      const selMonth = parseInt(mrMonthSelect?.value || "12", 10);
+      const selYear  = parseInt(mrYearSelect?.value  || String(new Date().getFullYear()), 10);
+      const { months } = buildRollingReport(selMonth, selYear);
+
+      // Collect unique contracts with refunds
+      const refundMap = new Map(); // cno → { c, refund }
+      months.forEach(mon => {
+        mon.rows.forEach(row => {
+          if (row.refund > 0) {
+            const cno = normalizeText(row.c.contract || "");
+            // Keep highest refund value
+            if (!refundMap.has(cno) || row.refund > refundMap.get(cno).refund) {
+              refundMap.set(cno, { c: row.c, refund: row.refund });
+            }
+          }
+        });
+      });
+
+      const allRefunds = Array.from(refundMap.values());
+      let shown = allRefunds;
+
+      if (filter === "pending") {
+        shown = allRefunds.filter(({ c }) => {
+          const cno = normalizeText(c.contract || "");
+          return !(refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === cno);
+        });
+      } else if (filter === "refunded") {
+        shown = allRefunds.filter(({ c }) => {
+          const cno = normalizeText(c.contract || "");
+          return !!(refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === cno);
+        });
+      }
+
+      if (count) count.textContent = `${shown.length} record${shown.length !== 1 ? "s" : ""}`;
+      tbody.innerHTML = "";
+
+      if (!shown.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td"); td.colSpan = 7;
+        td.style.textAlign = "center"; td.style.padding = "24px"; td.style.opacity = "0.5";
+        td.textContent = "No refunds found.";
+        tr.appendChild(td); tbody.appendChild(tr);
+        return;
+      }
+
+      shown.forEach(({ c, refund }) => {
+        const cno    = normalizeText(c.contract || "");
+        const logEntry = (refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === cno);
+        const tr = document.createElement("tr");
+
+        const cell = (text, cls) => {
+          const td = document.createElement("td");
+          td.textContent = text || ""; if (cls) td.className = cls;
+          return td;
+        };
+
+        tr.appendChild(cell(c.contract || ""));
+        tr.appendChild(cell(c.deceased  || ""));
+
+        const amtTd = document.createElement("td"); amtTd.className = "num";
+        amtTd.style.fontWeight = "700"; amtTd.style.color = "#155724";
+        amtTd.textContent = fmtMoney(refund);
+        tr.appendChild(amtTd);
+
+        tr.appendChild(cell(logEntry?.dateRefunded || "—"));
+        tr.appendChild(cell(logEntry?.notes        || "—"));
+
+        const statusTd = document.createElement("td");
+        if (logEntry) {
+          statusTd.innerHTML = `<span style="color:#155724;font-weight:700;">✓ Refunded</span>`;
+        } else {
+          statusTd.innerHTML = `<span style="color:#856404;font-weight:600;">⏳ Pending</span>`;
+        }
+        tr.appendChild(statusTd);
+
+        const actionTd = document.createElement("td");
+        if (!logEntry) {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondary";
+          btn.style.cssText = "font-size:11px;padding:2px 8px;";
+          btn.textContent = "Mark Refunded";
+          btn.addEventListener("click", () => {
+            closeRefundListModal();
+            openMarkRefundedModal(c.contract||"", c.deceased||"", refund);
+          });
+          actionTd.appendChild(btn);
+        } else {
+          const btn = document.createElement("button");
+          btn.className = "btn btn-secondary";
+          btn.style.cssText = "font-size:11px;padding:2px 8px;color:#c0392b;";
+          btn.textContent = "Undo";
+          btn.addEventListener("click", async () => {
+            if (!confirm(`Remove refund record for ${c.contract}?`)) return;
+            await DB.deleteRefundLog(logEntry.id);
+            refundLogStore = (refundLogStore||[]).filter(r => r.id !== logEntry.id);
+            renderRefundLog();
+            renderMonthlyReport();
+          });
+          actionTd.appendChild(btn);
+        }
+        tr.appendChild(actionTd);
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ── Mark Refunded modal ──
+    function openMarkRefundedModal(contractNo, deceased, amount) {
+      const overlay = document.getElementById("markRefundedOverlay");
+      const modal   = document.getElementById("markRefundedModal");
+      document.getElementById("mrfContractNo").value = contractNo;
+      document.getElementById("mrfDeceased").value   = deceased;
+      document.getElementById("mrfAmount").value     = amount.toFixed(2);
+      const today = new Date();
+      document.getElementById("mrfDate").value =
+        `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+      document.getElementById("mrfNotes").value = "";
+      overlay?.classList.add("active"); modal?.classList.remove("hidden");
+      overlay?.removeAttribute("aria-hidden"); modal?.removeAttribute("aria-hidden");
+    }
+
+    function closeMarkRefundedModal() {
+      const overlay = document.getElementById("markRefundedOverlay");
+      const modal   = document.getElementById("markRefundedModal");
+      overlay?.classList.remove("active"); modal?.classList.add("hidden");
+      overlay?.setAttribute("aria-hidden","true"); modal?.setAttribute("aria-hidden","true");
+    }
+
     // ── Wire buttons ──
     populateYears();
     document.querySelector(".tab[data-tab='monthlyreport']")?.addEventListener("click", populateYears);
     btnGenerate.addEventListener("click", () => { populateYears(); renderMonthlyReport(); });
     btnMrPdf?.addEventListener("click", exportMonthlyReportPdf);
     btnMrExcel?.addEventListener("click", () => {
-      // If no data shown yet, generate first then export
-      if (mrTable.tBodies[0].rows.length === 0) {
-        populateYears();
-        renderMonthlyReport();
-      }
+      if (mrTable.tBodies[0].rows.length === 0) { populateYears(); renderMonthlyReport(); }
       exportMonthlyReportExcel();
+    });
+
+    // Refunds List button
+    document.getElementById("btnMrRefundList")?.addEventListener("click", () => {
+      if (mrTable.tBodies[0].rows.length === 0) { populateYears(); renderMonthlyReport(); }
+      openRefundListModal();
+    });
+
+    // Refund Log modal close
+    document.getElementById("btnCloseRefundLog")?.addEventListener("click", closeRefundListModal);
+    document.getElementById("refundLogOverlay")?.addEventListener("click", closeRefundListModal);
+    document.getElementById("refundLogFilter")?.addEventListener("change", renderRefundLog);
+
+    // Mark Refunded modal close / cancel
+    document.getElementById("btnCloseMarkRefunded")?.addEventListener("click", closeMarkRefundedModal);
+    document.getElementById("markRefundedOverlay")?.addEventListener("click", closeMarkRefundedModal);
+    document.getElementById("btnMarkRefundedCancel")?.addEventListener("click", closeMarkRefundedModal);
+
+    // Mark Refunded save
+    document.getElementById("btnMarkRefundedSave")?.addEventListener("click", async () => {
+      const contractNo = document.getElementById("mrfContractNo").value.trim();
+      const deceased   = document.getElementById("mrfDeceased").value.trim();
+      const amount     = parseFloat(document.getElementById("mrfAmount").value) || 0;
+      const dateVal    = document.getElementById("mrfDate").value;
+      const notes      = document.getElementById("mrfNotes").value.trim();
+
+      if (!contractNo) { alert("Contract number is required."); return; }
+      if (!dateVal)    { alert("Please enter the date refunded."); return; }
+
+      // Convert date input (YYYY-MM-DD) to MM/DD/YYYY
+      const [y, m, d] = dateVal.split("-");
+      const dateRefunded = `${m}/${d}/${y}`;
+
+      const entry = { contractNo, deceased, amount, dateRefunded, notes };
+      try {
+        const saved = await DB.saveRefundLog(entry);
+        if (saved) {
+          // Remove old entry for same contract if exists, add new
+          refundLogStore = (refundLogStore||[]).filter(r =>
+            normalizeText(r.contractNo||"") !== normalizeText(contractNo)
+          );
+          refundLogStore.push(saved);
+          closeMarkRefundedModal();
+          renderMonthlyReport();
+          alert(`Refund for ${contractNo} marked as completed on ${dateRefunded}.`);
+        } else {
+          alert("Save failed — please try again.");
+        }
+      } catch(e) {
+        alert("Error saving refund: " + e.message);
+      }
     });
   }
 

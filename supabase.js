@@ -22,6 +22,7 @@ const TABLE = {
   bai:          "bai",
   settings:     "settings",
   contractForms: "contract_forms",
+  refundLog:     "refund_log",
 };
 
 // ── Field name translators (JS camelCase ↔ DB snake_case) ────
@@ -219,6 +220,27 @@ function contractFormFromDb(r) {
   };
 }
 
+function refundLogToDb(r) {
+  return {
+    id:           r.id || undefined,
+    contract_no:  r.contractNo   || null,
+    deceased:     r.deceased     || null,
+    amount:       Number(r.amount) || 0,
+    date_refunded:r.dateRefunded || null,
+    notes:        r.notes        || null,
+  };
+}
+function refundLogFromDb(r) {
+  return {
+    id:           r.id,
+    contractNo:   r.contract_no  || "",
+    deceased:     r.deceased     || "",
+    amount:       Number(r.amount) || 0,
+    dateRefunded: r.date_refunded || "",
+    notes:        r.notes        || "",
+  };
+}
+
 // ── Generic DB helpers ────────────────────────────────────────
 
 async function dbGetAll(table, fromDb) {
@@ -309,6 +331,11 @@ window.DB = {
   async getContractForms()        { return dbGetAll(TABLE.contractForms, contractFormFromDb); },
   async saveContractForm(r)       { return dbUpsert(TABLE.contractForms, r, contractFormToDb); },
   async deleteContractForm(id)    { return dbDelete(TABLE.contractForms, id); },
+
+  // Refund Log
+  async getRefundLog()           { return dbGetAll(TABLE.refundLog, refundLogFromDb); },
+  async saveRefundLog(r)         { return dbUpsert(TABLE.refundLog, r, refundLogToDb); },
+  async deleteRefundLog(id)      { return dbDelete(TABLE.refundLog, id); },
 
   // ── Delete All (Fresh Restart) ────────────────────────────
   async deleteAllContracts()    { const { error } = await _sb.from(TABLE.contracts).delete().gte("id", "00000000-0000-0000-0000-000000000000");    if (error) throw error; },

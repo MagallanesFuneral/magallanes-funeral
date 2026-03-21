@@ -897,6 +897,7 @@
           <h2>Monthly Report</h2>
           <button class="btn btn-secondary" id="btnMrPdf">⬇ Generate Report</button>
           <button class="btn btn-secondary" id="btnMrExcel">⬇ Export Excel</button>
+          <button class="btn btn-secondary" id="btnMrRefundList">📋 Refunds List</button>
           <span class="hint">Payments received for the selected month.</span>
         </div>
         <div class="toolbar-right">
@@ -939,6 +940,7 @@
                 <th style="min-width:120px">DSWD Aid</th>
                 <th style="min-width:130px">Outstanding Balance</th>
                 <th style="min-width:110px">Refund</th>
+                <th style="min-width:140px">Refund Status</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -1150,6 +1152,82 @@
         </div><!-- /cf-paper -->
       </div><!-- /cf-page-wrap -->
     </section>
+    <!-- Refund Log Modal -->
+    <div class="modal-overlay" id="refundLogOverlay" aria-hidden="true"></div>
+    <div class="modal" id="refundLogModal" role="dialog" aria-modal="true" aria-hidden="true" style="max-width:900px;width:95%;">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title">Refunds List</div>
+          <div class="modal-subtitle">All contracts with refunds due — pending and completed.</div>
+        </div>
+        <button class="icon-btn" id="btnCloseRefundLog" title="Close">✕</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="padding:10px 16px;display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--line1);">
+          <label style="font-size:13px;opacity:0.7;">Filter:</label>
+          <select id="refundLogFilter" class="input" style="width:160px;">
+            <option value="all">All Refunds</option>
+            <option value="pending">Pending Only</option>
+            <option value="refunded">Refunded Only</option>
+          </select>
+          <span id="refundLogCount" class="pill" style="margin-left:auto;"></span>
+        </div>
+        <div style="overflow:auto;max-height:420px;">
+          <table class="grid" id="refundLogTable" style="min-width:700px;">
+            <thead>
+              <tr>
+                <th>Contract #</th>
+                <th>Deceased</th>
+                <th style="min-width:110px">Refund Amount</th>
+                <th style="min-width:120px">Date Refunded</th>
+                <th>Notes</th>
+                <th style="min-width:130px">Status</th>
+                <th style="min-width:80px">Action</th>
+              </tr>
+            </thead>
+            <tbody id="refundLogBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mark Refunded Modal -->
+    <div class="modal-overlay" id="markRefundedOverlay" aria-hidden="true"></div>
+    <div class="modal" id="markRefundedModal" role="dialog" aria-modal="true" aria-hidden="true" style="max-width:420px;">
+      <div class="modal-header">
+        <div class="modal-title">Mark as Refunded</div>
+        <button class="icon-btn" id="btnCloseMarkRefunded" title="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid" style="gap:10px;">
+          <div class="form-field" style="grid-column:1/-1;">
+            <label class="field-label">Contract #</label>
+            <input class="input" id="mrfContractNo" readonly style="opacity:0.6;" />
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label class="field-label">Deceased</label>
+            <input class="input" id="mrfDeceased" readonly style="opacity:0.6;" />
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label class="field-label">Refund Amount</label>
+            <input class="input" id="mrfAmount" type="number" step="0.01" />
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label class="field-label">Date Refunded</label>
+            <input class="input" id="mrfDate" type="date" />
+          </div>
+          <div class="form-field" style="grid-column:1/-1;">
+            <label class="field-label">Notes (optional)</label>
+            <input class="input" id="mrfNotes" placeholder="e.g. Cash given to client" />
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+          <button class="btn btn-secondary" id="btnMarkRefundedCancel">Cancel</button>
+          <button class="btn" id="btnMarkRefundedSave">✓ Save Refund</button>
+        </div>
+      </div>
+    </div>
+
     <footer class="app-footer">
       <span>Magallanes Funeral • Local-only Prototype v115</span>
     </footer>
