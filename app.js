@@ -8243,91 +8243,174 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     });
 
     // ── Print Refund List ──
-    function printRefundLog() {
-      const filter   = document.getElementById("refundLogFilter")?.value || "all";
-      const filterLabel = filter === "pending" ? "Pending Only"
+    function exportRefundLogExcel() {
+      const filter      = document.getElementById("refundLogFilter")?.value || "all";
+      const filterLabel = filter === "pending"  ? "Pending Only"
                         : filter === "refunded" ? "Refunded Only"
                         : "All Refunds";
 
-      // Collect rows from the rendered table body
-      const tbody = document.getElementById("refundLogBody");
-      if (!tbody || tbody.rows.length === 0) { alert("No records to print."); return; }
+      // Re-build from data (not DOM) for reliability
+      const selMonth = parseInt(mrMonthSelect?.value || "12", 10);
+      const selYear  = parseInt(mrYearSelect?.value  || String(new Date().getFullYear()), 10);
+      const { months } = buildRollingReport(selMonth, selYear);
 
-      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      // Collect unique contracts with refunds
+      const refundMap = new Map();
+      months.forEach(mon => {
+        mon.rows.forEach(row => {
+          if (row.refund > 0) {
+            const cno = normalizeText(row.c.contract || "");
+            if (!refundMap.has(cno) || row.refund > refundMap.get(cno).refund) {
+              refundMap.set(cno, { c: row.c, refund: row.refund });
+            }
+          }
+        });
+      });
 
-      // Build rows from the live refundLogBody — read text content of each cell
-      let rowsHtml = "";
-      for (const tr of tbody.rows) {
-        const cells = tr.cells;
-        if (!cells.length) continue;
-        // Skip rows that are just the "no records" message
-        if (cells.length === 1) continue;
-
-        const contractNo   = esc(cells[0]?.textContent?.trim() || "");
-        const deceased     = esc(cells[1]?.textContent?.trim() || "");
-        const amount       = esc(cells[2]?.textContent?.trim() || "");
-        const dateRefunded = esc(cells[3]?.textContent?.trim() || "");
-        const notes        = esc(cells[4]?.textContent?.trim() || "");
-        // Status cell may have inner span
-        const statusText   = cells[5]?.textContent?.trim() || "";
-        const isPending    = statusText.includes("Pending");
-        const statusHtml   = isPending
-          ? `<td style="color:#856404;font-weight:600;">⏳ Pending</td>`
-          : `<td style="color:#155724;font-weight:700;">✓ Refunded</td>`;
-
-        rowsHtml += `<tr>
-          <td>${contractNo}</td><td>${deceased}</td>
-          <td style="text-align:right;font-weight:700;color:#155724;">${amount}</td>
-          <td>${dateRefunded}</td><td>${notes}</td>${statusHtml}
-        </tr>`;
+      let allRefunds = Array.from(refundMap.values());
+      if (filter === "pending") {
+        allRefunds = allRefunds.filter(({ c }) =>
+          !(refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === normalizeText(c.contract||"")));
+      } else if (filter === "refunded") {
+        allRefunds = allRefunds.filter(({ c }) =>
+          !!(refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === normalizeText(c.contract||"")));
       }
 
-      const today = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
-      const html = `<!doctype html><html><head><meta charset="utf-8">
-        <title>Refunds List — Magallanes Funeral Services</title>
-        <style>
-          @page { size: portrait; margin: 0.5in; }
-          body { font-family: Arial, sans-serif; font-size: 10pt; margin: 0; }
-          h2 { text-align: center; font-size: 14pt; margin: 0 0 2px; }
-          h3 { text-align: center; font-size: 10pt; font-weight: normal; color: #555; margin: 0 0 4px; }
-          h4 { text-align: center; font-size: 9pt; font-weight: normal; color: #777; margin: 0 0 12px; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #ccc; padding: 4px 7px; }
-          th { background: #f0f0f0; font-weight: 700; text-align: center; font-size: 9pt; }
-          tr:nth-child(even) { background: #fafafa; }
-          @media print { button { display: none; } }
-        </style>
-      </head><body>
-        <h2>Magallanes Funeral Services</h2>
-        <h3>Refunds List — ${esc(filterLabel)}</h3>
-        <h4>Printed: ${today}</h4>
-        <button onclick="window.print()" style="display:block;margin:0 auto 12px;padding:5px 18px;cursor:pointer;">
-          🖨 Print
-        </button>
-        <table>
-          <thead>
-            <tr>
-              <th>Contract #</th><th>Deceased</th>
-              <th>Refund Amount</th><th>Date Refunded</th>
-              <th>Notes</th><th>Status</th>
+      if (!allRefunds.length) { alert("No refund records to export."); return; }
+
+      const esc      = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const today    = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
+      const msoMoney = 'mso-number-format:"\#\,\#\#0\.00"';
+      const msoText  = 'mso-number-format:"\@"';
+
+      const css = `<style>
+        table { border-collapse: collapse; font-family: Calibri, Arial, sans-serif; font-size: 11pt; width: 100%; }
+        th, td { border: 1px solid #cfcfcf; padding: 5px 8px; }
+
+        /* Title rows */
+        tr.title-row td {
+          font-size: 15pt; font-weight: 800; text-align: center;
+          border: none; padding-bottom: 2px;
+        }
+        tr.subtitle-row td {
+          font-size: 10pt; text-align: center; color: #555;
+          border: none; padding-top: 0; padding-bottom: 8px;
+        }
+
+        /* Column header */
+        tr.col-header th {
+          background: #1f3864; color: #ffffff;
+          font-weight: 700; text-align: center; font-size: 10pt;
+        }
+
+        /* Data rows */
+        tr.data-row td { vertical-align: middle; }
+        tr.data-row:nth-child(even) td { background: #f5f5f5; }
+        td.num { text-align: right; }
+        td.amount { text-align: right; font-weight: 700; color: #155724; background: #d4edda; }
+
+        /* Status cells */
+        td.pending  { color: #856404; font-weight: 600; background: #fff3cd; text-align: center; }
+        td.refunded { color: #155724; font-weight: 700; background: #d4edda; text-align: center; }
+
+        /* Summary row */
+        tr.summary-row td {
+          font-weight: 700; background: #1f3864; color: #ffffff;
+          border-top: 2px solid #000; font-size: 10pt;
+        }
+        tr.summary-row td.num { text-align: right; }
+      </style>`;
+
+      // Column widths
+      const colgroup = `<colgroup>
+        <col style="width:110px"/>
+        <col style="width:200px"/>
+        <col style="width:130px"/>
+        <col style="width:120px"/>
+        <col style="width:220px"/>
+        <col style="width:120px"/>
+      </colgroup>`;
+
+      const NC = 6;
+      let totalPending  = 0;
+      let totalRefunded = 0;
+      let rowsHtml = "";
+
+      allRefunds.forEach(({ c, refund }) => {
+        const cno      = normalizeText(c.contract || "");
+        const logEntry = (refundLogStore||[]).find(r => normalizeText(r.contractNo||"") === cno);
+        const isPending = !logEntry;
+
+        if (isPending) totalPending  += refund;
+        else           totalRefunded += refund;
+
+        const statusTd = isPending
+          ? `<td class="pending" style="${msoText}">⏳ Pending</td>`
+          : `<td class="refunded" style="${msoText}">✓ Refunded</td>`;
+
+        rowsHtml += `<tr class="data-row">
+          <td style="${msoText}">${esc(c.contract||"")}</td>
+          <td style="${msoText}">${esc(c.deceased||"")}</td>
+          <td class="amount" style="${msoMoney}">${fmtMoney(refund)}</td>
+          <td style="${msoText}">${esc(logEntry?.dateRefunded||"—")}</td>
+          <td style="${msoText}">${esc(logEntry?.notes||"—")}</td>
+          ${statusTd}
+        </tr>`;
+      });
+
+      // Summary totals row
+      const totalAll = totalPending + totalRefunded;
+      rowsHtml += `<tr class="summary-row">
+        <td colspan="2" style="${msoText}">TOTAL (${allRefunds.length} record${allRefunds.length!==1?"s":""})</td>
+        <td class="num" style="${msoMoney}">${fmtMoney(totalAll)}</td>
+        <td colspan="2" style="${msoText}">
+          Pending: ${fmtMoney(totalPending)} &nbsp;|&nbsp; Refunded: ${fmtMoney(totalRefunded)}
+        </td>
+        <td></td>
+      </tr>`;
+
+      const html = `<!doctype html><html><head><meta charset="utf-8">${css}</head><body>
+        <table>${colgroup}
+          <tbody>
+            <tr class="title-row">
+              <td colspan="${NC}">Magallanes Funeral Services</td>
             </tr>
-          </thead>
-          <tbody>${rowsHtml}</tbody>
+            <tr class="subtitle-row">
+              <td colspan="${NC}">Refunds List — ${esc(filterLabel)} &nbsp;|&nbsp; Generated: ${today}</td>
+            </tr>
+            <tr class="col-header">
+              <th>Contract #</th>
+              <th>Deceased</th>
+              <th>Refund Amount</th>
+              <th>Date Refunded</th>
+              <th>Notes</th>
+              <th>Status</th>
+            </tr>
+            ${rowsHtml}
+          </tbody>
         </table>
       </body></html>`;
 
-      const win = window.open("", "_blank");
-      if (!win) { alert("Please allow popups to print."); return; }
-      win.document.write(html);
-      win.document.close();
-      win.focus();
+      try {
+        const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement("a");
+        a.href     = url;
+        a.download = `RefundsList_${filterLabel.replace(/ /g,"_")}_${new Date().toISOString().slice(0,10)}.xls`;
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
+      } catch(e) {
+        alert("Export error: " + e.message);
+      }
     }
 
     // Refund Log modal close
     document.getElementById("btnCloseRefundLog")?.addEventListener("click", closeRefundListModal);
     document.getElementById("refundLogOverlay")?.addEventListener("click", closeRefundListModal);
     document.getElementById("refundLogFilter")?.addEventListener("change", renderRefundLog);
-    document.getElementById("btnPrintRefundLog")?.addEventListener("click", printRefundLog);
+    document.getElementById("btnPrintRefundLog")?.addEventListener("click", exportRefundLogExcel);
 
     // Mark Refunded modal close / cancel
     document.getElementById("btnCloseMarkRefunded")?.addEventListener("click", closeMarkRefundedModal);
