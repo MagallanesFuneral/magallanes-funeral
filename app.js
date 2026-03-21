@@ -8133,7 +8133,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <table>${colgroup}
           <tbody>
             ${headerRows}
-            <tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
             ${body}
             ${sigRows}
           </tbody>
