@@ -8026,7 +8026,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <col style="width:110px"/>
       </colgroup>`;
 
-      const hdrRow = () => `<tr class="col-header">${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>`;
+      const hdrRow = () => `<tr class="col-header">${cols.map(h=>`<td style="font-weight:700;background:#e8e8e8;text-align:center;border:1px solid #cfcfcf;">${esc(h)}</td>`).join("")}</tr>`;
 
       const dataRow = row => {
         const { c, contractAmount, bai, totalAR, acctReceivable, payDate, paidThisMonth, dswdAid, outstanding, refund } = row;
