@@ -7920,10 +7920,37 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       body += spRow();
       body += totRow("GRAND TOTAL", grandTot, "grd");
 
+      const sigBlock = `
+        <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:8pt;">
+          <tr>
+            <td style="width:30%;text-align:left;border:none;padding:0 4px;">Prepared by:</td>
+            <td style="width:5%;border:none;"></td>
+            <td style="width:30%;text-align:left;border:none;padding:0 4px;">Checked by:</td>
+            <td style="width:5%;border:none;"></td>
+            <td style="width:30%;text-align:left;border:none;padding:0 4px;">Noted by:</td>
+          </tr>
+          <tr><td colspan="5" style="border:none;height:22px;"></td></tr>
+          <tr>
+            <td style="border:none;border-bottom:1px solid #000;padding:0 4px;">&nbsp;</td>
+            <td style="border:none;"></td>
+            <td style="border:none;border-bottom:1px solid #000;padding:0 4px;">&nbsp;</td>
+            <td style="border:none;"></td>
+            <td style="border:none;border-bottom:1px solid #000;padding:0 4px;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td style="border:none;padding:0 4px;font-size:7.5pt;">Finance Clerk</td>
+            <td style="border:none;"></td>
+            <td style="border:none;padding:0 4px;font-size:7.5pt;">Accountant</td>
+            <td style="border:none;"></td>
+            <td style="border:none;padding:0 4px;font-size:7.5pt;">Finance Manager</td>
+          </tr>
+        </table>`;
+
       const html = `<!doctype html><html><head><meta charset="utf-8">
         <title>Monthly Report — ${selectedLabel}</title>${css}</head><body>
         <h2>Magallanes Funeral Services</h2>
         <h3>Analysis of Income vs Collection — As of ${esc(selectedLabel)}</h3>
+        ${sigBlock}
         <button onclick="window.print()" style="margin-bottom:8px;padding:5px 16px;cursor:pointer;">
           🖨 Print / Save as PDF
         </button>
@@ -8057,9 +8084,55 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       body += `<tr class="spacer"><td colspan="${NC}"></td></tr>`;
       body += totRow("GRAND TOTAL", grandTot, "grand");
 
+      // ── Header rows ──
+      const msoT = 'mso-number-format:"\@"';
+      const headerRows = `
+        <tr>
+          <td colspan="${NC}" style="${msoT};font-size:15pt;font-weight:800;text-align:center;border:none;">
+            Magallanes Funeral Services
+          </td>
+        </tr>
+        <tr>
+          <td colspan="${NC}" style="${msoT};font-size:11pt;text-align:center;border:none;color:#444;">
+            Analysis of Income vs Collection — As of ${esc(selectedLabel)}
+          </td>
+        </tr>
+        <tr><td colspan="${NC}" style="border:none;height:6px;"></td></tr>
+        <tr>
+          <td colspan="5" style="${msoT};border:none;font-size:9pt;">
+            Prepared by: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            Checked by: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            Noted by:
+          </td>
+          <td colspan="${NC - 5}" style="border:none;"></td>
+        </tr>
+        <tr><td colspan="${NC}" style="border:none;height:18px;"></td></tr>
+        <tr>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
+          <td style="border:none;width:3%;"></td>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
+          <td style="border:none;width:3%;"></td>
+          <td style="${msoT};border:none;border-bottom:1px solid #000;width:15%;">&nbsp;</td>
+          <td colspan="${NC - 5}" style="border:none;"></td>
+        </tr>
+        <tr>
+          <td style="${msoT};border:none;font-size:8pt;">Finance Clerk</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;font-size:8pt;">Accountant</td>
+          <td style="border:none;"></td>
+          <td style="${msoT};border:none;font-size:8pt;">Finance Manager</td>
+          <td colspan="${NC - 5}" style="border:none;"></td>
+        </tr>
+        <tr><td colspan="${NC}" style="border:none;height:10px;"></td></tr>`;
+
       const html = `<!doctype html><html><head><meta charset="utf-8">${css}</head><body>
-        <table>${colgroup}<thead><tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead>
-        <tbody>${body}</tbody></table>
+        <table>${colgroup}
+          <tbody>
+            ${headerRows}
+            <tr>${cols.map(h=>`<th>${esc(h)}</th>`).join("")}</tr>
+            ${body}
+          </tbody>
+        </table>
       </body></html>`;
 
       try {
