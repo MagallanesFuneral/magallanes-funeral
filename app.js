@@ -8242,10 +8242,92 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       openRefundListModal();
     });
 
+    // ── Print Refund List ──
+    function printRefundLog() {
+      const filter   = document.getElementById("refundLogFilter")?.value || "all";
+      const filterLabel = filter === "pending" ? "Pending Only"
+                        : filter === "refunded" ? "Refunded Only"
+                        : "All Refunds";
+
+      // Collect rows from the rendered table body
+      const tbody = document.getElementById("refundLogBody");
+      if (!tbody || tbody.rows.length === 0) { alert("No records to print."); return; }
+
+      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+      // Build rows from the live refundLogBody — read text content of each cell
+      let rowsHtml = "";
+      for (const tr of tbody.rows) {
+        const cells = tr.cells;
+        if (!cells.length) continue;
+        // Skip rows that are just the "no records" message
+        if (cells.length === 1) continue;
+
+        const contractNo   = esc(cells[0]?.textContent?.trim() || "");
+        const deceased     = esc(cells[1]?.textContent?.trim() || "");
+        const amount       = esc(cells[2]?.textContent?.trim() || "");
+        const dateRefunded = esc(cells[3]?.textContent?.trim() || "");
+        const notes        = esc(cells[4]?.textContent?.trim() || "");
+        // Status cell may have inner span
+        const statusText   = cells[5]?.textContent?.trim() || "";
+        const isPending    = statusText.includes("Pending");
+        const statusHtml   = isPending
+          ? `<td style="color:#856404;font-weight:600;">⏳ Pending</td>`
+          : `<td style="color:#155724;font-weight:700;">✓ Refunded</td>`;
+
+        rowsHtml += `<tr>
+          <td>${contractNo}</td><td>${deceased}</td>
+          <td style="text-align:right;font-weight:700;color:#155724;">${amount}</td>
+          <td>${dateRefunded}</td><td>${notes}</td>${statusHtml}
+        </tr>`;
+      }
+
+      const today = new Date().toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+        <title>Refunds List — Magallanes Funeral Services</title>
+        <style>
+          @page { size: portrait; margin: 0.5in; }
+          body { font-family: Arial, sans-serif; font-size: 10pt; margin: 0; }
+          h2 { text-align: center; font-size: 14pt; margin: 0 0 2px; }
+          h3 { text-align: center; font-size: 10pt; font-weight: normal; color: #555; margin: 0 0 4px; }
+          h4 { text-align: center; font-size: 9pt; font-weight: normal; color: #777; margin: 0 0 12px; }
+          table { border-collapse: collapse; width: 100%; }
+          th, td { border: 1px solid #ccc; padding: 4px 7px; }
+          th { background: #f0f0f0; font-weight: 700; text-align: center; font-size: 9pt; }
+          tr:nth-child(even) { background: #fafafa; }
+          @media print { button { display: none; } }
+        </style>
+      </head><body>
+        <h2>Magallanes Funeral Services</h2>
+        <h3>Refunds List — ${esc(filterLabel)}</h3>
+        <h4>Printed: ${today}</h4>
+        <button onclick="window.print()" style="display:block;margin:0 auto 12px;padding:5px 18px;cursor:pointer;">
+          🖨 Print
+        </button>
+        <table>
+          <thead>
+            <tr>
+              <th>Contract #</th><th>Deceased</th>
+              <th>Refund Amount</th><th>Date Refunded</th>
+              <th>Notes</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </body></html>`;
+
+      const win = window.open("", "_blank");
+      if (!win) { alert("Please allow popups to print."); return; }
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+    }
+
     // Refund Log modal close
     document.getElementById("btnCloseRefundLog")?.addEventListener("click", closeRefundListModal);
     document.getElementById("refundLogOverlay")?.addEventListener("click", closeRefundListModal);
     document.getElementById("refundLogFilter")?.addEventListener("change", renderRefundLog);
+    document.getElementById("btnPrintRefundLog")?.addEventListener("click", printRefundLog);
 
     // Mark Refunded modal close / cancel
     document.getElementById("btnCloseMarkRefunded")?.addEventListener("click", closeMarkRefundedModal);
