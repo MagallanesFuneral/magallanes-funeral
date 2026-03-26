@@ -456,6 +456,8 @@ function fmtMoney(n) {
   let dswdStore      = [];  // declared early for Promise.all cross-section access
   let baiStore       = [];  // declared early for Promise.all cross-section access
   let refundLogStore = [];  // refund log entries
+  let pnbSavingsStore = []; // PNB Savings store
+  let landbankStore   = []; // Landbank store
 
   function saveStore() {
     // No-op: individual saves happen via DB.saveContract() per operation
@@ -1947,12 +1949,16 @@ function fmtMoney(n) {
     DB.getBai(),
     DB.getRefundLog(),
     DB.getBankReceived(),
-  ]).then(([contracts, dswd, bai, refundLog, bank]) => {
-    contractsStore = contracts;
-    dswdStore      = dswd;
-    baiStore       = bai;
-    refundLogStore = refundLog || [];
-    bankStore      = bank;
+    DB.getPnbSavings(),
+    DB.getLandbank(),
+  ]).then(([contracts, dswd, bai, refundLog, bank, pnbSav, lbank]) => {
+    contractsStore  = contracts;
+    dswdStore       = dswd;
+    baiStore        = bai;
+    refundLogStore  = refundLog || [];
+    bankStore       = bank;
+    pnbSavingsStore.length = 0; pnbSavingsStore.push(...(pnbSav || []));
+    landbankStore.length   = 0; landbankStore.push(...(lbank  || []));
     // Write all assisted/linked payment amounts directly onto contractsStore before render
     for (const c of contractsStore) {
       const key = normalizeText(c.contract || "");
@@ -4853,7 +4859,7 @@ function fmtMoney(n) {
 
 
   // ---------------------------
-  // PNB Deposit (Transactions) — full functionality + monthly grouping (v38)
+  // PNB Checking (Transactions) — full functionality + monthly grouping (v38)
   // ---------------------------
   const pnbTable = $("#pnbDepositTable");
   const pnbRowCountEl = $("#pnbDepositRowCount");
@@ -5009,13 +5015,13 @@ function fmtMoney(n) {
     pnbMode = mode; pnbEditingKey = null;
     if (mode === "add") {
       pnbTitle.textContent = "Add Entry";
-      pnbSubtitle.textContent = "Enter PNB deposit details.";
+      pnbSubtitle.textContent = "Enter PNB Checking deposit details.";
       btnSubmitPnb.textContent = "Add Entry";
       pdDate.value = new Date().toISOString().slice(0,10);
       pdAmount.value = "0.00";
     } else {
       pnbTitle.textContent = "Edit Entry";
-      pnbSubtitle.textContent = "Update the selected PNB deposit entry.";
+      pnbSubtitle.textContent = "Update the selected PNB Checking entry.";
       btnSubmitPnb.textContent = "Save Changes";
       const key = normalizeText(keyOrNull);
       const found = pnbStore.find(x => pnbKeyFor(x) === key);
@@ -5172,7 +5178,7 @@ function fmtMoney(n) {
 
   btnPnbAdd?.addEventListener("click",()=>openPnbModal("add"));
   btnPnbEdit?.addEventListener("click",()=>{
-    if (!pnbSelectedKey) return alert("Please select a PNB Deposit row first.");
+    if (!pnbSelectedKey) return alert("Please select a PNB Checking row first.");
     openPnbModal("edit", pnbSelectedKey);
   });
 
@@ -5205,8 +5211,8 @@ function fmtMoney(n) {
   });
 
   btnPnbDel?.addEventListener("click",()=>{
-    if (!pnbSelectedKey) return alert("Please select a PNB Deposit row first.");
-    if (!confirm("Delete the selected PNB Deposit entry?")) return;
+    if (!pnbSelectedKey) return alert("Please select a PNB Checking row first.");
+    if (!confirm("Delete the selected PNB Checking entry?")) return;
     const rowPNB = pnbStore.find(x => pnbKeyFor(x) === pnbSelectedKey);
     if (rowPNB?.id) DB.deletePnbDeposit(rowPNB.id);
     pnbStore = pnbStore.filter(x => pnbKeyFor(x) !== pnbSelectedKey);
@@ -5226,7 +5232,7 @@ function fmtMoney(n) {
     dataRows = dataRows.filter(r => r && r.some(v => String(v ?? "").trim() !== ""));
     if (!dataRows.length) { alert("No data rows found."); return; }
 
-    const replace = confirm("Replace current PNB Deposit entries with imported data?\nOK = Replace\nCancel = Append");
+    const replace = confirm("Replace current PNB Checking entries with imported data?\nOK = Replace\nCancel = Append");
     if (replace) pnbStore = [];
 
     let added=0, skipped=0;
@@ -5358,14 +5364,14 @@ function fmtMoney(n) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href=url;
-    a.download=`Magallanes_PNBDeposit_${new Date().toISOString().slice(0,10)}.xls`;
+    a.download=`Magallanes_PNBChecking_${new Date().toISOString().slice(0,10)}.xls`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
   });
 
-  btnPnbRefresh?.addEventListener("click",()=>{ renderPnbTable(); alert("Refreshed PNB Deposit view."); });
+  btnPnbRefresh?.addEventListener("click",()=>{ renderPnbTable(); alert("Refreshed PNB Checking view."); });
 
   function initPnbFromDOM() {
     if (!pnbTable) return [];
@@ -5384,6 +5390,402 @@ function fmtMoney(n) {
 
   renderPnbTable();
 
+
+  // ─────────────────────────────────────────────────────────
+  // Generic Deposit Tab Factory
+  // Creates a full PNB-style deposit tab section for any store
+  // ─────────────────────────────────────────────────────────
+  function initDepositTab(cfg) {
+    // cfg: { name, store, tableId, rowCountId, selectedId,
+    //        overlayId, modalId, titleId, subtitleId, closeBtnId,
+    //        dateId, amountId, cancelBtnId, submitBtnId, formId,
+    //        addBtnId, editBtnId, deleteBtnId, importBtnId, exportBtnId,
+    //        refreshBtnId, fileInputId, filterRowId, filterCatId,
+    //        filterInputsId, applyFilterBtnId, clearFilterBtnId,
+    //        dbGet, dbSave, dbDelete, exportFilename }
+
+    const $ = id => document.getElementById(id);
+    const tableEl       = $(cfg.tableId);
+    const rowCountEl    = $(cfg.rowCountId);
+    const selectedEl    = $(cfg.selectedId);
+    const overlay       = $(cfg.overlayId);
+    const modal         = $(cfg.modalId);
+    const titleEl       = $(cfg.titleId);
+    const subtitleEl    = $(cfg.subtitleId);
+
+    if (!tableEl) return;
+
+    let selectedKey = null;
+    let mode        = "add";
+    let editingKey  = null;
+    let activeFilter = null;
+
+    function ensureId(r) {
+      if (!r._id) r._id = Math.random().toString(36).slice(2);
+      return r;
+    }
+    function keyFor(r) { return normalizeText(r._id || ""); }
+
+    // ── Filtering ──
+    function getFilterFromUI() {
+      const cat = $(cfg.filterCatId)?.value || "";
+      const inputs = $(cfg.filterInputsId);
+      if (!cat || !inputs) return null;
+      if (cat === "date") {
+        const v = inputs.querySelector("input")?.value?.trim() || "";
+        return v ? { category: "date", value: v } : null;
+      }
+      if (cat === "amount") {
+        const ins = inputs.querySelectorAll("input");
+        const mn = parseFloat(ins[0]?.value) || 0;
+        const mx = parseFloat(ins[1]?.value) || Infinity;
+        return { category: "amount", min: mn, max: mx };
+      }
+      return null;
+    }
+    function rowMatchesFilter(r, f) {
+      if (!f) return true;
+      if (f.category === "date") return (r.date || "").includes(f.value);
+      if (f.category === "amount") {
+        const a = Number(r.amount) || 0;
+        return a >= f.min && a <= f.max;
+      }
+      return true;
+    }
+
+    $(cfg.filterCatId)?.addEventListener("change", () => {
+      const cat = $(cfg.filterCatId).value;
+      const inp = $(cfg.filterInputsId);
+      if (!inp) return;
+      if (cat === "date") {
+        inp.innerHTML = `<input class="input" type="text" placeholder="MM/DD/YYYY or partial" style="width:160px;" />`;
+      } else if (cat === "amount") {
+        inp.innerHTML = `<input class="input" type="number" placeholder="Min" style="width:90px;" />
+                         <input class="input" type="number" placeholder="Max" style="width:90px;" />`;
+      } else {
+        inp.innerHTML = "";
+      }
+    });
+    $(cfg.applyFilterBtnId)?.addEventListener("click", () => {
+      activeFilter = getFilterFromUI(); renderTable();
+    });
+    $(cfg.clearFilterBtnId)?.addEventListener("click", () => {
+      activeFilter = null;
+      if ($(cfg.filterCatId)) $(cfg.filterCatId).value = "";
+      if ($(cfg.filterInputsId)) $(cfg.filterInputsId).innerHTML = "";
+      renderTable();
+    });
+
+    // ── Render ──
+    function renderTable() {
+      if (!tableEl) return;
+      const filtered = cfg.store.filter(r => rowMatchesFilter(r, activeFilter));
+      const byMonth = new Map();
+      for (const r of filtered) {
+        const mk = monthKeyFromDate(r.date || "") || "unknown";
+        if (!byMonth.has(mk)) byMonth.set(mk, []);
+        byMonth.get(mk).push(r);
+      }
+      const keys = Array.from(byMonth.keys()).sort();
+      const tbody = tableEl.tBodies[0];
+      tbody.innerHTML = "";
+      let grand = 0;
+
+      keys.forEach((key, gi) => {
+        const rows = byMonth.get(key);
+        // Month header
+        const hdr = document.createElement("tr");
+        hdr.dataset.rowType = "monthHeader"; hdr.classList.add("group-row");
+        const hdrTd = document.createElement("td"); hdrTd.colSpan = 2;
+        hdrTd.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${monthLabelFromKey(key)}</span></span>`;
+        hdr.appendChild(hdrTd); tbody.appendChild(hdr);
+
+        let monthTotal = 0;
+        rows.forEach(r => {
+          ensureId(r);
+          const amt = Number(r.amount) || 0; monthTotal += amt;
+          const tr = document.createElement("tr"); tr.dataset.rowType = "data";
+          tr.dataset.key = keyFor(r);
+          if (keyFor(r) === selectedKey) tr.classList.add("selected");
+          const td1 = document.createElement("td"); td1.textContent = r.date || "";
+          const td2 = document.createElement("td"); td2.classList.add("num"); td2.textContent = fmtMoney(amt);
+          tr.appendChild(td1); tr.appendChild(td2);
+          tbody.appendChild(tr);
+        });
+
+        // Month total
+        const mtr = document.createElement("tr"); mtr.dataset.rowType = "monthTotal"; mtr.classList.add("total-row");
+        const ml = document.createElement("td"); ml.textContent = ""; mtr.appendChild(ml);
+        const mv = document.createElement("td"); mv.classList.add("num"); mv.textContent = fmtMoney(monthTotal); mtr.appendChild(mv);
+        tbody.appendChild(mtr);
+
+        if (gi < keys.length - 1) {
+          const sp = document.createElement("tr"); sp.classList.add("spacer-row");
+          const std = document.createElement("td"); std.colSpan = 2; sp.appendChild(std); tbody.appendChild(sp);
+        }
+        grand += monthTotal;
+      });
+
+      // Grand total
+      if (keys.length) {
+        const sp = document.createElement("tr"); sp.classList.add("spacer-row");
+        const std = document.createElement("td"); std.colSpan = 2; sp.appendChild(std); tbody.appendChild(sp);
+        const gtr = document.createElement("tr"); gtr.dataset.rowType = "grandTotal"; gtr.classList.add("grand-total-row");
+        const gl = document.createElement("td"); gl.textContent = "Grand Total"; gtr.appendChild(gl);
+        const gv = document.createElement("td"); gv.classList.add("num"); gv.textContent = fmtMoney(grand); gtr.appendChild(gv);
+        tbody.appendChild(gtr);
+      }
+
+      if (rowCountEl) rowCountEl.textContent = `Rows: ${filtered.length}`;
+      selectedKey = null;
+      if (selectedEl) selectedEl.textContent = "Selected: —";
+    }
+
+    // ── Row selection ──
+    function selectKey(key) {
+      selectedKey = key || null;
+      tableEl.querySelectorAll("tr").forEach(tr => {
+        tr.classList.toggle("selected", tr.dataset.key === selectedKey);
+      });
+      if (selectedEl) selectedEl.textContent = selectedKey ? `Selected: 1` : `Selected: —`;
+    }
+    tableEl.addEventListener("click", e => {
+      const tr = e.target.closest("tr[data-key]");
+      if (tr) selectKey(tr.dataset.key);
+    });
+    tableEl.addEventListener("dblclick", e => {
+      const tr = e.target.closest("tr[data-key]");
+      if (tr) { selectKey(tr.dataset.key); openModal("edit", tr.dataset.key); }
+    });
+
+    // ── Modal ──
+    function openModal(m, key = null) {
+      if (!overlay || !modal) return;
+      mode = m; editingKey = null;
+      if (m === "add") {
+        if (titleEl)    titleEl.textContent    = "Add Entry";
+        if (subtitleEl) subtitleEl.textContent = `Enter ${cfg.name} deposit details.`;
+        if ($(cfg.dateId))   $(cfg.dateId).value   = "";
+        if ($(cfg.amountId)) $(cfg.amountId).value = "0.00";
+        if ($(cfg.submitBtnId)) $(cfg.submitBtnId).textContent = "Add Entry";
+      } else {
+        const found = cfg.store.find(r => keyFor(r) === key);
+        if (!found) return;
+        editingKey = key;
+        if (titleEl)    titleEl.textContent    = "Edit Entry";
+        if (subtitleEl) subtitleEl.textContent = `Update the selected ${cfg.name} entry.`;
+        if ($(cfg.dateId))   $(cfg.dateId).value   = dateInputFromMmddyyyy(found.date) || "";
+        if ($(cfg.amountId)) $(cfg.amountId).value = (Number(found.amount)||0).toFixed(2);
+        if ($(cfg.submitBtnId)) $(cfg.submitBtnId).textContent = "Save Changes";
+      }
+      overlay.classList.add("is-open"); modal.classList.add("is-open");
+    }
+    function closeModal() {
+      overlay?.classList.remove("is-open"); modal?.classList.remove("is-open");
+    }
+
+    $(cfg.addBtnId)?.addEventListener("click",    () => openModal("add"));
+    $(cfg.editBtnId)?.addEventListener("click",   () => {
+      if (!selectedKey) return alert(`Please select a ${cfg.name} row first.`);
+      openModal("edit", selectedKey);
+    });
+    $(cfg.closeBtnId)?.addEventListener("click",  closeModal);
+    $(cfg.cancelBtnId)?.addEventListener("click", closeModal);
+    overlay?.addEventListener("click", closeModal);
+
+    // ── Submit ──
+    $(cfg.formId)?.addEventListener("submit", e => {
+      e.preventDefault();
+      const date   = mmddyyyyFromDateInput($(cfg.dateId)?.value) || "";
+      const amount = parseFloat($(cfg.amountId)?.value) || 0;
+      if (!date) return alert("Please enter a date.");
+      if (mode === "add") {
+        const entry = ensureId({ date, amount });
+        cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
+        cfg.store.push(entry);
+      } else {
+        const idx = cfg.store.findIndex(r => keyFor(r) === editingKey);
+        if (idx < 0) return;
+        const updated = ensureId({ date, amount, _id: cfg.store[idx]._id, id: cfg.store[idx].id });
+        cfg.store[idx] = updated;
+        cfg.dbSave(updated);
+      }
+      closeModal(); renderTable();
+    });
+
+    // ── Delete ──
+    $(cfg.deleteBtnId)?.addEventListener("click", () => {
+      if (!selectedKey) return alert(`Please select a ${cfg.name} row first.`);
+      if (!confirm(`Delete the selected ${cfg.name} entry?`)) return;
+      const row = cfg.store.find(r => keyFor(r) === selectedKey);
+      if (row?.id) cfg.dbDelete(row.id);
+      cfg.store.splice(cfg.store.findIndex(r => keyFor(r) === selectedKey), 1);
+      selectedKey = null; renderTable();
+    });
+
+    // ── Import ──
+    $(cfg.importBtnId)?.addEventListener("click", () => $(cfg.fileInputId)?.click());
+    $(cfg.fileInputId)?.addEventListener("change", async e => {
+      const file = e.target.files[0]; if (!file) return;
+      try {
+        const buf  = await file.arrayBuffer();
+        const wb   = XLSX.read(buf, { type: "array" });
+        const ws   = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        const replace = confirm(`Replace current ${cfg.name} entries with imported data?
+OK = Replace
+Cancel = Append`);
+        if (replace) cfg.store.length = 0;
+        let added = 0;
+        for (const row of rows) {
+          if (!row || row.length < 2) continue;
+          const rawDate = String(row[0] || "").trim();
+          const rawAmt  = row[1];
+          if (!rawDate || rawDate.toLowerCase().includes("date")) continue;
+          const date   = parseImportDate(rawDate);
+          const amount = parseFloat(String(rawAmt).replace(/[^0-9.\-]/g,"")) || 0;
+          if (!date && !amount) continue;
+          const entry = ensureId({ date: date || rawDate, amount });
+          cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
+          cfg.store.push(entry); added++;
+        }
+        e.target.value = "";
+        renderTable();
+        alert(`Imported ${added} ${cfg.name} entries.`);
+      } catch(err) { alert("Import error: " + err.message); }
+    });
+
+    // ── Export ──
+    $(cfg.exportBtnId)?.addEventListener("click", () => {
+      if (!cfg.store.length) return alert(`No ${cfg.name} entries to export.`);
+      const headers = ["Date", "Amount"];
+      const rows    = cfg.store.map(r => [r.date || "", Number(r.amount) || 0]);
+      const html    = buildExcelHtml([headers, ...rows],
+        `<col style="width:120px"/><col style="width:130px"/>`,
+        cfg.name
+      );
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.download = cfg.exportFilename;
+      a.style.display = "none";
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
+    });
+
+    // ── Refresh ──
+    $(cfg.refreshBtnId)?.addEventListener("click", () => {
+      cfg.dbGet().then(rows => { cfg.store.length = 0; cfg.store.push(...rows); renderTable(); });
+      alert(`Refreshed ${cfg.name} view.`);
+    });
+
+    // Initial render
+    renderTable();
+    return { renderTable };
+  }
+
+  // Helper for export HTML (reuse pattern from other tabs)
+  function buildExcelHtml(rows, colgroup, title) {
+    const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const hdr = rows[0].map(h=>`<th>${esc(h)}</th>`).join('');
+    const body = rows.slice(1).map(row =>
+      '<tr>' + row.map((c,i) => i===0
+        ? `<td>${esc(c)}</td>`
+        : `<td class="num" style="text-align:right;">${typeof c==='number'?fmtMoney(c):esc(c)}</td>`
+      ).join('') + '</tr>'
+    ).join('');
+    return `<!doctype html><html><head><meta charset="utf-8">
+      <style>
+        table{border-collapse:collapse;font-family:Calibri,Arial;font-size:11pt;}
+        th,td{border:1px solid #ccc;padding:4px 7px;}
+        th{background:#f2f2f2;font-weight:700;text-align:center;}
+        td.num{text-align:right;}
+      </style></head><body>
+      <table><colgroup>${colgroup}</colgroup>
+        <thead><tr>${hdr}</tr></thead>
+        <tbody>${body}</tbody>
+      </table></body></html>`;
+  }
+
+  // ── Wire up PNB Savings tab ──
+  const pnbSavingsTab = initDepositTab({
+    name:             "PNB Savings",
+    store:            pnbSavingsStore,
+    tableId:          "pnbSavingsTable",
+    rowCountId:       "pnbSavingsRowCount",
+    selectedId:       "pnbSavingsSelected",
+    overlayId:        "pnbSavingsOverlay",
+    modalId:          "pnbSavingsModal",
+    titleId:          "pnbSavingsTitle",
+    subtitleId:       "pnbSavingsSubtitle",
+    closeBtnId:       "btnClosePnbSavings",
+    dateId:           "psDate",
+    amountId:         "psAmount",
+    cancelBtnId:      "btnCancelPnbSavings",
+    submitBtnId:      "btnSubmitPnbSavings",
+    formId:           "pnbSavingsForm",
+    addBtnId:         "btnPnbSavingsAddEntry",
+    editBtnId:        "btnPnbSavingsEditSelected",
+    deleteBtnId:      "btnPnbSavingsDeleteSelected",
+    importBtnId:      "btnPnbSavingsImportExcel",
+    exportBtnId:      "btnPnbSavingsExportExcel",
+    refreshBtnId:     "btnPnbSavingsRefresh",
+    fileInputId:      "filePnbSavingsImport",
+    filterRowId:      "pnbSavingsFilterRow",
+    filterCatId:      "pnbSavingsFilterCategory",
+    filterInputsId:   "pnbSavingsFilterInputs",
+    applyFilterBtnId: "btnPnbSavingsApplyFilter",
+    clearFilterBtnId: "btnPnbSavingsClearFilter",
+    dbGet:    () => DB.getPnbSavings(),
+    dbSave:   r  => DB.savePnbSavings(r),
+    dbDelete: id => DB.deletePnbSavings(id),
+    exportFilename: `Magallanes_PNBSavings_${new Date().toISOString().slice(0,10)}.xls`,
+  });
+
+  // ── Wire up Landbank tab ──
+  const landbankTab = initDepositTab({
+    name:             "Landbank",
+    store:            landbankStore,
+    tableId:          "landbankTable",
+    rowCountId:       "landbankRowCount",
+    selectedId:       "landbankSelected",
+    overlayId:        "landbankOverlay",
+    modalId:          "landbankModal",
+    titleId:          "landbankTitle",
+    subtitleId:       "landbankSubtitle",
+    closeBtnId:       "btnCloseLandbank",
+    dateId:           "lbDate",
+    amountId:         "lbAmount",
+    cancelBtnId:      "btnCancelLandbank",
+    submitBtnId:      "btnSubmitLandbank",
+    formId:           "landbankForm",
+    addBtnId:         "btnLandbankAddEntry",
+    editBtnId:        "btnLandbankEditSelected",
+    deleteBtnId:      "btnLandbankDeleteSelected",
+    importBtnId:      "btnLandbankImportExcel",
+    exportBtnId:      "btnLandbankExportExcel",
+    refreshBtnId:     "btnLandbankRefresh",
+    fileInputId:      "fileLandbankImport",
+    filterRowId:      "landbankFilterRow",
+    filterCatId:      "landbankFilterCategory",
+    filterInputsId:   "landbankFilterInputs",
+    applyFilterBtnId: "btnLandbankApplyFilter",
+    clearFilterBtnId: "btnLandbankClearFilter",
+    dbGet:    () => DB.getLandbank(),
+    dbSave:   r  => DB.saveLandbank(r),
+    dbDelete: id => DB.deleteLandbank(id),
+    exportFilename: `Magallanes_Landbank_${new Date().toISOString().slice(0,10)}.xls`,
+  });
+
+  // Load PNB Savings and Landbank from Supabase then re-render
+  DB.getPnbSavings().then(rows => {
+    pnbSavingsStore.length = 0; pnbSavingsStore.push(...rows);
+    pnbSavingsTab?.renderTable();
+  });
+  DB.getLandbank().then(rows => {
+    landbankStore.length = 0; landbankStore.push(...rows);
+    landbankTab?.renderTable();
+  });
 
   // ---------------------------
   // DSWD Tab Logic
@@ -6752,7 +7154,9 @@ const reportDatePicker = $("#reportDatePicker");
     for(const d of sorted){
       if(d >= selectedYmd) break;
       const cashIn = (cashStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
-      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
+      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0)
+                + (pnbSavingsStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0)
+                + (landbankStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       const cashOut = (cashExpStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       cashOnHand = (cashOnHand + cashIn - pnb) - cashOut;
     }
@@ -6778,7 +7182,9 @@ const reportDatePicker = $("#reportDatePicker");
     const cashBF = computeCashOnHandBefore(selectedYmd);
     const cashRows = (cashStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     const cashCollection = cashRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0)
+                + (pnbSavingsStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0)
+                + (landbankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0);
     const cashTotal = cashBF + cashCollection;
     const totalCashReceived = cashTotal - pnb;
 
@@ -6808,7 +7214,11 @@ const reportDatePicker = $("#reportDatePicker");
     const bankBF = computeCashInBankBefore(selectedYmd);
     const bankRows = (bankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     // Also include PNB deposit entries for the day — cash collected was deposited to bank
-    const pnbRows = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
+    const pnbRows = [
+      ...(pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).map(r=>({...r,_src:'PNB Checking'})),
+      ...(pnbSavingsStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).map(r=>({...r,_src:'PNB Savings'})),
+      ...(landbankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).map(r=>({...r,_src:'Landbank'})),
+    ];
     // BAI completed entries — appear in Bank Received on their Date Completed
     const baiBankRows = (baiStore||[]).filter(r => r.status === "Completed" && drParseYmd(r.dateCompleted) === selectedYmd);
     const bankIn    = bankRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
@@ -6829,9 +7239,9 @@ const reportDatePicker = $("#reportDatePicker");
       ...pnbRows.map(r=>`
         <tr>
           <td></td>
-          <td>PNB Deposit</td>
+          <td>PNB Checking</td>
           <td></td>
-          <td>Cash deposit to PNB</td>
+          <td>Cash deposit to ${r._src||'PNB Checking'}</td>
           <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
         </tr>
       `),
@@ -6885,7 +7295,7 @@ const reportDatePicker = $("#reportDatePicker");
             ${cashBody || `<tr><td colspan="5" class="dr-muted">(no matching Cash Received entries)</td></tr>`}
             <tr class="dr-total-row"><td>Cash collection for the day</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(cashCollection)}</td></tr>
             <tr class="dr-total-row"><td>Total</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(cashTotal)}</td></tr>
-            <tr class="dr-total-row"><td>Less: PNB Deposit</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(pnb)}</td></tr>
+            <tr class="dr-total-row"><td>Less: PNB Savings, PNB Checking and Landbank</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(pnb)}</td></tr>
             <tr class="dr-grand-row"><td>Total Cash Received</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(totalCashReceived)}</td></tr>
           </tbody>
         </table>

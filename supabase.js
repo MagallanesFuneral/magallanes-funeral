@@ -18,6 +18,8 @@ const TABLE = {
   bankReceived: "bank_received",
   bankExpense:  "bank_expense",
   pnbDeposit:   "pnb_deposit",
+  pnbSavings:   "pnb_savings",
+  landbank:     "landbank",
   dswd:         "dswd",
   bai:          "bai",
   settings:     "settings",
@@ -106,6 +108,19 @@ function pnbToDb(r) {
     amount: Number(r.amount) || 0 };
 }
 function pnbFromDb(r) {
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
+}
+
+function pnbSavingsToDb(r) {
+  return { id: r.id || undefined, date: r.date || null, amount: Number(r.amount) || 0 };
+}
+function pnbSavingsFromDb(r) {
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
+}
+function landbankToDb(r) {
+  return { id: r.id || undefined, date: r.date || null, amount: Number(r.amount) || 0 };
+}
+function landbankFromDb(r) {
   return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 
@@ -331,6 +346,16 @@ window.DB = {
   async getContractForms()        { return dbGetAll(TABLE.contractForms, contractFormFromDb); },
   async saveContractForm(r)       { return dbUpsert(TABLE.contractForms, r, contractFormToDb); },
   async deleteContractForm(id)    { return dbDelete(TABLE.contractForms, id); },
+
+  // PNB Savings
+  async getPnbSavings()          { return dbGetAll(TABLE.pnbSavings, pnbSavingsFromDb); },
+  async savePnbSavings(r)        { return dbUpsert(TABLE.pnbSavings, r, pnbSavingsToDb); },
+  async deletePnbSavings(id)     { return dbDelete(TABLE.pnbSavings, id); },
+
+  // Landbank
+  async getLandbank()            { return dbGetAll(TABLE.landbank, landbankFromDb); },
+  async saveLandbank(r)          { return dbUpsert(TABLE.landbank, r, landbankToDb); },
+  async deleteLandbank(id)       { return dbDelete(TABLE.landbank, id); },
 
   // Refund Log
   async getRefundLog()           { return dbGetAll(TABLE.refundLog, refundLogFromDb); },

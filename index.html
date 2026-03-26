@@ -312,7 +312,9 @@
     <button class="subtab" role="tab" aria-selected="false" data-subtab="cashExpense">Cash Expense</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankReceived">Bank Received</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankExpense">Bank Expense</button>
-    <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Deposit</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Checking</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbSavings">PNB Savings</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="landbank">Landbank</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="dswd">DSWD</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bai">BAI</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
@@ -608,8 +610,8 @@
 <div class="subpanel" id="subpanel-pnbDeposit" role="tabpanel">
   <div class="panel-toolbar">
     <div class="toolbar-left">
-      <h3>PNB Deposit</h3>
-      <span class="hint">Ledger for PNB deposits (saved to shared database).</span>
+      <h3>PNB Checking</h3>
+      <span class="hint">Ledger for PNB Checking deposits (saved to shared database).</span>
     </div>
     <div class="toolbar-right">
       <span class="kpi" id="pnbDepositRowCount">Rows: 0</span>
@@ -667,7 +669,99 @@
   </div>
 </div>
 
-  
+<div class="subpanel" id="subpanel-pnbSavings" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>PNB Savings</h3>
+      <span class="hint">Ledger for PNB Savings deposits (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="pnbSavingsRowCount">Rows: 0</span>
+      <span class="kpi" id="pnbSavingsSelected">Selected: —</span>
+    </div>
+  </div>
+  <div class="actions-row" aria-label="PNB Savings actions">
+    <button class="btn" id="btnPnbSavingsAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnPnbSavingsEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnPnbSavingsDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnPnbSavingsImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnPnbSavingsExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnPnbSavingsRefresh">Refresh</button>
+    <input type="file" id="filePnbSavingsImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+  <div class="filter-row" id="pnbSavingsFilterRow" aria-label="PNB Savings filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="pnbSavingsFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+      <div id="pnbSavingsFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnPnbSavingsApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnPnbSavingsClearFilter">Clear Filter</button>
+    </div>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="pnbSavingsTable" aria-label="PNB Savings table">
+        <thead><tr><th>Date</th><th class="num">Amount</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="subpanel" id="subpanel-landbank" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Landbank</h3>
+      <span class="hint">Ledger for Landbank deposits (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="landbankRowCount">Rows: 0</span>
+      <span class="kpi" id="landbankSelected">Selected: —</span>
+    </div>
+  </div>
+  <div class="actions-row" aria-label="Landbank actions">
+    <button class="btn" id="btnLandbankAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnLandbankEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnLandbankDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnLandbankImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnLandbankExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnLandbankRefresh">Refresh</button>
+    <input type="file" id="fileLandbankImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+  <div class="filter-row" id="landbankFilterRow" aria-label="Landbank filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="landbankFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+      <div id="landbankFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnLandbankApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnLandbankClearFilter">Clear Filter</button>
+    </div>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="landbankTable" aria-label="Landbank table">
+        <thead><tr><th>Date</th><th class="num">Amount</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
 
 <div class="subpanel" id="subpanel-dswd" role="tabpanel">
   <div class="panel-toolbar">
@@ -1693,6 +1787,50 @@
     </form>
   </div>
 
+
+  <!-- PNB Savings Modal -->
+  <div class="overlay" id="pnbSavingsOverlay" aria-hidden="true"></div>
+  <div class="modal" id="pnbSavingsModal" role="dialog" aria-modal="true" aria-labelledby="pnbSavingsTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="pnbSavingsTitle">Add Entry</div>
+        <div class="modal-subtitle" id="pnbSavingsSubtitle">Enter PNB Savings deposit details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnClosePnbSavings" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="pnbSavingsForm">
+      <div class="form-grid">
+        <label class="field"><span>Date</span><input class="input" id="psDate" type="date" required /></label>
+        <label class="field"><span>Amount</span><input class="input" id="psAmount" type="number" step="0.01" value="0.00" required /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelPnbSavings">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitPnbSavings">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Landbank Modal -->
+  <div class="overlay" id="landbankOverlay" aria-hidden="true"></div>
+  <div class="modal" id="landbankModal" role="dialog" aria-modal="true" aria-labelledby="landbankTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="landbankTitle">Add Entry</div>
+        <div class="modal-subtitle" id="landbankSubtitle">Enter Landbank deposit details (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseLandbank" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="landbankForm">
+      <div class="form-grid">
+        <label class="field"><span>Date</span><input class="input" id="lbDate" type="date" required /></label>
+        <label class="field"><span>Amount</span><input class="input" id="lbAmount" type="number" step="0.01" value="0.00" required /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelLandbank">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitLandbank">Add Entry</button>
+      </div>
+    </form>
+  </div>
 
   <!-- SheetJS (XLSX support) via CDN -->
   <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
