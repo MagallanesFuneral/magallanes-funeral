@@ -6707,9 +6707,11 @@ Cancel = Append`);
   // ---------------------------
   const SETTINGS_STORE_KEY = "mf_settings_store";
 
-  const settingsForm       = $("#settingsForm");
-  const setCashBalance     = $("#setCashBalance");
-  const setBankBalance     = $("#setBankBalance");
+  const settingsForm         = $("#settingsForm");
+  const setCashBalance       = $("#setCashBalance");
+  const setBankBalance       = $("#setBankBalance");
+  const setPnbSavingsBalance = $("#setPnbSavingsBalance");
+  const setLandbankBalance   = $("#setLandbankBalance");
   const setSigFinanceClerk   = $("#setSigFinanceClerk");
   const setSigAccountant     = $("#setSigAccountant");
   const setSigFinanceManager = $("#setSigFinanceManager");
@@ -6724,8 +6726,10 @@ Cancel = Append`);
   function loadSettings(){
     DB.getSettings().then(data => {
       if (!data) return;
-      if(setCashBalance)     setCashBalance.value     = Number(data.cash_balance || 0).toFixed(2);
-      if(setBankBalance)     setBankBalance.value     = Number(data.bank_balance || 0).toFixed(2);
+      if(setCashBalance)       setCashBalance.value       = Number(data.cash_balance          || 0).toFixed(2);
+      if(setBankBalance)       setBankBalance.value       = Number(data.bank_balance          || 0).toFixed(2);
+      if(setPnbSavingsBalance) setPnbSavingsBalance.value = Number(data.pnb_savings_balance   || 0).toFixed(2);
+      if(setLandbankBalance)   setLandbankBalance.value   = Number(data.landbank_balance      || 0).toFixed(2);
       if(setSigFinanceClerk)   setSigFinanceClerk.value   = data.finance_clerk   || DEFAULT_SIG.financeClerk;
       if(setSigAccountant)     setSigAccountant.value     = data.accountant      || DEFAULT_SIG.accountant;
       if(setSigFinanceManager) setSigFinanceManager.value = data.finance_manager || DEFAULT_SIG.financeManager;
@@ -6734,8 +6738,10 @@ Cancel = Append`);
 
   function getSettingsData(){
     return {
-      cashBalance:    Number(setCashBalance?.value)     || 0,
-      bankBalance:    Number(setBankBalance?.value)     || 0,
+      cashBalance:         Number(setCashBalance?.value)         || 0,
+      bankBalance:         Number(setBankBalance?.value)         || 0,
+      pnbSavingsBalance:   Number(setPnbSavingsBalance?.value)  || 0,
+      landbankBalance:     Number(setLandbankBalance?.value)    || 0,
       financeClerk:   setSigFinanceClerk?.value.trim()   || DEFAULT_SIG.financeClerk,
       accountant:     setSigAccountant?.value.trim()     || DEFAULT_SIG.accountant,
       financeManager: setSigFinanceManager?.value.trim() || DEFAULT_SIG.financeManager
@@ -6763,6 +6769,8 @@ Cancel = Append`);
 
   setCashBalance?.addEventListener("input",       queueSaveSettings);
   setBankBalance?.addEventListener("input",       queueSaveSettings);
+  setPnbSavingsBalance?.addEventListener("input", queueSaveSettings);
+  setLandbankBalance?.addEventListener("input",   queueSaveSettings);
   setSigFinanceClerk?.addEventListener("input",   queueSaveSettings);
   setSigAccountant?.addEventListener("input",     queueSaveSettings);
   setSigFinanceManager?.addEventListener("input", queueSaveSettings);
@@ -7271,7 +7279,9 @@ const reportDatePicker = $("#reportDatePicker");
 
     // ---------------- Summary ----------------
     const cashOnHand = totalCashReceived - totalCashExpenses;
-    const cashInBank = totalBankReceived - totalBankExpense;
+    // Compute per-account balances using opening balances + all transactions up to selected date
+    const acctBalances  = computeAccountBalances(selectedYmd);
+    const cashInBank    = (acctBalances.pnbChecking||0) + (acctBalances.pnbSavings||0) + (acctBalances.landbank||0);
 
     content.innerHTML = `
       <div class="dr-section-spacer"></div>
@@ -7365,7 +7375,10 @@ const reportDatePicker = $("#reportDatePicker");
           <tbody>
             <tr class="dr-grand-row"><td></td><td></td><td>Cash On Hand</td><td></td><td style="text-align:right;">${fmtMoney(cashOnHand)}</td></tr>
             <tr><td colspan="5" style="height:10px; border:none; background:transparent;"></td></tr>
-            <tr class="dr-grand-row"><td></td><td></td><td>Cash in Bank</td><td></td><td style="text-align:right;">${fmtMoney(cashInBank)}</td></tr>
+            <tr class="dr-grand-row"><td></td><td></td><td><strong>Cash in Bank</strong></td><td></td><td style="text-align:right;">${fmtMoney(cashInBank)}</td></tr>
+            <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">PNB Checking</td><td></td><td style="text-align:right;">${fmtMoney(acctBalances.pnbChecking)}</td></tr>
+            <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">PNB Savings</td><td></td><td style="text-align:right;">${fmtMoney(acctBalances.pnbSavings)}</td></tr>
+            <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">Landbank</td><td></td><td style="text-align:right;">${fmtMoney(acctBalances.landbank)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -7504,31 +7517,85 @@ const reportDatePicker = $("#reportDatePicker");
 
   
 
-  function computeCashInBankBefore(selectedYmd){
-    // Ensure latest stores are loaded
-    try{ const t = loadBankStore(); if(Array.isArray(t)) bankStore = t; }catch{}
-    try{ const t = loadBankExpStore(); if(Array.isArray(t)) bankExpStore = t; }catch{}
-    try{ const t = loadPnbStore(); if(Array.isArray(t)) pnbStore = t; }catch{}
+  // ─────────────────────────────────────────────────────────────
+  // Per-account balance computation
+  // Parses Bank Expense "Particular" for transfer keywords:
+  //   "from [source] to [dest]" — deduct from source, add to dest
+  // Account name aliases used for matching:
+  //   PNB Checking: "pnb checking", "pnb deposit", "pnb"
+  //   PNB Savings:  "pnb savings"
+  //   Landbank:     "landbank"
+  // ─────────────────────────────────────────────────────────────
+  function parseTransfer(particular) {
+    // Returns { from: accountKey, to: accountKey } or null
+    const p = (particular || "").toLowerCase();
+    const fromMatch = p.match(/from\s+(pnb\s+checking|pnb\s+deposit|pnb\s+savings|pnb|landbank)/i);
+    const toMatch   = p.match(/to\s+(pnb\s+checking|pnb\s+deposit|pnb\s+savings|pnb|landbank)/i);
+    if (!fromMatch && !toMatch) return null;
+    const normalize = s => {
+      s = (s || "").toLowerCase().trim();
+      if (s.includes("savings"))         return "pnbSavings";
+      if (s.includes("landbank"))        return "landbank";
+      if (s.includes("pnb"))             return "pnbChecking";
+      return null;
+    };
+    return {
+      from: normalize(fromMatch?.[1] || ""),
+      to:   normalize(toMatch?.[1]   || ""),
+    };
+  }
 
-    // Starting value from Settings (Bank Received Balance)
-    const bankEl = document.querySelector("#setBankBalance");
-    let cashInBank = Number(bankEl?.value || 0);
-    if(!Number.isFinite(cashInBank)) cashInBank = 0;
+  function computeAccountBalances(upToYmd) {
+    // Opening balances from Settings
+    const checkingBal  = Number(document.getElementById("setBankBalance")?.value)         || 0;
+    const savingsBal   = Number(document.getElementById("setPnbSavingsBalance")?.value)   || 0;
+    const landbankBal  = Number(document.getElementById("setLandbankBalance")?.value)     || 0;
 
+    const balances = { pnbChecking: checkingBal, pnbSavings: savingsBal, landbank: landbankBal };
+
+    // Collect all relevant dates up to and including upToYmd
     const dates = new Set();
-    for(const r of (bankStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
-    for(const r of (bankExpStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
-    for(const r of (pnbStore||[])){ const d=drParseYmd(r.date); if(d) dates.add(d); }
-    const sorted = Array.from(dates).sort();
+    for (const r of (bankStore||[]))       { const d = drParseYmd(r.date); if (d && d <= upToYmd) dates.add(d); }
+    for (const r of (bankExpStore||[]))    { const d = drParseYmd(r.date); if (d && d <= upToYmd) dates.add(d); }
+    for (const r of (pnbStore||[]))        { const d = drParseYmd(r.date); if (d && d <= upToYmd) dates.add(d); }
+    for (const r of (pnbSavingsStore||[])){ const d = drParseYmd(r.date); if (d && d <= upToYmd) dates.add(d); }
+    for (const r of (landbankStore||[]))  { const d = drParseYmd(r.date); if (d && d <= upToYmd) dates.add(d); }
 
-    for(const d of sorted){
-      if(d >= selectedYmd) break;
-      const bankIn  = (bankStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
-      const pnbIn   = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
-      const bankOut = (bankExpStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.withdraw)||0),0);
-      cashInBank = (cashInBank + bankIn + pnbIn) - bankOut;
+    for (const d of Array.from(dates).sort()) {
+      // PNB Checking deposits (pnbStore = PNB Checking tab)
+      for (const r of (pnbStore||[]).filter(r => drParseYmd(r.date) === d))
+        balances.pnbChecking += Number(r.amount) || 0;
+
+      // PNB Savings deposits
+      for (const r of (pnbSavingsStore||[]).filter(r => drParseYmd(r.date) === d))
+        balances.pnbSavings += Number(r.amount) || 0;
+
+      // Landbank deposits
+      for (const r of (landbankStore||[]).filter(r => drParseYmd(r.date) === d))
+        balances.landbank += Number(r.amount) || 0;
+
+      // Bank Expense — parse for transfers and direct withdrawals
+      for (const r of (bankExpStore||[]).filter(r => drParseYmd(r.date) === d)) {
+        const amt      = Number(r.withdraw) || 0;
+        const transfer = parseTransfer(r.particular);
+        if (transfer && transfer.from && transfer.to) {
+          // Transfer: deduct from source, add to destination
+          if (balances[transfer.from] !== undefined) balances[transfer.from] -= amt;
+          if (balances[transfer.to]   !== undefined) balances[transfer.to]   += amt;
+        } else {
+          // Regular bank expense — deducts from PNB Checking (main bank account)
+          balances.pnbChecking -= amt;
+        }
+      }
     }
-    return cashInBank;
+
+    return balances;
+  }
+
+  function computeCashInBankBefore(selectedYmd){
+    // Returns combined balance of all 3 accounts — used for Balance Forwarded
+    const b = computeAccountBalances(selectedYmd);
+    return (b.pnbChecking||0) + (b.pnbSavings||0) + (b.landbank||0);
   }
 
   // ── Deselect row when clicking blank space outside any data row ──

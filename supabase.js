@@ -330,8 +330,10 @@ window.DB = {
     const existing = await this.getSettings();
     const payload = {
       id: existing?.id || undefined,
-      cash_balance:    Number(obj.cashBalance)    || 0,
-      bank_balance:    Number(obj.bankBalance)    || 0,
+      cash_balance:           Number(obj.cashBalance)          || 0,
+      bank_balance:           Number(obj.bankBalance)          || 0,
+      pnb_savings_balance:    Number(obj.pnbSavingsBalance)    || 0,
+      landbank_balance:       Number(obj.landbankBalance)      || 0,
       finance_clerk:   obj.financeClerk   || "Jennifer F. Landicho",
       accountant:      obj.accountant     || "Ranni V. Dalisay",
       finance_manager: obj.financeManager || "June Lizette M. Quizon",
