@@ -7248,9 +7248,7 @@ const reportDatePicker = $("#reportDatePicker");
     for(const d of sorted){
       if(d >= selectedYmd) break;
       const cashIn = (cashStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
-      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0)
-                + (pnbSavingsStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0)
-                + (landbankStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
+      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       const cashOut = (cashExpStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       cashOnHand = (cashOnHand + cashIn - pnb) - cashOut;
     }
@@ -7276,9 +7274,9 @@ const reportDatePicker = $("#reportDatePicker");
     const cashBF = computeCashOnHandBefore(selectedYmd);
     const cashRows = (cashStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     const cashCollection = cashRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0)
-                + (pnbSavingsStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0)
-                + (landbankStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0);
+    // Only PNB Checking deposits are deducted from Cash Received
+    // PNB Savings and Landbank are managed separately through their own tabs
+    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0);
     const cashTotal = cashBF + cashCollection;
     const totalCashReceived = cashTotal - pnb;
 
@@ -7391,7 +7389,7 @@ const reportDatePicker = $("#reportDatePicker");
             ${cashBody || `<tr><td colspan="5" class="dr-muted">(no matching Cash Received entries)</td></tr>`}
             <tr class="dr-total-row"><td>Cash collection for the day</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(cashCollection)}</td></tr>
             <tr class="dr-total-row"><td>Total</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(cashTotal)}</td></tr>
-            <tr class="dr-total-row"><td>Less: PNB Savings, PNB Checking and Landbank</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(pnb)}</td></tr>
+            <tr class="dr-total-row"><td>Less: PNB Checking</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(pnb)}</td></tr>
             <tr class="dr-grand-row"><td>Total Cash Received</td><td></td><td></td><td></td><td style="text-align:right;">${fmtMoney(totalCashReceived)}</td></tr>
           </tbody>
         </table>
