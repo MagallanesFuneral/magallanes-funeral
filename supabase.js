@@ -105,10 +105,14 @@ function bankExpFromDb(r) {
 
 function pnbToDb(r) {
   return { id: r.id || undefined, date: r.date || null,
-    amount: Number(r.amount) || 0 };
+    amount: Number(r.amount) || 0,
+    source:    r.source    || "cash",
+    linked_id: r.linkedId  || null };
 }
 function pnbFromDb(r) {
-  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0,
+    source:   r.source    || "cash",
+    linkedId: r.linked_id || null };
 }
 
 function pnbSavingsToDb(r) {

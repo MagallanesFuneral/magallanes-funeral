@@ -5065,7 +5065,7 @@ function fmtMoney(n) {
     tr.classList.add("pnbMonthHeader");
     tr.dataset.rowType = "pnbMonthHeader";
     const td = document.createElement("td");
-    td.colSpan = 2;
+    td.colSpan = 3;
     td.textContent = String(label||"").toUpperCase();
     tr.appendChild(td);
     return tr;
@@ -5076,7 +5076,8 @@ function fmtMoney(n) {
     tr.dataset.rowType = "pnbMonthTotal";
     const td1 = document.createElement("td"); td1.textContent="TOTAL"; td1.classList.add("label");
     const td2 = document.createElement("td"); td2.textContent=fmtMoney(total); td2.classList.add("num");
-    tr.append(td1, td2);
+    const td3 = document.createElement("td");
+    tr.append(td1, td2, td3);
     return tr;
   }
   function pnbGrandTotalRow(total) {
@@ -5085,14 +5086,15 @@ function fmtMoney(n) {
     tr.dataset.rowType = "pnbGrandTotal";
     const td1 = document.createElement("td"); td1.textContent="GRAND TOTAL"; td1.classList.add("label");
     const td2 = document.createElement("td"); td2.textContent=fmtMoney(total); td2.classList.add("num");
-    tr.append(td1, td2);
+    const td3 = document.createElement("td");
+    tr.append(td1, td2, td3);
     return tr;
   }
   function pnbSpacerRow() {
     const tr = document.createElement("tr");
     tr.classList.add("spacer");
     tr.dataset.rowType = "spacer";
-    const td = document.createElement("td"); td.colSpan=2; td.textContent="";
+    const td = document.createElement("td"); td.colSpan=3; td.textContent="";
     tr.appendChild(td);
     return tr;
   }
@@ -5203,12 +5205,12 @@ function fmtMoney(n) {
     const source = pdSource?.value || "cash"; // "cash" | "pnbSavings" | "landbank"
 
     if (pnbMode === "add") {
-      // ── Add the positive entry to PNB Checking ──
-      const entry = ensurePnbId({ date, amount });
+      // ── Add the positive entry to PNB Checking (with source label) ──
+      const entry = ensurePnbId({ date, amount, source });
       DB.savePnbDeposit(entry).then(saved => { if (saved) entry.id = saved.id; });
       pnbStore.push(entry);
 
-      // ── If source is another bank account, add a negative debit entry there ──
+      // ── If source is another bank account, add a linked negative debit entry there ──
       if (source === "pnbSavings" || source === "landbank") {
         const debitEntry = {
           date,
@@ -5216,12 +5218,24 @@ function fmtMoney(n) {
           _id: Math.random().toString(36).slice(2)
         };
         if (source === "pnbSavings") {
-          DB.savePnbSavings(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+          DB.savePnbSavings(debitEntry).then(saved => {
+            if (saved) {
+              debitEntry.id = saved.id;
+              // Back-link: store the debit id on the checking entry so delete can find it
+              entry.linkedId = saved.id;
+              DB.savePnbDeposit(entry);
+            }
+          });
           pnbSavingsStore.push(debitEntry);
-          // Re-render after a tick so the factory ref is guaranteed to be set
           setTimeout(() => { if (_renderPnbSavingsTable) _renderPnbSavingsTable(); }, 50);
         } else {
-          DB.saveLandbank(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+          DB.saveLandbank(debitEntry).then(saved => {
+            if (saved) {
+              debitEntry.id = saved.id;
+              entry.linkedId = saved.id;
+              DB.savePnbDeposit(entry);
+            }
+          });
           landbankStore.push(debitEntry);
           setTimeout(() => { if (_renderLandbankTable) _renderLandbankTable(); }, 50);
         }
@@ -5251,8 +5265,31 @@ function fmtMoney(n) {
     if (!pnbSelectedKey) return alert("Please select a PNB Checking row first.");
     if (!confirm("Delete the selected PNB Checking entry?")) return;
     const rowPNB = pnbStore.find(x => pnbKeyFor(x) === pnbSelectedKey);
-    if (rowPNB?.id) DB.deletePnbDeposit(rowPNB.id);
+    if (!rowPNB) return;
+
+    // Delete from PNB Checking
+    if (rowPNB.id) DB.deletePnbDeposit(rowPNB.id);
     pnbStore = pnbStore.filter(x => pnbKeyFor(x) !== pnbSelectedKey);
+
+    // Also delete the linked debit entry from the source account
+    if (rowPNB.linkedId) {
+      if (rowPNB.source === "pnbSavings") {
+        const linked = pnbSavingsStore.find(r => r.id === rowPNB.linkedId);
+        if (linked) {
+          DB.deletePnbSavings(linked.id);
+          pnbSavingsStore.splice(pnbSavingsStore.indexOf(linked), 1);
+          setTimeout(() => { if (_renderPnbSavingsTable) _renderPnbSavingsTable(); }, 50);
+        }
+      } else if (rowPNB.source === "landbank") {
+        const linked = landbankStore.find(r => r.id === rowPNB.linkedId);
+        if (linked) {
+          DB.deleteLandbank(linked.id);
+          landbankStore.splice(landbankStore.indexOf(linked), 1);
+          setTimeout(() => { if (_renderLandbankTable) _renderLandbankTable(); }, 50);
+        }
+      }
+    }
+
     renderPnbTable();
   });
 
