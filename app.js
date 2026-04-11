@@ -5144,9 +5144,14 @@ function fmtMoney(n) {
         tr.dataset.rowType = "data";
         tr.dataset.key = pnbKeyFor(r);
 
-        const tdDate = document.createElement("td"); tdDate.textContent = r.date;
-        const tdAmt = document.createElement("td"); tdAmt.textContent = fmtMoney(r.amount); tdAmt.classList.add("num");
-        tr.append(tdDate, tdAmt);
+        const tdDate = document.createElement("td"); tdDate.textContent = r.date || "";
+        const tdAmt  = document.createElement("td"); tdAmt.classList.add("num");
+        tdAmt.textContent = fmtMoney(r.amount);
+        // Source column — default to "Cash on Hand" for any missing/null/undefined source
+        const srcLabels = { cash: "Cash on Hand", pnbSavings: "PNB Savings", landbank: "Landbank" };
+        const tdSrc = document.createElement("td");
+        tdSrc.textContent = srcLabels[r.source] || "Cash on Hand";
+        tr.append(tdDate, tdAmt, tdSrc);
         pnbTable.tBodies[0].appendChild(tr);
 
         monthTotal += Number(r.amount)||0;
