@@ -1778,6 +1778,21 @@
           <span>Amount</span>
           <input class="input" id="pdAmount" type="number" step="0.01" value="0.00" required />
         </label>
+
+        <label class="field" id="pdSourceField">
+          <span>Source of Funds</span>
+          <select class="input" id="pdSource">
+            <option value="cash">Cash on Hand</option>
+            <option value="pnbSavings">PNB Savings</option>
+            <option value="landbank">Landbank</option>
+          </select>
+        </label>
+
+        <div class="field" id="pdTransferNote" style="display:none; grid-column:1/-1;">
+          <span style="font-size:12px; color:#856404; background:#fff3cd; padding:6px 10px; border-radius:6px; display:block;">
+            ⚠️ This will add the amount to <strong>PNB Checking</strong> and deduct it from the selected source account. Both entries will be recorded.
+          </span>
+        </div>
       </div>
 
       <div class="modal-actions">

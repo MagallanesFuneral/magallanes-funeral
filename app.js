@@ -4882,8 +4882,10 @@ function fmtMoney(n) {
   const btnCancelPnb = $("#btnCancelPnb");
   const btnSubmitPnb = $("#btnSubmitPnb");
 
-  const pdDate = $("#pdDate");
+  const pdDate   = $("#pdDate");
   const pdAmount = $("#pdAmount");
+  const pdSource = $("#pdSource");
+  const pdTransferNote = $("#pdTransferNote");
 
   const PNB_STORE_KEY = "mf_pnb_deposit_store_v38";
 
@@ -5010,6 +5012,12 @@ function fmtMoney(n) {
   });
   setPnbFilterInputs(pnbFilterCategory?.value || "");
 
+  // Show/hide transfer note when source changes
+  pdSource?.addEventListener("change", () => {
+    const isTransfer = pdSource.value !== "cash";
+    if (pdTransferNote) pdTransferNote.style.display = isTransfer ? "block" : "none";
+  });
+
   function openPnbModal(mode, keyOrNull=null) {
     if (!pnbOverlay || !pnbModal) { alert("PNB Deposit form not available."); return; }
     pnbMode = mode; pnbEditingKey = null;
@@ -5019,6 +5027,9 @@ function fmtMoney(n) {
       btnSubmitPnb.textContent = "Add Entry";
       pdDate.value = new Date().toISOString().slice(0,10);
       pdAmount.value = "0.00";
+      // Reset source to Cash on Hand and hide transfer note
+      if (pdSource)       { pdSource.value = "cash"; pdSource.closest(".field").style.display = ""; }
+      if (pdTransferNote) { pdTransferNote.style.display = "none"; }
     } else {
       pnbTitle.textContent = "Edit Entry";
       pnbSubtitle.textContent = "Update the selected PNB Checking entry.";
@@ -5029,6 +5040,9 @@ function fmtMoney(n) {
       pnbEditingKey = key;
       pdDate.value = pdMMDDYYYYToYyyyMMdd(found.date) || new Date().toISOString().slice(0,10);
       pdAmount.value = (Number(found.amount)||0).toFixed(2);
+      // Hide source selector in edit mode — transfers only on new entries
+      if (pdSource)       pdSource.closest(".field").style.display = "none";
+      if (pdTransferNote) pdTransferNote.style.display = "none";
     }
     pnbOverlay.classList.add("is-open");
     pnbModal.classList.add("is-open");
@@ -5184,19 +5198,40 @@ function fmtMoney(n) {
 
   pnbForm?.addEventListener("submit",(e)=>{
     e.preventDefault();
-    const date = pdYyyyMMddToMMDDYYYY(pdDate.value) || "";
+    const date   = pdYyyyMMddToMMDDYYYY(pdDate.value) || "";
     const amount = parseMoneyPD(pdAmount.value);
+    const source = pdSource?.value || "cash"; // "cash" | "pnbSavings" | "landbank"
 
     if (pnbMode === "add") {
+      // ── Add the positive entry to PNB Checking ──
       const entry = ensurePnbId({ date, amount });
       DB.savePnbDeposit(entry).then(saved => { if (saved) entry.id = saved.id; });
       pnbStore.push(entry);
+
+      // ── If source is another bank account, add a negative entry there ──
+      if (source === "pnbSavings") {
+        const debit = { date, amount: -Math.abs(amount), note: `Transfer to PNB Checking` };
+        // Use the initDepositTab factory store directly
+        const debitEntry = { date, amount: -Math.abs(amount), _id: Math.random().toString(36).slice(2) };
+        DB.savePnbSavings(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+        pnbSavingsStore.push(debitEntry);
+        // Re-render savings table
+        if (_renderPnbSavingsTable) _renderPnbSavingsTable();
+      } else if (source === "landbank") {
+        const debitEntry = { date, amount: -Math.abs(amount), _id: Math.random().toString(36).slice(2) };
+        DB.saveLandbank(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+        landbankStore.push(debitEntry);
+        // Re-render landbank table
+        if (_renderLandbankTable) _renderLandbankTable();
+      }
+
       closePnbModal();
       renderPnbTable();
       selectPnbKey(pnbKeyFor(entry));
       return;
     }
 
+    // ── Edit mode — transfers only available on new entries, not edits ──
     const key = pnbEditingKey;
     if (!key) return;
     const idx = pnbStore.findIndex(x => pnbKeyFor(x) === key);
@@ -5708,6 +5743,9 @@ Cancel = Append`);
   }
 
   // ── Wire up PNB Savings tab ──
+  let _renderPnbSavingsTable = null;
+  let _renderLandbankTable   = null;
+
   const pnbSavingsTab = initDepositTab({
     name:             "PNB Savings",
     store:            pnbSavingsStore,
@@ -5743,6 +5781,8 @@ Cancel = Append`);
   });
 
   // ── Wire up Landbank tab ──
+  _renderPnbSavingsTable = pnbSavingsTab?.renderTable;
+
   const landbankTab = initDepositTab({
     name:             "Landbank",
     store:            landbankStore,
@@ -5776,6 +5816,8 @@ Cancel = Append`);
     dbDelete: id => DB.deleteLandbank(id),
     exportFilename: `Magallanes_Landbank_${new Date().toISOString().slice(0,10)}.xls`,
   });
+
+  _renderLandbankTable = landbankTab?.renderTable;
 
   // Load PNB Savings and Landbank from Supabase then re-render
   DB.getPnbSavings().then(rows => {
