@@ -5208,21 +5208,23 @@ function fmtMoney(n) {
       DB.savePnbDeposit(entry).then(saved => { if (saved) entry.id = saved.id; });
       pnbStore.push(entry);
 
-      // ── If source is another bank account, add a negative entry there ──
-      if (source === "pnbSavings") {
-        const debit = { date, amount: -Math.abs(amount), note: `Transfer to PNB Checking` };
-        // Use the initDepositTab factory store directly
-        const debitEntry = { date, amount: -Math.abs(amount), _id: Math.random().toString(36).slice(2) };
-        DB.savePnbSavings(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
-        pnbSavingsStore.push(debitEntry);
-        // Re-render savings table
-        if (_renderPnbSavingsTable) _renderPnbSavingsTable();
-      } else if (source === "landbank") {
-        const debitEntry = { date, amount: -Math.abs(amount), _id: Math.random().toString(36).slice(2) };
-        DB.saveLandbank(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
-        landbankStore.push(debitEntry);
-        // Re-render landbank table
-        if (_renderLandbankTable) _renderLandbankTable();
+      // ── If source is another bank account, add a negative debit entry there ──
+      if (source === "pnbSavings" || source === "landbank") {
+        const debitEntry = {
+          date,
+          amount: -Math.abs(amount),
+          _id: Math.random().toString(36).slice(2)
+        };
+        if (source === "pnbSavings") {
+          DB.savePnbSavings(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+          pnbSavingsStore.push(debitEntry);
+          // Re-render after a tick so the factory ref is guaranteed to be set
+          setTimeout(() => { if (_renderPnbSavingsTable) _renderPnbSavingsTable(); }, 50);
+        } else {
+          DB.saveLandbank(debitEntry).then(saved => { if (saved) debitEntry.id = saved.id; });
+          landbankStore.push(debitEntry);
+          setTimeout(() => { if (_renderLandbankTable) _renderLandbankTable(); }, 50);
+        }
       }
 
       closePnbModal();
