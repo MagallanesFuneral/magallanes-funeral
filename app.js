@@ -7248,7 +7248,7 @@ const reportDatePicker = $("#reportDatePicker");
     for(const d of sorted){
       if(d >= selectedYmd) break;
       const cashIn = (cashStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
-      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
+      const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===d && (!r.source || r.source==='cash')).reduce((a,r)=>a+(Number(r.amount)||0),0);
       const cashOut = (cashExpStore||[]).filter(r=>drParseYmd(r.date)===d).reduce((a,r)=>a+(Number(r.amount)||0),0);
       cashOnHand = (cashOnHand + cashIn - pnb) - cashOut;
     }
@@ -7274,9 +7274,9 @@ const reportDatePicker = $("#reportDatePicker");
     const cashBF = computeCashOnHandBefore(selectedYmd);
     const cashRows = (cashStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     const cashCollection = cashRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    // Only PNB Checking deposits are deducted from Cash Received
-    // PNB Savings and Landbank are managed separately through their own tabs
-    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd).reduce((a,r)=>a+(Number(r.amount)||0),0);
+    // Only PNB Checking deposits sourced from Cash on Hand are deducted
+    // Transfers from PNB Savings/Landbank are excluded — they don't affect cash on hand
+    const pnb = (pnbStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd && (!r.source || r.source==='cash')).reduce((a,r)=>a+(Number(r.amount)||0),0);
     const cashTotal = cashBF + cashCollection;
     const totalCashReceived = cashTotal - pnb;
 
