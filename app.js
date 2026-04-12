@@ -5165,6 +5165,23 @@ function fmtMoney(n) {
     if (rows.length) {
       pnbTable.tBodies[0].appendChild(pnbSpacerRow());
       pnbTable.tBodies[0].appendChild(pnbGrandTotalRow(grand));
+
+      // ── Running Balance row ──
+      const openingBal = Number(document.querySelector("#setBankBalance")?.value) || 0;
+      const runningBal = openingBal + grand;
+      pnbTable.tBodies[0].appendChild(pnbSpacerRow());
+      const rbTr = document.createElement("tr"); rbTr.dataset.rowType = "runningBalance";
+      rbTr.style.cssText = "background:transparent;";
+      const rbL = document.createElement("td");
+      rbL.textContent = "Running Balance";
+      rbL.colSpan = 2;
+      rbL.style.cssText = "text-align:right; font-weight:800; font-size:13px; padding:8px 10px; border-top:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); border-bottom:none; border-left:none; border-right:none; background:transparent;";
+      const rbV = document.createElement("td");
+      rbV.textContent = fmtMoney(runningBal);
+      rbV.classList.add("num");
+      rbV.style.cssText = "font-weight:800; font-size:13px; padding:8px 10px; border-top:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); border-bottom:none; border-left:none; border-right:none; background:transparent;";
+      rbTr.append(rbL, rbV);
+      pnbTable.tBodies[0].appendChild(rbTr);
     }
 
     pnbSelectedKey = null;
@@ -5613,6 +5630,23 @@ function fmtMoney(n) {
         const gl = document.createElement("td"); gl.textContent = "Grand Total"; gtr.appendChild(gl);
         const gv = document.createElement("td"); gv.classList.add("num"); gv.textContent = fmtMoney(grand); gtr.appendChild(gv);
         tbody.appendChild(gtr);
+
+        // ── Running Balance row ──
+        const openingBal = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
+        const runningBal = openingBal + grand;
+        const spRb = document.createElement("tr"); spRb.classList.add("spacer-row");
+        const spRbTd = document.createElement("td"); spRbTd.colSpan = 2; spRb.appendChild(spRbTd); tbody.appendChild(spRb);
+        const rbTr = document.createElement("tr"); rbTr.dataset.rowType = "runningBalance";
+        rbTr.style.cssText = "background:transparent;";
+        const rbL = document.createElement("td");
+        rbL.textContent = "Running Balance";
+        rbL.style.cssText = "text-align:right; font-weight:800; font-size:13px; padding:8px 10px; border-top:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); border-bottom:none; border-left:none; border-right:none; background:transparent;";
+        const rbV = document.createElement("td");
+        rbV.textContent = fmtMoney(runningBal);
+        rbV.classList.add("num");
+        rbV.style.cssText = "font-weight:800; font-size:13px; padding:8px 10px; border-top:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); border-bottom:none; border-left:none; border-right:none; background:transparent;";
+        rbTr.append(rbL, rbV);
+        tbody.appendChild(rbTr);
       }
 
       if (rowCountEl) rowCountEl.textContent = `Rows: ${filtered.length}`;
@@ -5792,6 +5826,7 @@ Cancel = Append`);
 
   const pnbSavingsTab = initDepositTab({
     name:             "PNB Savings",
+    openingBalanceId: "setPnbSavingsBalance",
     store:            pnbSavingsStore,
     tableId:          "pnbSavingsTable",
     rowCountId:       "pnbSavingsRowCount",
@@ -5829,6 +5864,7 @@ Cancel = Append`);
 
   const landbankTab = initDepositTab({
     name:             "Landbank",
+    openingBalanceId: "setLandbankBalance",
     store:            landbankStore,
     tableId:          "landbankTable",
     rowCountId:       "landbankRowCount",
