@@ -9160,17 +9160,22 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${placeholder}" />`;
         inp.appendChild(w);
       };
-      const makeNum = (label, placeholder) => {
+      const makeRange = (label) => {
+        // Both Min and Max in one inline row
         const w = document.createElement("label");
         w.className = "field inline";
-        w.innerHTML = `<span>${label}</span><input class="input" type="number" step="0.01" placeholder="${placeholder}" />`;
+        w.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:nowrap;";
+        w.innerHTML = `<span>${label}</span>`
+          + `<input class="input" type="number" step="0.01" placeholder="Min" style="width:90px;" />`
+          + `<span style="opacity:0.5;">–</span>`
+          + `<input class="input" type="number" step="0.01" placeholder="Max" style="width:90px;" />`;
         inp.appendChild(w);
       };
       if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); return; }
       if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); return; }
       if (cat === "deliveries") { makeText("Deliveries", "contains..."); return; }
-      if (cat === "amount")     { makeNum("Min Amount", "0.00"); makeNum("Max Amount", "99999.00"); return; }
-      if (cat === "payments")   { makeNum("Min Payment", "0.00"); makeNum("Max Payment", "99999.00"); return; }
+      if (cat === "amount")     { makeRange("Amount"); return; }
+      if (cat === "payments")   { makeRange("Payments"); return; }
     }
 
     function getBranchFilterFromUI() {
@@ -9187,9 +9192,10 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return v ? { cat, value: v } : null;
       }
       if (cat === "amount" || cat === "payments") {
+        // Both inputs are inside a single wrapper — querySelectorAll finds them in order
         const mn = parseFloat(inputs[0]?.value) || 0;
-        const mx = parseFloat(inputs[1]?.value) || Infinity;
-        return { cat, min: mn, max: mx };
+        const mx = parseFloat(inputs[1]?.value);
+        return { cat, min: mn, max: isFinite(mx) ? mx : Infinity };
       }
       return null;
     }
