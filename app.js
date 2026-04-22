@@ -5572,69 +5572,46 @@ function fmtMoney(n) {
       renderTable();
     });
 
-    // ── Filter logic ──
+    // ── Filter logic (Cash Received style) ──
     let branchActiveFilter = null;
 
-    const MONTHS = ["January","February","March","April","May","June",
-                    "July","August","September","October","November","December"];
-
-    function buildFilterInputs(cat) {
+    function setBranchFilterInputs(cat) {
       const inp = $(cfg.filterInputsId);
       if (!inp) return;
       inp.innerHTML = "";
-      if (cat === "specificDate") {
-        inp.innerHTML = `<input class="input" type="date" style="width:160px;" />`;
-      } else if (cat === "month") {
-        inp.innerHTML = `<select class="select" style="width:140px;">
-          ${MONTHS.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join("")}
-        </select>`;
-      } else if (cat === "year") {
-        const yr = new Date().getFullYear();
-        const opts = Array.from({length:8},(_,i)=>yr-3+i).map(y=>`<option value="${y}">${y}</option>`).join("");
-        inp.innerHTML = `<select class="select" style="width:100px;">${opts}</select>`;
-      } else if (cat === "monthYear") {
-        const yr = new Date().getFullYear();
-        const mOpts = MONTHS.map((m,i)=>`<option value="${String(i+1).padStart(2,'0')}">${m}</option>`).join("");
-        const yOpts = Array.from({length:8},(_,i)=>yr-3+i).map(y=>`<option value="${y}">${y}</option>`).join("");
-        inp.innerHTML = `<select class="select" style="width:140px;">${mOpts}</select>
-                         <select class="select" style="width:100px;">${yOpts}</select>`;
-      } else if (cat === "drNo") {
-        inp.innerHTML = `<input class="input" type="text" placeholder="DR No." style="width:140px;" />`;
-      } else if (cat === "deliveries") {
-        inp.innerHTML = `<input class="input" type="text" placeholder="Search deliveries..." style="width:200px;" />`;
-      } else if (cat === "amount" || cat === "payments") {
-        inp.innerHTML = `<input class="input" type="number" placeholder="Min" style="width:100px;" />
-                         <input class="input" type="number" placeholder="Max" style="width:100px;" />`;
-      }
+      const makeText = (label, placeholder) => {
+        const w = document.createElement("label");
+        w.className = "field inline";
+        w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${placeholder}" />`;
+        inp.appendChild(w);
+      };
+      const makeNum = (label, placeholder) => {
+        const w = document.createElement("label");
+        w.className = "field inline";
+        w.innerHTML = `<span>${label}</span><input class="input" type="number" step="0.01" placeholder="${placeholder}" />`;
+        inp.appendChild(w);
+      };
+      if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); return; }
+      if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); return; }
+      if (cat === "deliveries") { makeText("Deliveries", "contains..."); return; }
+      if (cat === "amount")     { makeNum("Min Amount", "0.00"); makeNum("Max Amount", "99999.00"); return; }
+      if (cat === "payments")   { makeNum("Min Payment", "0.00"); makeNum("Max Payment", "99999.00"); return; }
     }
 
-    function getFilterFromUI() {
+    function getBranchFilterFromUI() {
       const cat = $(cfg.filterCatId)?.value || "";
       const inp = $(cfg.filterInputsId);
       if (!cat || !inp) return null;
-      const inputs = inp.querySelectorAll("input,select");
-      if (cat === "specificDate") {
-        const v = inputs[0]?.value || "";
-        if (!v) return null;
-        // Convert YYYY-MM-DD to MM/DD/YYYY for comparison
-        const [y,m,d] = v.split("-");
-        return { cat, value: `${m}/${d}/${y}` };
-      } else if (cat === "month") {
-        const v = inputs[0]?.value || "";
-        return v ? { cat, value: v } : null;
-      } else if (cat === "year") {
-        const v = inputs[0]?.value || "";
-        return v ? { cat, value: v } : null;
-      } else if (cat === "monthYear") {
-        const m = inputs[0]?.value || "", y = inputs[1]?.value || "";
-        return (m && y) ? { cat, month: m, year: y } : null;
-      } else if (cat === "drNo") {
+      const inputs = Array.from(inp.querySelectorAll("input"));
+      if (cat === "date") {
         const v = (inputs[0]?.value || "").trim();
-        return v ? { cat, value: v.toLowerCase() } : null;
-      } else if (cat === "deliveries") {
-        const v = (inputs[0]?.value || "").trim();
-        return v ? { cat, value: v.toLowerCase() } : null;
-      } else if (cat === "amount" || cat === "payments") {
+        return v ? { cat, value: v } : null;
+      }
+      if (cat === "drNo" || cat === "deliveries") {
+        const v = (inputs[0]?.value || "").trim().toLowerCase();
+        return v ? { cat, value: v } : null;
+      }
+      if (cat === "amount" || cat === "payments") {
         const mn = parseFloat(inputs[0]?.value) || 0;
         const mx = parseFloat(inputs[1]?.value) || Infinity;
         return { cat, min: mn, max: mx };
@@ -5642,36 +5619,38 @@ function fmtMoney(n) {
       return null;
     }
 
-    function rowMatchesFilter(r, f) {
+    function branchRowMatchesFilter(r, f) {
       if (!f) return true;
       const date = r.date || "";
-      // date format: MM/DD/YYYY
-      const parts = date.split("/");
-      const mm = parts[0] || "", dd = parts[1] || "", yyyy = parts[2] || "";
-      if (f.cat === "specificDate") return date === f.value;
-      if (f.cat === "month")    return mm === f.value;
-      if (f.cat === "year")     return yyyy === f.value;
-      if (f.cat === "monthYear") return mm === f.month && yyyy === f.year;
-      if (f.cat === "drNo")     return (r.drNo || "").toLowerCase().includes(f.value);
+      if (f.cat === "date") {
+        const t = f.value;
+        if (/^[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}$/.test(t)) return date === t;
+        if (/^[0-9]{1,2}\/[0-9]{4}$/.test(t)) {
+          const parts = t.split("/");
+          return date.startsWith(parts[0].padStart(2,"0")+"/") && date.endsWith("/"+parts[1]);
+        }
+        if (/^[0-9]{4}$/.test(t)) return date.endsWith("/"+t);
+        return date.includes(t);
+      }
+      if (f.cat === "drNo")       return (r.drNo       || "").toLowerCase().includes(f.value);
       if (f.cat === "deliveries") return (r.deliveries || "").toLowerCase().includes(f.value);
-      if (f.cat === "amount")   { const a = Number(r.amount)   || 0; return a >= f.min && a <= f.max; }
-      if (f.cat === "payments") { const p = Number(r.payments) || 0; return p >= f.min && p <= f.max; }
+      if (f.cat === "amount")  { const a = Number(r.amount)   || 0; return a >= f.min && a <= f.max; }
+      if (f.cat === "payments"){ const p = Number(r.payments) || 0; return p >= f.min && p <= f.max; }
       return true;
     }
 
-    // Wire filter category change
-    $(cfg.filterCatId)?.addEventListener("change", () => {
-      buildFilterInputs($(cfg.filterCatId).value);
-    });
+    // Wire filter events
+    $(cfg.filterCatId)?.addEventListener("change", () => setBranchFilterInputs($(cfg.filterCatId).value));
     $(cfg.applyFilterBtnId)?.addEventListener("click", () => {
-      activeFilter = getFilterFromUI(); renderTable();
+      branchActiveFilter = getBranchFilterFromUI(); renderTable();
     });
     $(cfg.clearFilterBtnId)?.addEventListener("click", () => {
-      activeFilter = null;
+      branchActiveFilter = null;
       if ($(cfg.filterCatId)) $(cfg.filterCatId).value = "";
       if ($(cfg.filterInputsId)) $(cfg.filterInputsId).innerHTML = "";
       renderTable();
     });
+
 
     // ── Render ──
     function renderTable() {
@@ -9251,7 +9230,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     function renderTable() {
       if (!tableEl) return;
       const sorted = cfg.store
-        .filter(r => rowMatchesFilter(r, branchActiveFilter))
+        .filter(r => branchRowMatchesFilter(r, branchActiveFilter))
         .sort((a, b) => {
           const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
           const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
