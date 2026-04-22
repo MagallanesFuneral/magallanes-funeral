@@ -5572,85 +5572,6 @@ function fmtMoney(n) {
       renderTable();
     });
 
-    // ── Filter logic (Cash Received style) ──
-    let branchActiveFilter = null;
-
-    function setBranchFilterInputs(cat) {
-      const inp = $(cfg.filterInputsId);
-      if (!inp) return;
-      inp.innerHTML = "";
-      const makeText = (label, placeholder) => {
-        const w = document.createElement("label");
-        w.className = "field inline";
-        w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${placeholder}" />`;
-        inp.appendChild(w);
-      };
-      const makeNum = (label, placeholder) => {
-        const w = document.createElement("label");
-        w.className = "field inline";
-        w.innerHTML = `<span>${label}</span><input class="input" type="number" step="0.01" placeholder="${placeholder}" />`;
-        inp.appendChild(w);
-      };
-      if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); return; }
-      if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); return; }
-      if (cat === "deliveries") { makeText("Deliveries", "contains..."); return; }
-      if (cat === "amount")     { makeNum("Min Amount", "0.00"); makeNum("Max Amount", "99999.00"); return; }
-      if (cat === "payments")   { makeNum("Min Payment", "0.00"); makeNum("Max Payment", "99999.00"); return; }
-    }
-
-    function getBranchFilterFromUI() {
-      const cat = $(cfg.filterCatId)?.value || "";
-      const inp = $(cfg.filterInputsId);
-      if (!cat || !inp) return null;
-      const inputs = Array.from(inp.querySelectorAll("input"));
-      if (cat === "date") {
-        const v = (inputs[0]?.value || "").trim();
-        return v ? { cat, value: v } : null;
-      }
-      if (cat === "drNo" || cat === "deliveries") {
-        const v = (inputs[0]?.value || "").trim().toLowerCase();
-        return v ? { cat, value: v } : null;
-      }
-      if (cat === "amount" || cat === "payments") {
-        const mn = parseFloat(inputs[0]?.value) || 0;
-        const mx = parseFloat(inputs[1]?.value) || Infinity;
-        return { cat, min: mn, max: mx };
-      }
-      return null;
-    }
-
-    function branchRowMatchesFilter(r, f) {
-      if (!f) return true;
-      const date = r.date || "";
-      if (f.cat === "date") {
-        const t = f.value;
-        if (/^[0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}$/.test(t)) return date === t;
-        if (/^[0-9]{1,2}\/[0-9]{4}$/.test(t)) {
-          const parts = t.split("/");
-          return date.startsWith(parts[0].padStart(2,"0")+"/") && date.endsWith("/"+parts[1]);
-        }
-        if (/^[0-9]{4}$/.test(t)) return date.endsWith("/"+t);
-        return date.includes(t);
-      }
-      if (f.cat === "drNo")       return (r.drNo       || "").toLowerCase().includes(f.value);
-      if (f.cat === "deliveries") return (r.deliveries || "").toLowerCase().includes(f.value);
-      if (f.cat === "amount")  { const a = Number(r.amount)   || 0; return a >= f.min && a <= f.max; }
-      if (f.cat === "payments"){ const p = Number(r.payments) || 0; return p >= f.min && p <= f.max; }
-      return true;
-    }
-
-    // Wire filter events
-    $(cfg.filterCatId)?.addEventListener("change", () => setBranchFilterInputs($(cfg.filterCatId).value));
-    $(cfg.applyFilterBtnId)?.addEventListener("click", () => {
-      branchActiveFilter = getBranchFilterFromUI(); renderTable();
-    });
-    $(cfg.clearFilterBtnId)?.addEventListener("click", () => {
-      branchActiveFilter = null;
-      if ($(cfg.filterCatId)) $(cfg.filterCatId).value = "";
-      if ($(cfg.filterInputsId)) $(cfg.filterInputsId).innerHTML = "";
-      renderTable();
-    });
-
 
     // ── Render ──
     function renderTable() {
@@ -9225,6 +9146,85 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return r;
     }
     function keyFor(r) { return normalizeText(r._id || ""); }
+
+    // ── Filter logic ──
+    let branchActiveFilter = null;
+
+    function setBranchFilterInputs(cat) {
+      const inp = $(cfg.filterInputsId);
+      if (!inp) return;
+      inp.innerHTML = "";
+      const makeText = (label, placeholder) => {
+        const w = document.createElement("label");
+        w.className = "field inline";
+        w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${placeholder}" />`;
+        inp.appendChild(w);
+      };
+      const makeNum = (label, placeholder) => {
+        const w = document.createElement("label");
+        w.className = "field inline";
+        w.innerHTML = `<span>${label}</span><input class="input" type="number" step="0.01" placeholder="${placeholder}" />`;
+        inp.appendChild(w);
+      };
+      if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); return; }
+      if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); return; }
+      if (cat === "deliveries") { makeText("Deliveries", "contains..."); return; }
+      if (cat === "amount")     { makeNum("Min Amount", "0.00"); makeNum("Max Amount", "99999.00"); return; }
+      if (cat === "payments")   { makeNum("Min Payment", "0.00"); makeNum("Max Payment", "99999.00"); return; }
+    }
+
+    function getBranchFilterFromUI() {
+      const cat = $(cfg.filterCatId)?.value || "";
+      const inp = $(cfg.filterInputsId);
+      if (!cat || !inp) return null;
+      const inputs = Array.from(inp.querySelectorAll("input"));
+      if (cat === "date") {
+        const v = (inputs[0]?.value || "").trim();
+        return v ? { cat, value: v } : null;
+      }
+      if (cat === "drNo" || cat === "deliveries") {
+        const v = (inputs[0]?.value || "").trim().toLowerCase();
+        return v ? { cat, value: v } : null;
+      }
+      if (cat === "amount" || cat === "payments") {
+        const mn = parseFloat(inputs[0]?.value) || 0;
+        const mx = parseFloat(inputs[1]?.value) || Infinity;
+        return { cat, min: mn, max: mx };
+      }
+      return null;
+    }
+
+    function branchRowMatchesFilter(r, f) {
+      if (!f) return true;
+      const date = r.date || "";
+      if (f.cat === "date") {
+        const t = f.value;
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(t)) return date === t;
+        if (/^\d{1,2}\/\d{4}$/.test(t)) {
+          const [mm, yyyy] = t.split("/");
+          return date.startsWith(mm.padStart(2,"0")+"/") && date.endsWith("/"+yyyy);
+        }
+        if (/^\d{4}$/.test(t)) return date.endsWith("/"+t);
+        return date.includes(t);
+      }
+      if (f.cat === "drNo")       return (r.drNo       || "").toLowerCase().includes(f.value);
+      if (f.cat === "deliveries") return (r.deliveries || "").toLowerCase().includes(f.value);
+      if (f.cat === "amount")   { const a = Number(r.amount)   || 0; return a >= f.min && a <= f.max; }
+      if (f.cat === "payments") { const p = Number(r.payments) || 0; return p >= f.min && p <= f.max; }
+      return true;
+    }
+
+    // Wire filter events
+    $(cfg.filterCatId)?.addEventListener("change", () => setBranchFilterInputs($(cfg.filterCatId).value));
+    $(cfg.applyFilterBtnId)?.addEventListener("click", () => {
+      branchActiveFilter = getBranchFilterFromUI(); renderTable();
+    });
+    $(cfg.clearFilterBtnId)?.addEventListener("click", () => {
+      branchActiveFilter = null;
+      if ($(cfg.filterCatId)) $(cfg.filterCatId).value = "";
+      if ($(cfg.filterInputsId)) $(cfg.filterInputsId).innerHTML = "";
+      renderTable();
+    });
 
     // ── Render ──
     function renderTable() {
