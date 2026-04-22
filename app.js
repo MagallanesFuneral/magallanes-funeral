@@ -9158,6 +9158,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const tbody = tableEl.tBodies[0];
       tbody.innerHTML = "";
 
+      // Running balance: starts at 0, each row adds Amount and subtracts Payments
+      // Amount increases the balance (delivery/charge), Payment decreases it
       let runningBalance = 0;
       let totalAmount = 0, totalPayments = 0;
 
@@ -9165,7 +9167,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         ensureId(r);
         const amt  = Number(r.amount)   || 0;
         const pay  = Number(r.payments) || 0;
-        runningBalance += amt - pay;
+        runningBalance += amt;   // delivery/charge increases balance
+        runningBalance -= pay;   // payment decreases balance
         totalAmount    += amt;
         totalPayments  += pay;
 
@@ -9174,14 +9177,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tr.dataset.key = keyFor(r);
         if (keyFor(r) === selectedKey) tr.classList.add("selected");
 
+        const balColor = runningBalance > 0
+          ? "color:#e74c3c;font-weight:700;"   // still owes — red
+          : runningBalance < 0
+            ? "color:#27ae60;font-weight:700;"  // overpaid — green
+            : "font-weight:700;opacity:0.5;";   // settled — neutral
+
         const cells = [
           { v: r.date       || "" },
           { v: r.drNo       || "" },
           { v: r.deliveries || "" },
-          { v: fmtMoney(amt),            num: true },
-          { v: fmtMoney(pay),            num: true },
-          { v: fmtMoney(runningBalance), num: true,
-            style: runningBalance < 0 ? "color:#e74c3c;font-weight:700;" : "font-weight:700;" },
+          { v: fmtMoney(amt), num: true },
+          { v: fmtMoney(pay), num: true },
+          { v: fmtMoney(runningBalance), num: true, style: balColor },
         ];
         cells.forEach(c => {
           const td = document.createElement("td");
@@ -9206,7 +9214,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           { v: fmtMoney(totalAmount),    num: true },
           { v: fmtMoney(totalPayments),  num: true },
           { v: fmtMoney(runningBalance), num: true,
-            style: runningBalance < 0 ? "color:#e74c3c;font-weight:800;" : "font-weight:800;" },
+            style: runningBalance > 0 ? "color:#e74c3c;font-weight:800;"
+              : runningBalance < 0 ? "color:#27ae60;font-weight:800;"
+              : "font-weight:800;opacity:0.5;" },
         ].forEach((c, i) => {
           const td = document.createElement("td");
           td.textContent = c.v;
@@ -9230,7 +9240,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const rbV = document.createElement("td"); rbV.classList.add("num");
         rbV.textContent = fmtMoney(runningBalance);
         rbV.style.cssText = "font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
-        if (runningBalance < 0) { rbL.style.color = "#e74c3c"; rbV.style.color = "#e74c3c"; }
+        const rbColor = runningBalance > 0 ? "#e74c3c"
+          : runningBalance < 0 ? "#27ae60" : null;
+        if (rbColor) { rbL.style.color = rbColor; rbV.style.color = rbColor; }
         rbTr.append(rbL, rbV);
         tbody.appendChild(rbTr);
       }
@@ -9353,14 +9365,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td style="${msoT}">${esc(r.deliveries)}</td>
           <td class="num" style="${msoM}">${fmtMoney(amt)}</td>
           <td class="num" style="${msoM}">${fmtMoney(pay)}</td>
-          <td class="num" style="${msoM};${runBal<0?'color:#c0392b;':''}">${fmtMoney(runBal)}</td>
+          <td class="num" style="${msoM};${runBal>0?'color:#c0392b;':runBal<0?'color:#27ae60;':''}">${fmtMoney(runBal)}</td>
         </tr>`;
       }).join("");
       rows += `<tr style="font-weight:700;background:#f2f2f2;">
         <td colspan="3" style="${msoT};text-align:right;">TOTALS</td>
         <td class="num" style="${msoM}">${fmtMoney(totAmt)}</td>
         <td class="num" style="${msoM}">${fmtMoney(totPay)}</td>
-        <td class="num" style="${msoM};${runBal<0?'color:#c0392b;font-weight:800;':'font-weight:800;'}">${fmtMoney(runBal)}</td>
+        <td class="num" style="${msoM};${runBal>0?'color:#c0392b;font-weight:800;':runBal<0?'color:#27ae60;font-weight:800;':'font-weight:800;'}">${fmtMoney(runBal)}</td>
       </tr>`;
       const html = `<!doctype html><html><head><meta charset="utf-8">
         <style>table{border-collapse:collapse;font-family:Calibri,Arial;font-size:11pt;}
