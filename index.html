@@ -317,6 +317,9 @@
     <button class="subtab" role="tab" aria-selected="false" data-subtab="landbank">Landbank</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="dswd">DSWD</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bai">BAI</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="branchSibuyan">Sibuyan</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="branchRomblon">Romblon</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="branchSanJose">San Jose</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
   </nav>
 
@@ -875,6 +878,118 @@
             <th class="num">Amount</th>
             <th>Date Completed</th>
             <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<div class="subpanel" id="subpanel-branchSibuyan" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Sibuyan Branch</h3>
+      <span class="hint">Delivery and payment ledger for Sibuyan branch (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="branchSibuyanRowCount">Rows: 0</span>
+      <span class="kpi" id="branchSibuyanSelected">Selected: —</span>
+    </div>
+  </div>
+  <div class="actions-row" aria-label="Sibuyan branch actions">
+    <button class="btn" id="btnSibuyanAdd">Add Entry</button>
+    <button class="btn btn-secondary" id="btnSibuyanEdit">Edit Selected</button>
+    <button class="btn btn-danger" id="btnSibuyanDelete">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnSibuyanExport">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnSibuyanRefresh">Refresh</button>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="branchSibuyanTable" aria-label="Sibuyan branch table">
+        <thead>
+          <tr>
+            <th style="min-width:110px">Date</th>
+            <th style="min-width:100px">DR No.</th>
+            <th style="min-width:200px">Deliveries</th>
+            <th style="min-width:120px" class="num">Amount</th>
+            <th style="min-width:120px" class="num">Payments</th>
+            <th style="min-width:130px" class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="subpanel" id="subpanel-branchRomblon" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Romblon Branch</h3>
+      <span class="hint">Delivery and payment ledger for Romblon branch (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="branchRomblonRowCount">Rows: 0</span>
+      <span class="kpi" id="branchRomblonSelected">Selected: —</span>
+    </div>
+  </div>
+  <div class="actions-row" aria-label="Romblon branch actions">
+    <button class="btn" id="btnRomblonAdd">Add Entry</button>
+    <button class="btn btn-secondary" id="btnRomblonEdit">Edit Selected</button>
+    <button class="btn btn-danger" id="btnRomblonDelete">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnRomblonExport">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnRomblonRefresh">Refresh</button>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="branchRomblonTable" aria-label="Romblon branch table">
+        <thead>
+          <tr>
+            <th style="min-width:110px">Date</th>
+            <th style="min-width:100px">DR No.</th>
+            <th style="min-width:200px">Deliveries</th>
+            <th style="min-width:120px" class="num">Amount</th>
+            <th style="min-width:120px" class="num">Payments</th>
+            <th style="min-width:130px" class="num">Balance</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="subpanel" id="subpanel-branchSanJose" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>San Jose Branch</h3>
+      <span class="hint">Delivery and payment ledger for San Jose branch (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="branchSanJoseRowCount">Rows: 0</span>
+      <span class="kpi" id="branchSanJoseSelected">Selected: —</span>
+    </div>
+  </div>
+  <div class="actions-row" aria-label="San Jose branch actions">
+    <button class="btn" id="btnSanJoseAdd">Add Entry</button>
+    <button class="btn btn-secondary" id="btnSanJoseEdit">Edit Selected</button>
+    <button class="btn btn-danger" id="btnSanJoseDelete">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnSanJoseExport">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnSanJoseRefresh">Refresh</button>
+  </div>
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="branchSanJoseTable" aria-label="San Jose branch table">
+        <thead>
+          <tr>
+            <th style="min-width:110px">Date</th>
+            <th style="min-width:100px">DR No.</th>
+            <th style="min-width:200px">Deliveries</th>
+            <th style="min-width:120px" class="num">Amount</th>
+            <th style="min-width:120px" class="num">Payments</th>
+            <th style="min-width:130px" class="num">Balance</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -1850,6 +1965,82 @@
       <div class="modal-actions">
         <button type="button" class="btn btn-secondary" id="btnCancelLandbank">Cancel</button>
         <button type="submit" class="btn" id="btnSubmitLandbank">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Branch Modals -->
+  <!-- Sibuyan -->
+  <div class="overlay" id="sibuyanOverlay" aria-hidden="true"></div>
+  <div class="modal" id="sibuyanModal" role="dialog" aria-modal="true" aria-labelledby="sibuyanModalTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="sibuyanModalTitle">Add Entry</div>
+        <div class="modal-subtitle" id="sibuyanModalSubtitle">Enter Sibuyan branch transaction details.</div>
+      </div>
+      <button class="icon-btn" id="btnCloseSibuyan" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="sibuyanForm">
+      <div class="form-grid">
+        <label class="field"><span>Date</span><input class="input" id="sibuyanDate" type="date" required /></label>
+        <label class="field"><span>DR No.</span><input class="input" id="sibuyanDrNo" type="text" placeholder="e.g. DR-001" /></label>
+        <label class="field" style="grid-column:1/-1"><span>Deliveries</span><input class="input" id="sibuyanDeliveries" type="text" placeholder="Description of deliveries" /></label>
+        <label class="field"><span>Amount</span><input class="input" id="sibuyanAmount" type="number" step="0.01" value="0.00" /></label>
+        <label class="field"><span>Payments</span><input class="input" id="sibuyanPayments" type="number" step="0.01" value="0.00" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelSibuyan">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitSibuyan">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Romblon -->
+  <div class="overlay" id="romblonOverlay" aria-hidden="true"></div>
+  <div class="modal" id="romblonModal" role="dialog" aria-modal="true" aria-labelledby="romblonModalTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="romblonModalTitle">Add Entry</div>
+        <div class="modal-subtitle" id="romblonModalSubtitle">Enter Romblon branch transaction details.</div>
+      </div>
+      <button class="icon-btn" id="btnCloseRomblon" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="romblonForm">
+      <div class="form-grid">
+        <label class="field"><span>Date</span><input class="input" id="romblonDate" type="date" required /></label>
+        <label class="field"><span>DR No.</span><input class="input" id="romblonDrNo" type="text" placeholder="e.g. DR-001" /></label>
+        <label class="field" style="grid-column:1/-1"><span>Deliveries</span><input class="input" id="romblonDeliveries" type="text" placeholder="Description of deliveries" /></label>
+        <label class="field"><span>Amount</span><input class="input" id="romblonAmount" type="number" step="0.01" value="0.00" /></label>
+        <label class="field"><span>Payments</span><input class="input" id="romblonPayments" type="number" step="0.01" value="0.00" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelRomblon">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitRomblon">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- San Jose -->
+  <div class="overlay" id="sanJoseOverlay" aria-hidden="true"></div>
+  <div class="modal" id="sanJoseModal" role="dialog" aria-modal="true" aria-labelledby="sanJoseModalTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="sanJoseModalTitle">Add Entry</div>
+        <div class="modal-subtitle" id="sanJoseModalSubtitle">Enter San Jose branch transaction details.</div>
+      </div>
+      <button class="icon-btn" id="btnCloseSanJose" aria-label="Close">✕</button>
+    </div>
+    <form class="form" id="sanJoseForm">
+      <div class="form-grid">
+        <label class="field"><span>Date</span><input class="input" id="sanJoseDate" type="date" required /></label>
+        <label class="field"><span>DR No.</span><input class="input" id="sanJoseDrNo" type="text" placeholder="e.g. DR-001" /></label>
+        <label class="field" style="grid-column:1/-1"><span>Deliveries</span><input class="input" id="sanJoseDeliveries" type="text" placeholder="Description of deliveries" /></label>
+        <label class="field"><span>Amount</span><input class="input" id="sanJoseAmount" type="number" step="0.01" value="0.00" /></label>
+        <label class="field"><span>Payments</span><input class="input" id="sanJosePayments" type="number" step="0.01" value="0.00" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelSanJose">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitSanJose">Add Entry</button>
       </div>
     </form>
   </div>

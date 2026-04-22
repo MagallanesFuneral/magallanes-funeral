@@ -9107,6 +9107,343 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   initMonthlyReport();
 
   // ══════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════
+  // BRANCH LEDGERS — Sibuyan, Romblon, San Jose
+  // Each branch has: Date, DR No., Deliveries, Amount, Payments, Balance
+  // Balance is computed as running balance (cumulative Amount - Payments)
+  // ══════════════════════════════════════════════════════════
+
+  let branchSibuyanStore = [];
+  let branchRomblonStore = [];
+  let branchSanJoseStore = [];
+
+  function initBranchTab(cfg) {
+    // cfg: { branch, store, tableId, rowCountId, selectedId,
+    //        overlayId, modalId, titleId, subtitleId, closeBtnId,
+    //        dateId, drNoId, deliveriesId, amountId, paymentsId,
+    //        cancelBtnId, submitBtnId, formId,
+    //        addBtnId, editBtnId, deleteBtnId, exportBtnId, refreshBtnId,
+    //        dbGet, dbSave, dbDelete }
+
+    const $ = id => document.getElementById(id);
+    const tableEl    = $(cfg.tableId);
+    const rowCountEl = $(cfg.rowCountId);
+    const selectedEl = $(cfg.selectedId);
+    const overlay    = $(cfg.overlayId);
+    const modal      = $(cfg.modalId);
+    const titleEl    = $(cfg.titleId);
+    const subtitleEl = $(cfg.subtitleId);
+
+    if (!tableEl) return;
+
+    let selectedKey = null;
+    let mode        = "add";
+    let editingKey  = null;
+
+    function ensureId(r) {
+      if (!r._id) r._id = Math.random().toString(36).slice(2);
+      return r;
+    }
+    function keyFor(r) { return normalizeText(r._id || ""); }
+
+    // ── Render ──
+    function renderTable() {
+      if (!tableEl) return;
+      const sorted = cfg.store.slice().sort((a, b) => {
+        const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+        const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+        return ad - bd;
+      });
+
+      const tbody = tableEl.tBodies[0];
+      tbody.innerHTML = "";
+
+      let runningBalance = 0;
+      let totalAmount = 0, totalPayments = 0;
+
+      sorted.forEach(r => {
+        ensureId(r);
+        const amt  = Number(r.amount)   || 0;
+        const pay  = Number(r.payments) || 0;
+        runningBalance += amt - pay;
+        totalAmount    += amt;
+        totalPayments  += pay;
+
+        const tr = document.createElement("tr");
+        tr.dataset.rowType = "data";
+        tr.dataset.key = keyFor(r);
+        if (keyFor(r) === selectedKey) tr.classList.add("selected");
+
+        const cells = [
+          { v: r.date       || "" },
+          { v: r.drNo       || "" },
+          { v: r.deliveries || "" },
+          { v: fmtMoney(amt),            num: true },
+          { v: fmtMoney(pay),            num: true },
+          { v: fmtMoney(runningBalance), num: true,
+            style: runningBalance < 0 ? "color:#e74c3c;font-weight:700;" : "font-weight:700;" },
+        ];
+        cells.forEach(c => {
+          const td = document.createElement("td");
+          td.textContent = c.v;
+          if (c.num)   td.classList.add("num");
+          if (c.style) td.style.cssText = c.style;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      // Totals row
+      if (sorted.length) {
+        const spTr = document.createElement("tr"); spTr.classList.add("spacer-row");
+        const spTd = document.createElement("td"); spTd.colSpan = 6; spTr.appendChild(spTd);
+        tbody.appendChild(spTr);
+
+        const totTr = document.createElement("tr"); totTr.classList.add("total-row");
+        totTr.dataset.rowType = "total";
+        [
+          { v: "",               colspan: 3 },
+          { v: fmtMoney(totalAmount),    num: true },
+          { v: fmtMoney(totalPayments),  num: true },
+          { v: fmtMoney(runningBalance), num: true,
+            style: runningBalance < 0 ? "color:#e74c3c;font-weight:800;" : "font-weight:800;" },
+        ].forEach((c, i) => {
+          const td = document.createElement("td");
+          td.textContent = c.v;
+          if (c.colspan) td.colSpan = c.colspan;
+          if (c.num)     td.classList.add("num");
+          if (c.style)   td.style.cssText = c.style;
+          if (i === 0)   { td.textContent = "TOTALS"; td.classList.add("total-label"); }
+          totTr.appendChild(td);
+        });
+        tbody.appendChild(totTr);
+
+        // Running Balance highlight row
+        const spRb = document.createElement("tr"); spRb.classList.add("spacer-row");
+        const spRbTd = document.createElement("td"); spRbTd.colSpan = 6; spRb.appendChild(spRbTd);
+        tbody.appendChild(spRb);
+
+        const rbTr = document.createElement("tr");
+        const rbL = document.createElement("td"); rbL.colSpan = 5;
+        rbL.textContent = "Running Balance";
+        rbL.style.cssText = "text-align:right;font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
+        const rbV = document.createElement("td"); rbV.classList.add("num");
+        rbV.textContent = fmtMoney(runningBalance);
+        rbV.style.cssText = "font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
+        if (runningBalance < 0) { rbL.style.color = "#e74c3c"; rbV.style.color = "#e74c3c"; }
+        rbTr.append(rbL, rbV);
+        tbody.appendChild(rbTr);
+      }
+
+      if (rowCountEl) rowCountEl.textContent = `Rows: ${sorted.length}`;
+      selectedKey = null;
+      if (selectedEl) selectedEl.textContent = "Selected: —";
+    }
+
+    // ── Row selection ──
+    tableEl.addEventListener("click", e => {
+      const tr = e.target.closest("tr[data-key]");
+      if (!tr) return;
+      selectedKey = tr.dataset.key || null;
+      tableEl.querySelectorAll("tr").forEach(r => r.classList.toggle("selected", r.dataset.key === selectedKey));
+      if (selectedEl) selectedEl.textContent = selectedKey ? "Selected: 1" : "Selected: —";
+    });
+    tableEl.addEventListener("dblclick", e => {
+      const tr = e.target.closest("tr[data-key]");
+      if (tr) { selectedKey = tr.dataset.key; openModal("edit", selectedKey); }
+    });
+
+    // ── Modal ──
+    function openModal(m, key = null) {
+      if (!overlay || !modal) return;
+      mode = m; editingKey = null;
+      const today = new Date().toISOString().slice(0, 10);
+      if (m === "add") {
+        if (titleEl)    titleEl.textContent    = "Add Entry";
+        if (subtitleEl) subtitleEl.textContent = `Enter ${cfg.branch} branch transaction details.`;
+        if ($(cfg.dateId))       $(cfg.dateId).value       = today;
+        if ($(cfg.drNoId))       $(cfg.drNoId).value       = "";
+        if ($(cfg.deliveriesId)) $(cfg.deliveriesId).value = "";
+        if ($(cfg.amountId))     $(cfg.amountId).value     = "0.00";
+        if ($(cfg.paymentsId))   $(cfg.paymentsId).value   = "0.00";
+        if ($(cfg.submitBtnId))  $(cfg.submitBtnId).textContent = "Add Entry";
+      } else {
+        const found = cfg.store.find(r => keyFor(r) === key);
+        if (!found) return;
+        editingKey = key;
+        if (titleEl)    titleEl.textContent    = "Edit Entry";
+        if (subtitleEl) subtitleEl.textContent = `Update the selected ${cfg.branch} entry.`;
+        if ($(cfg.dateId))       $(cfg.dateId).value       = dateInputFromMmddyyyy(found.date) || today;
+        if ($(cfg.drNoId))       $(cfg.drNoId).value       = found.drNo       || "";
+        if ($(cfg.deliveriesId)) $(cfg.deliveriesId).value = found.deliveries || "";
+        if ($(cfg.amountId))     $(cfg.amountId).value     = (Number(found.amount)   || 0).toFixed(2);
+        if ($(cfg.paymentsId))   $(cfg.paymentsId).value   = (Number(found.payments) || 0).toFixed(2);
+        if ($(cfg.submitBtnId))  $(cfg.submitBtnId).textContent = "Save Changes";
+      }
+      overlay.classList.add("is-open"); modal.classList.add("is-open");
+      setTimeout(() => $(cfg.deliveriesId)?.focus(), 0);
+    }
+    function closeModal() {
+      overlay?.classList.remove("is-open"); modal?.classList.remove("is-open");
+    }
+
+    $(cfg.addBtnId)?.addEventListener("click",    () => openModal("add"));
+    $(cfg.editBtnId)?.addEventListener("click",   () => {
+      if (!selectedKey) return alert(`Please select a ${cfg.branch} row first.`);
+      openModal("edit", selectedKey);
+    });
+    $(cfg.closeBtnId)?.addEventListener("click",  closeModal);
+    $(cfg.cancelBtnId)?.addEventListener("click", closeModal);
+    overlay?.addEventListener("click", closeModal);
+
+    // ── Submit ──
+    $(cfg.formId)?.addEventListener("submit", e => {
+      e.preventDefault();
+      const date       = mmddyyyyFromDateInput($(cfg.dateId)?.value)       || "";
+      const drNo       = $(cfg.drNoId)?.value.trim()       || "";
+      const deliveries = $(cfg.deliveriesId)?.value.trim() || "";
+      const amount     = parseFloat($(cfg.amountId)?.value)   || 0;
+      const payments   = parseFloat($(cfg.paymentsId)?.value) || 0;
+
+      if (!date) return alert("Please enter a date.");
+
+      if (mode === "add") {
+        const entry = ensureId({ date, drNo, deliveries, amount, payments });
+        cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
+        cfg.store.push(entry);
+      } else {
+        const idx = cfg.store.findIndex(r => keyFor(r) === editingKey);
+        if (idx < 0) return;
+        const updated = ensureId({ date, drNo, deliveries, amount, payments,
+          _id: cfg.store[idx]._id, id: cfg.store[idx].id });
+        cfg.store[idx] = updated;
+        cfg.dbSave(updated);
+      }
+      closeModal(); renderTable();
+    });
+
+    // ── Delete ──
+    $(cfg.deleteBtnId)?.addEventListener("click", () => {
+      if (!selectedKey) return alert(`Please select a ${cfg.branch} row first.`);
+      if (!confirm(`Delete the selected ${cfg.branch} entry?`)) return;
+      const row = cfg.store.find(r => keyFor(r) === selectedKey);
+      if (row?.id) cfg.dbDelete(row.id);
+      cfg.store.splice(cfg.store.findIndex(r => keyFor(r) === selectedKey), 1);
+      selectedKey = null; renderTable();
+    });
+
+    // ── Export to Excel ──
+    $(cfg.exportBtnId)?.addEventListener("click", () => {
+      if (!cfg.store.length) return alert(`No ${cfg.branch} entries to export.`);
+      const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      const msoM = 'mso-number-format:"\#\,\#\#0\.00"';
+      const msoT = 'mso-number-format:"\@"';
+      const sorted = cfg.store.slice().sort((a,b) => {
+        const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
+        const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
+        return ad - bd;
+      });
+      let runBal = 0, totAmt = 0, totPay = 0;
+      let rows = sorted.map(r => {
+        const amt = Number(r.amount) || 0, pay = Number(r.payments) || 0;
+        runBal += amt - pay; totAmt += amt; totPay += pay;
+        return `<tr>
+          <td style="${msoT}">${esc(r.date)}</td>
+          <td style="${msoT}">${esc(r.drNo)}</td>
+          <td style="${msoT}">${esc(r.deliveries)}</td>
+          <td class="num" style="${msoM}">${fmtMoney(amt)}</td>
+          <td class="num" style="${msoM}">${fmtMoney(pay)}</td>
+          <td class="num" style="${msoM};${runBal<0?'color:#c0392b;':''}">${fmtMoney(runBal)}</td>
+        </tr>`;
+      }).join("");
+      rows += `<tr style="font-weight:700;background:#f2f2f2;">
+        <td colspan="3" style="${msoT};text-align:right;">TOTALS</td>
+        <td class="num" style="${msoM}">${fmtMoney(totAmt)}</td>
+        <td class="num" style="${msoM}">${fmtMoney(totPay)}</td>
+        <td class="num" style="${msoM};${runBal<0?'color:#c0392b;font-weight:800;':'font-weight:800;'}">${fmtMoney(runBal)}</td>
+      </tr>`;
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+        <style>table{border-collapse:collapse;font-family:Calibri,Arial;font-size:11pt;}
+        th,td{border:1px solid #ccc;padding:4px 7px;}
+        th{background:#f2f2f2;font-weight:700;text-align:center;}
+        td.num{text-align:right;}</style></head><body>
+        <table>
+          <thead><tr>
+            <th>Date</th><th>DR No.</th><th>Deliveries</th>
+            <th>Amount</th><th>Payments</th><th>Balance</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></body></html>`;
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url; a.style.display = "none";
+      a.download = `Branch_${cfg.branch}_${new Date().toISOString().slice(0,10)}.xls`;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
+    });
+
+    // ── Refresh ──
+    $(cfg.refreshBtnId)?.addEventListener("click", () => {
+      cfg.dbGet().then(rows => { cfg.store.length = 0; cfg.store.push(...rows); renderTable(); });
+      alert(`Refreshed ${cfg.branch} view.`);
+    });
+
+    renderTable();
+    return { renderTable };
+  }
+
+  // ── Wire up branch tabs ──
+  const sibuyanTab = initBranchTab({
+    branch: "Sibuyan", store: branchSibuyanStore,
+    tableId: "branchSibuyanTable", rowCountId: "branchSibuyanRowCount", selectedId: "branchSibuyanSelected",
+    overlayId: "sibuyanOverlay", modalId: "sibuyanModal",
+    titleId: "sibuyanModalTitle", subtitleId: "sibuyanModalSubtitle", closeBtnId: "btnCloseSibuyan",
+    dateId: "sibuyanDate", drNoId: "sibuyanDrNo", deliveriesId: "sibuyanDeliveries",
+    amountId: "sibuyanAmount", paymentsId: "sibuyanPayments",
+    cancelBtnId: "btnCancelSibuyan", submitBtnId: "btnSubmitSibuyan", formId: "sibuyanForm",
+    addBtnId: "btnSibuyanAdd", editBtnId: "btnSibuyanEdit", deleteBtnId: "btnSibuyanDelete",
+    exportBtnId: "btnSibuyanExport", refreshBtnId: "btnSibuyanRefresh",
+    dbGet:    () => DB.getBranchSibuyan(),
+    dbSave:   r  => DB.saveBranchSibuyan(r),
+    dbDelete: id => DB.deleteBranchSibuyan(id),
+  });
+
+  const romblonTab = initBranchTab({
+    branch: "Romblon", store: branchRomblonStore,
+    tableId: "branchRomblonTable", rowCountId: "branchRomblonRowCount", selectedId: "branchRomblonSelected",
+    overlayId: "romblonOverlay", modalId: "romblonModal",
+    titleId: "romblonModalTitle", subtitleId: "romblonModalSubtitle", closeBtnId: "btnCloseRomblon",
+    dateId: "romblonDate", drNoId: "romblonDrNo", deliveriesId: "romblonDeliveries",
+    amountId: "romblonAmount", paymentsId: "romblonPayments",
+    cancelBtnId: "btnCancelRomblon", submitBtnId: "btnSubmitRomblon", formId: "romblonForm",
+    addBtnId: "btnRomblonAdd", editBtnId: "btnRomblonEdit", deleteBtnId: "btnRomblonDelete",
+    exportBtnId: "btnRomblonExport", refreshBtnId: "btnRomblonRefresh",
+    dbGet:    () => DB.getBranchRomblon(),
+    dbSave:   r  => DB.saveBranchRomblon(r),
+    dbDelete: id => DB.deleteBranchRomblon(id),
+  });
+
+  const sanJoseTab = initBranchTab({
+    branch: "San Jose", store: branchSanJoseStore,
+    tableId: "branchSanJoseTable", rowCountId: "branchSanJoseRowCount", selectedId: "branchSanJoseSelected",
+    overlayId: "sanJoseOverlay", modalId: "sanJoseModal",
+    titleId: "sanJoseModalTitle", subtitleId: "sanJoseModalSubtitle", closeBtnId: "btnCloseSanJose",
+    dateId: "sanJoseDate", drNoId: "sanJoseDrNo", deliveriesId: "sanJoseDeliveries",
+    amountId: "sanJoseAmount", paymentsId: "sanJosePayments",
+    cancelBtnId: "btnCancelSanJose", submitBtnId: "btnSubmitSanJose", formId: "sanJoseForm",
+    addBtnId: "btnSanJoseAdd", editBtnId: "btnSanJoseEdit", deleteBtnId: "btnSanJoseDelete",
+    exportBtnId: "btnSanJoseExport", refreshBtnId: "btnSanJoseRefresh",
+    dbGet:    () => DB.getBranchSanJose(),
+    dbSave:   r  => DB.saveBranchSanJose(r),
+    dbDelete: id => DB.deleteBranchSanJose(id),
+  });
+
+  // Load branch data from Supabase
+  DB.getBranchSibuyan().then(rows => { branchSibuyanStore.push(...rows); sibuyanTab?.renderTable(); });
+  DB.getBranchRomblon().then(rows => { branchRomblonStore.push(...rows); romblonTab?.renderTable(); });
+  DB.getBranchSanJose().then(rows => { branchSanJoseStore.push(...rows); sanJoseTab?.renderTable(); });
+
   // CONTRACT FORM — Data, Auto-fill, Save, Print
   // ══════════════════════════════════════════════════════════
   (function initContractForm() {
