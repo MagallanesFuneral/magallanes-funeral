@@ -25,9 +25,6 @@ const TABLE = {
   settings:     "settings",
   contractForms: "contract_forms",
   refundLog:     "refund_log",
-  branchSibuyan: "branch_sibuyan",
-  branchRomblon: "branch_romblon",
-  branchSanJose: "branch_san_jose",
 };
 
 // ── Field name translators (JS camelCase ↔ DB snake_case) ────
@@ -108,31 +105,23 @@ function bankExpFromDb(r) {
 
 function pnbToDb(r) {
   return { id: r.id || undefined, date: r.date || null,
-    amount: Number(r.amount) || 0,
-    source:    r.source    || "cash",
-    linked_id: r.linkedId  || null };
+    amount: Number(r.amount) || 0 };
 }
 function pnbFromDb(r) {
-  return { id: r.id, date: r.date, amount: Number(r.amount) || 0,
-    source:   r.source    || "cash",
-    linkedId: r.linked_id || null };
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 
 function pnbSavingsToDb(r) {
-  const amt = Number(r.amount); 
-  return { id: r.id || undefined, date: r.date || null, amount: isFinite(amt) ? amt : 0 };
+  return { id: r.id || undefined, date: r.date || null, amount: Number(r.amount) || 0 };
 }
 function pnbSavingsFromDb(r) {
-  const amt = Number(r.amount);
-  return { id: r.id, date: r.date, amount: isFinite(amt) ? amt : 0 };
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 function landbankToDb(r) {
-  const amt = Number(r.amount);
-  return { id: r.id || undefined, date: r.date || null, amount: isFinite(amt) ? amt : 0 };
+  return { id: r.id || undefined, date: r.date || null, amount: Number(r.amount) || 0 };
 }
 function landbankFromDb(r) {
-  const amt = Number(r.amount);
-  return { id: r.id, date: r.date, amount: isFinite(amt) ? amt : 0 };
+  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 
 function baiToDb(r) {
@@ -246,27 +235,6 @@ function contractFormFromDb(r) {
   };
 }
 
-function branchEntryToDb(r) {
-  return {
-    id:          r.id || undefined,
-    date:        r.date        || null,
-    dr_no:       r.drNo        || null,
-    deliveries:  r.deliveries  || null,
-    amount:      Number(r.amount)   || 0,
-    payments:    Number(r.payments) || 0,
-  };
-}
-function branchEntryFromDb(r) {
-  return {
-    id:         r.id,
-    date:       r.date       || "",
-    drNo:       r.dr_no      || "",
-    deliveries: r.deliveries || "",
-    amount:     Number(r.amount)   || 0,
-    payments:   Number(r.payments) || 0,
-  };
-}
-
 function refundLogToDb(r) {
   return {
     id:           r.id || undefined,
@@ -362,10 +330,10 @@ window.DB = {
     const existing = await this.getSettings();
     const payload = {
       id: existing?.id || undefined,
-      cash_balance:         Number(obj.cashBalance)        || 0,
-      bank_balance:         Number(obj.bankBalance)        || 0,
-      pnb_savings_balance:  Number(obj.pnbSavingsBalance)  || 0,
-      landbank_balance:     Number(obj.landbankBalance)     || 0,
+      cash_balance:         Number(obj.cashBalance)       || 0,
+      bank_balance:         Number(obj.bankBalance)       || 0,
+      pnb_savings_balance:  Number(obj.pnbSavingsBalance) || 0,
+      landbank_balance:     Number(obj.landbankBalance)   || 0,
       finance_clerk:   obj.financeClerk   || "Jennifer F. Landicho",
       accountant:      obj.accountant     || "Ranni V. Dalisay",
       finance_manager: obj.financeManager || "June Lizette M. Quizon",
@@ -390,19 +358,6 @@ window.DB = {
   async getLandbank()            { return dbGetAll(TABLE.landbank, landbankFromDb); },
   async saveLandbank(r)          { return dbUpsert(TABLE.landbank, r, landbankToDb); },
   async deleteLandbank(id)       { return dbDelete(TABLE.landbank, id); },
-
-  // Branch ledgers
-  async getBranchSibuyan()       { return dbGetAll(TABLE.branchSibuyan, branchEntryFromDb); },
-  async saveBranchSibuyan(r)     { return dbUpsert(TABLE.branchSibuyan, r, branchEntryToDb); },
-  async deleteBranchSibuyan(id)  { return dbDelete(TABLE.branchSibuyan, id); },
-
-  async getBranchRomblon()       { return dbGetAll(TABLE.branchRomblon, branchEntryFromDb); },
-  async saveBranchRomblon(r)     { return dbUpsert(TABLE.branchRomblon, r, branchEntryToDb); },
-  async deleteBranchRomblon(id)  { return dbDelete(TABLE.branchRomblon, id); },
-
-  async getBranchSanJose()       { return dbGetAll(TABLE.branchSanJose, branchEntryFromDb); },
-  async saveBranchSanJose(r)     { return dbUpsert(TABLE.branchSanJose, r, branchEntryToDb); },
-  async deleteBranchSanJose(id)  { return dbDelete(TABLE.branchSanJose, id); },
 
   // Refund Log
   async getRefundLog()           { return dbGetAll(TABLE.refundLog, refundLogFromDb); },
