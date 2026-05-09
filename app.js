@@ -6087,11 +6087,13 @@ Cancel = Append`);
       tr.innerHTML = `<td colspan="14" style="text-align:center;opacity:0.5;padding:18px;">(no entries)</td>`;
       tbody.appendChild(tr);
     } else {
-      // ── Group entries by month ──
+      // ── Group entries by month of Date Received from DSWD ──
+      // Falls back to dateApplied if dateReceived is empty
       const groups  = new Map();
       const keyOrder = [];
       filtered.forEach(r => {
-        const key = monthKeyFromDate(r.date || "");
+        const groupDate = (r.dateReceived || "").trim() || (r.date || "");
+        const key = monthKeyFromDate(groupDate) || "unknown";
         if (!groups.has(key)) { groups.set(key, []); keyOrder.push(key); }
         groups.get(key).push(r);
       });
@@ -6100,6 +6102,12 @@ Cancel = Append`);
       // ── Global pre-pass: find last occurrence index + totals per dateReceived ──
       // Build a flat ordered list matching exact render order (sorted months → rows).
       // Use index position so we never rely on ID uniqueness.
+      // Sort each group's rows by dateReceived (then dateApplied as tiebreaker)
+      groups.forEach(rows => rows.sort((a, b) => {
+        const ad = (a.dateReceived || a.date || "").split("/").reverse().join("") || "0";
+        const bd = (b.dateReceived || b.date || "").split("/").reverse().join("") || "0";
+        return ad.localeCompare(bd);
+      }));
       const flatRows = [];
       keyOrder.forEach(key => groups.get(key).forEach(r => flatRows.push(r)));
 
