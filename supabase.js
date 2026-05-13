@@ -382,6 +382,7 @@ window.DB = {
 const ADMIN_EMAILS = [
   "patrick@biopticinc.com",
   "tgfl2106@gmail.com",
+  "fheyfl1013@gmail.com",
   // add more admin emails here if needed
 ];
 
