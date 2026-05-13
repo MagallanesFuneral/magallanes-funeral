@@ -376,6 +376,22 @@ window.DB = {
   async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().gte("id", "00000000-0000-0000-0000-000000000000");     if (error) throw error; },
 };
 
+// ── Admin email list ─────────────────────────────────────────
+// Add the email addresses that should have full Admin access.
+// Everyone else who logs in will be a read-only Viewer.
+const ADMIN_EMAILS = [
+  "patrick@biopticinc.com",
+  "tgfl2106@gmail.com",
+  // add more admin emails here if needed
+];
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.map(e => e.toLowerCase()).includes((email || "").toLowerCase());
+}
+
+// Expose current role globally so app.js can read it
+window.MF_ROLE = "viewer"; // "admin" | "viewer"
+
 // ── Auth UI ───────────────────────────────────────────────────
 
 const loginOverlay   = document.getElementById("loginOverlay");
@@ -396,15 +412,88 @@ function hideLoginError() {
   loginError.style.display = "none";
 }
 
+function applyRole(user) {
+  const role = isAdminEmail(user.email) ? "admin" : "viewer";
+  window.MF_ROLE = role;
+
+  // Show role badge next to email
+  const roleBadge = document.getElementById("userRoleBadge");
+  if (roleBadge) {
+    roleBadge.textContent  = role === "admin" ? "Admin" : "Viewer";
+    roleBadge.style.background = role === "admin" ? "#4f8ef7" : "#888";
+  }
+
+  // Hide/show action buttons based on role
+  // Selectors for all mutating buttons across the app
+  const ACTION_SELECTORS = [
+    // Generic action buttons (Add, Edit, Delete, Import, Save, Submit, Refresh)
+    ".btn-danger",
+    "[id^='btn'][id*='Add']",
+    "[id^='btn'][id*='Edit']",
+    "[id^='btn'][id*='Delete']",
+    "[id^='btn'][id*='Import']",
+    "[id^='btn'][id*='Submit']",
+    "[id^='btn'][id*='Save']",
+    // Specific buttons
+    "#btnNewContract", "#btnSaveContract",
+    "#btnAddCash", "#btnEditCash", "#btnDelCash", "#btnImportCash",
+    "#btnAddCashExp", "#btnEditCashExp", "#btnDelCashExp", "#btnImportCashExp",
+    "#btnAddBank", "#btnEditBank", "#btnDelBank", "#btnImportBank",
+    "#btnAddBankExp", "#btnEditBankExp", "#btnDelBankExp", "#btnImportBankExp",
+    "#btnPnbAddEntry", "#btnPnbEditSelected", "#btnPnbDeleteSelected", "#btnPnbImportExcel",
+    "#btnPnbSavingsAddEntry", "#btnPnbSavingsEditSelected", "#btnPnbSavingsDeleteSelected", "#btnPnbSavingsImportExcel",
+    "#btnLandbankAddEntry", "#btnLandbankEditSelected", "#btnLandbankDeleteSelected", "#btnLandbankImportExcel",
+    "#btnAddDswd", "#btnEditDswd", "#btnDeleteDswd", "#btnImportDswd",
+    "#btnAddBai", "#btnEditBai", "#btnDeleteBai", "#btnImportBai",
+    "#btnSibuyanAdd", "#btnSibuyanEdit", "#btnSibuyanDelete",
+    "#btnRomblonAdd", "#btnRomblonEdit", "#btnRomblonDelete",
+    "#btnSanJoseAdd", "#btnSanJoseEdit", "#btnSanJoseDelete",
+    "#settingsForm button[type='submit']",
+  ];
+
+  if (role === "viewer") {
+    // Hide all action buttons — viewers can only read and export
+    ACTION_SELECTORS.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.style.display = "none";
+      });
+    });
+    // Make settings inputs read-only
+    document.querySelectorAll("#settingsForm input, #settingsForm select").forEach(el => {
+      el.disabled = true;
+      el.style.opacity = "0.6";
+    });
+    // Show a viewer notice
+    const notice = document.getElementById("viewerNotice");
+    if (notice) notice.style.display = "block";
+  } else {
+    // Admin: restore all buttons
+    ACTION_SELECTORS.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.style.display = "";
+      });
+    });
+    document.querySelectorAll("#settingsForm input, #settingsForm select").forEach(el => {
+      el.disabled = false;
+      el.style.opacity = "";
+    });
+    const notice = document.getElementById("viewerNotice");
+    if (notice) notice.style.display = "none";
+  }
+}
+
 function showApp(user) {
   loginOverlay.style.display = "none";
   userBadge.style.display    = "flex";
   userEmailEl.textContent    = user.email;
+  // Apply role restrictions after a short delay so the DOM is fully rendered
+  setTimeout(() => applyRole(user), 300);
 }
 
 function showLogin() {
   loginOverlay.style.display = "flex";
   userBadge.style.display    = "none";
+  window.MF_ROLE = "viewer";
 }
 
 // Handle login button
