@@ -9140,28 +9140,23 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   let branchSanJoseStore = [];
 
   function initBranchTab(cfg) {
-    // cfg: { branch, store, tableId, rowCountId, selectedId,
-    //        overlayId, modalId, titleId, subtitleId, closeBtnId,
-    //        dateId, drNoId, deliveriesId, amountId, paymentsId,
-    //        cancelBtnId, submitBtnId, formId,
-    //        addBtnId, editBtnId, deleteBtnId, exportBtnId, refreshBtnId,
-    //        dbGet, dbSave, dbDelete }
+    // Use the global $ helper from the outer scope
+    const getEl  = id => document.getElementById(id);
 
-    const $ = id => document.getElementById(id);
-    const tableEl    = $(cfg.tableId);
-    const rowCountEl = $(cfg.rowCountId);
-    const selectedEl = $(cfg.selectedId);
-    const overlay    = $(cfg.overlayId);
-    const modal      = $(cfg.modalId);
-    const titleEl    = $(cfg.titleId);
-    const subtitleEl = $(cfg.subtitleId);
+    const tableEl    = getEl(cfg.tableId);
+    const rowCountEl = getEl(cfg.rowCountId);
+    const selectedEl = getEl(cfg.selectedId);
+    const overlay    = getEl(cfg.overlayId);
+    const modal      = getEl(cfg.modalId);
+    const titleEl    = getEl(cfg.titleId);
+    const subtitleEl = getEl(cfg.subtitleId);
 
-    if (!tableEl) return;
+    let selectedKey     = null;
+    let mode            = "add";
+    let editingKey      = null;
+    let branchActiveFilter = null;
 
-    let selectedKey = null;
-    let mode        = "add";
-    let editingKey  = null;
-
+    // ── Helpers ──
     function ensureId(r) {
       if (!r._id) r._id = Math.random().toString(36).slice(2);
       return r;
@@ -9169,20 +9164,17 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     function keyFor(r) { return normalizeText(r._id || ""); }
 
     // ── Filter logic ──
-    let branchActiveFilter = null;
-
     function setBranchFilterInputs(cat) {
-      const inp = $(cfg.filterInputsId);
+      const inp = getEl(cfg.filterInputsId);
       if (!inp) return;
       inp.innerHTML = "";
-      const makeText = (label, placeholder) => {
+      const makeText = (label, ph) => {
         const w = document.createElement("label");
         w.className = "field inline";
-        w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${placeholder}" />`;
+        w.innerHTML = `<span>${label}</span><input class="input" type="text" placeholder="${ph}" />`;
         inp.appendChild(w);
       };
       const makeRange = (label) => {
-        // Both Min and Max in one inline row
         const w = document.createElement("label");
         w.className = "field inline";
         w.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:nowrap;";
@@ -9192,16 +9184,16 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           + `<input class="input" type="number" step="0.01" placeholder="Max" style="width:90px;" />`;
         inp.appendChild(w);
       };
-      if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); return; }
-      if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); return; }
-      if (cat === "deliveries") { makeText("Deliveries", "contains..."); return; }
-      if (cat === "amount")     { makeRange("Amount"); return; }
-      if (cat === "payments")   { makeRange("Payments"); return; }
+      if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); }
+      else if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); }
+      else if (cat === "deliveries") { makeText("Deliveries", "contains..."); }
+      else if (cat === "amount")     { makeRange("Amount"); }
+      else if (cat === "payments")   { makeRange("Payments"); }
     }
 
     function getBranchFilterFromUI() {
-      const cat = $(cfg.filterCatId)?.value || "";
-      const inp = $(cfg.filterInputsId);
+      const cat = getEl(cfg.filterCatId)?.value || "";
+      const inp = getEl(cfg.filterInputsId);
       if (!cat || !inp) return null;
       const inputs = Array.from(inp.querySelectorAll("input"));
       if (cat === "date") {
@@ -9213,7 +9205,6 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         return v ? { cat, value: v } : null;
       }
       if (cat === "amount" || cat === "payments") {
-        // Both inputs are inside a single wrapper — querySelectorAll finds them in order
         const mn = parseFloat(inputs[0]?.value) || 0;
         const mx = parseFloat(inputs[1]?.value);
         return { cat, min: mn, max: isFinite(mx) ? mx : Infinity };
@@ -9241,15 +9232,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return true;
     }
 
-    // Wire filter events
-    $(cfg.filterCatId)?.addEventListener("change", () => setBranchFilterInputs($(cfg.filterCatId).value));
-    $(cfg.applyFilterBtnId)?.addEventListener("click", () => {
-      branchActiveFilter = getBranchFilterFromUI(); renderTable();
-    });
-    $(cfg.clearFilterBtnId)?.addEventListener("click", () => {
+    getEl(cfg.filterCatId)?.addEventListener("change", () => setBranchFilterInputs(getEl(cfg.filterCatId).value));
+    getEl(cfg.applyFilterBtnId)?.addEventListener("click", () => { branchActiveFilter = getBranchFilterFromUI(); renderTable(); });
+    getEl(cfg.clearFilterBtnId)?.addEventListener("click", () => {
       branchActiveFilter = null;
-      if ($(cfg.filterCatId)) $(cfg.filterCatId).value = "";
-      if ($(cfg.filterInputsId)) $(cfg.filterInputsId).innerHTML = "";
+      const fc = getEl(cfg.filterCatId); if (fc) fc.value = "";
+      const fi = getEl(cfg.filterInputsId); if (fi) fi.innerHTML = "";
       renderTable();
     });
 
@@ -9267,19 +9255,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const tbody = tableEl.tBodies[0];
       tbody.innerHTML = "";
 
-      // Running balance: starts at 0, each row adds Amount and subtracts Payments
-      // Amount increases the balance (delivery/charge), Payment decreases it
-      // Start from opening balance set in Settings
-      const openingBal = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
+      const openingBal = Number(getEl(cfg.openingBalanceId)?.value) || 0;
       let runningBalance = openingBal;
       let totalAmount = 0, totalPayments = 0;
 
       sorted.forEach(r => {
         ensureId(r);
-        const amt  = Number(r.amount)   || 0;
-        const pay  = Number(r.payments) || 0;
-        runningBalance += amt;   // delivery/charge increases balance
-        runningBalance -= pay;   // payment decreases balance
+        const amt = Number(r.amount)   || 0;
+        const pay = Number(r.payments) || 0;
+        runningBalance += amt - pay;
         totalAmount    += amt;
         totalPayments  += pay;
 
@@ -9289,20 +9273,19 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         if (keyFor(r) === selectedKey) tr.classList.add("selected");
 
         const balColor = runningBalance > 0
-          ? "color:#e74c3c;font-weight:700;"   // still owes — red
+          ? "color:#e74c3c;font-weight:700;"
           : runningBalance < 0
-            ? "color:#27ae60;font-weight:700;"  // overpaid — green
-            : "font-weight:700;opacity:0.5;";   // settled — neutral
+            ? "color:#27ae60;font-weight:700;"
+            : "font-weight:700;opacity:0.5;";
 
-        const cells = [
-          { v: r.date       || "" },
-          { v: r.drNo       || "" },
+        [
+          { v: r.date || "" },
+          { v: r.drNo || "" },
           { v: r.deliveries || "" },
           { v: fmtMoney(amt), num: true },
           { v: fmtMoney(pay), num: true },
           { v: fmtMoney(runningBalance), num: true, style: balColor },
-        ];
-        cells.forEach(c => {
+        ].forEach(c => {
           const td = document.createElement("td");
           td.textContent = c.v;
           if (c.num)   td.classList.add("num");
@@ -9312,51 +9295,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         tbody.appendChild(tr);
       });
 
-      // Totals row
       if (sorted.length) {
-        const spTr = document.createElement("tr"); spTr.classList.add("spacer-row");
-        const spTd = document.createElement("td"); spTd.colSpan = 6; spTr.appendChild(spTd);
-        tbody.appendChild(spTr);
-
-        const totTr = document.createElement("tr"); totTr.classList.add("total-row");
-        totTr.dataset.rowType = "total";
-        [
-          { v: "",               colspan: 3 },
-          { v: fmtMoney(totalAmount),    num: true },
-          { v: fmtMoney(totalPayments),  num: true },
-          { v: fmtMoney(runningBalance), num: true,
-            style: runningBalance > 0 ? "color:#e74c3c;font-weight:800;"
-              : runningBalance < 0 ? "color:#27ae60;font-weight:800;"
-              : "font-weight:800;opacity:0.5;" },
-        ].forEach((c, i) => {
-          const td = document.createElement("td");
-          td.textContent = c.v;
-          if (c.colspan) td.colSpan = c.colspan;
-          if (c.num)     td.classList.add("num");
-          if (c.style)   td.style.cssText = c.style;
-          if (i === 0)   { td.textContent = "TOTALS"; td.classList.add("total-label"); }
-          totTr.appendChild(td);
-        });
-        tbody.appendChild(totTr);
-
-        // Running Balance highlight row
-        const spRb = document.createElement("tr"); spRb.classList.add("spacer-row");
-        const spRbTd = document.createElement("td"); spRbTd.colSpan = 6; spRb.appendChild(spRbTd);
-        tbody.appendChild(spRb);
-
-        const rbTr = document.createElement("tr");
-        const rbL = document.createElement("td"); rbL.colSpan = 5;
-        const openingForLabel = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
-        rbL.textContent = openingForLabel ? `Running Balance (Opening: ${fmtMoney(openingForLabel)})` : "Running Balance";
-        rbL.style.cssText = "text-align:right;font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
-        const rbV = document.createElement("td"); rbV.classList.add("num");
-        rbV.textContent = fmtMoney(runningBalance);
-        rbV.style.cssText = "font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
-        const rbColor = runningBalance > 0 ? "#e74c3c"
-          : runningBalance < 0 ? "#27ae60" : null;
-        if (rbColor) { rbL.style.color = rbColor; rbV.style.color = rbColor; }
-        rbTr.append(rbL, rbV);
-        tbody.appendChild(rbTr);
+        // Spacer
+        const sp = document.createElement("tr"); sp.classList.add("spacer-row");
+        sp.innerHTML = `<td colspan="6"></td>`; tbody.appendChild(sp);
+        // Totals row
+        const tot = document.createElement("tr"); tot.classList.add("total-row");
+        tot.innerHTML = `
+          <td colspan="3" style="text-align:right;font-weight:700;">TOTALS</td>
+          <td class="num" style="font-weight:700;">${fmtMoney(totalAmount)}</td>
+          <td class="num" style="font-weight:700;">${fmtMoney(totalPayments)}</td>
+          <td class="num" style="${runningBalance>0?"color:#e74c3c;":"runningBalance<0?'color:#27ae60;':'"}font-weight:700;">${fmtMoney(runningBalance)}</td>`;
+        tbody.appendChild(tot);
+        // Running balance row
+        const sp2 = document.createElement("tr"); sp2.classList.add("spacer-row");
+        sp2.innerHTML = `<td colspan="6"></td>`; tbody.appendChild(sp2);
+        const rbColor = runningBalance > 0 ? "#e74c3c" : runningBalance < 0 ? "#27ae60" : "var(--accent,#4f8ef7)";
+        const rb = document.createElement("tr");
+        rb.innerHTML = `
+          <td colspan="5" style="text-align:right;font-weight:800;font-size:13px;padding:8px 10px;
+            border-top:2px solid ${rbColor};color:${rbColor};border-bottom:none;border-left:none;border-right:none;background:transparent;">
+            Running Balance${openingBal ? ` (Opening: ${fmtMoney(openingBal)})` : ""}
+          </td>
+          <td class="num" style="font-weight:800;font-size:13px;padding:8px 10px;
+            border-top:2px solid ${rbColor};color:${rbColor};border-bottom:none;border-left:none;border-right:none;background:transparent;">
+            ${fmtMoney(runningBalance)}
+          </td>`;
+        tbody.appendChild(rb);
       }
 
       if (rowCountEl) rowCountEl.textContent = `Rows: ${sorted.length}`;
@@ -9365,72 +9330,81 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ── Row selection ──
-    tableEl.addEventListener("click", e => {
+    tableEl?.addEventListener("click", e => {
       const tr = e.target.closest("tr[data-key]");
       if (!tr) return;
       selectedKey = tr.dataset.key || null;
       tableEl.querySelectorAll("tr").forEach(r => r.classList.toggle("selected", r.dataset.key === selectedKey));
       if (selectedEl) selectedEl.textContent = selectedKey ? "Selected: 1" : "Selected: —";
     });
-    tableEl.addEventListener("dblclick", e => {
+    tableEl?.addEventListener("dblclick", e => {
       const tr = e.target.closest("tr[data-key]");
       if (tr) { selectedKey = tr.dataset.key; openModal("edit", selectedKey); }
     });
 
-    // ── Modal ──
-    function openModal(m, key = null) {
+    // ── Modal open/close ──
+    function openModal(m, key) {
       if (!overlay || !modal) return;
       mode = m; editingKey = null;
       const today = new Date().toISOString().slice(0, 10);
+      const dateEl  = getEl(cfg.dateId);
+      const drEl    = getEl(cfg.drNoId);
+      const delEl   = getEl(cfg.deliveriesId);
+      const amtEl   = getEl(cfg.amountId);
+      const payEl   = getEl(cfg.paymentsId);
+      const subBtn  = getEl(cfg.submitBtnId);
+
       if (m === "add") {
         if (titleEl)    titleEl.textContent    = "Add Entry";
         if (subtitleEl) subtitleEl.textContent = `Enter ${cfg.branch} branch transaction details.`;
-        if ($(cfg.dateId))       $(cfg.dateId).value       = today;
-        if ($(cfg.drNoId))       $(cfg.drNoId).value       = "";
-        if ($(cfg.deliveriesId)) $(cfg.deliveriesId).value = "";
-        if ($(cfg.amountId))     $(cfg.amountId).value     = "0.00";
-        if ($(cfg.paymentsId))   $(cfg.paymentsId).value   = "0.00";
-        if ($(cfg.submitBtnId))  $(cfg.submitBtnId).textContent = "Add Entry";
+        if (dateEl)  dateEl.value  = today;
+        if (drEl)    drEl.value    = "";
+        if (delEl)   delEl.value   = "";
+        if (amtEl)   amtEl.value   = "0.00";
+        if (payEl)   payEl.value   = "0.00";
+        if (subBtn)  subBtn.textContent = "Add Entry";
       } else {
         const found = cfg.store.find(r => keyFor(r) === key);
         if (!found) return;
         editingKey = key;
         if (titleEl)    titleEl.textContent    = "Edit Entry";
         if (subtitleEl) subtitleEl.textContent = `Update the selected ${cfg.branch} entry.`;
-        if ($(cfg.dateId))       $(cfg.dateId).value       = dateInputFromMmddyyyy(found.date) || today;
-        if ($(cfg.drNoId))       $(cfg.drNoId).value       = found.drNo       || "";
-        if ($(cfg.deliveriesId)) $(cfg.deliveriesId).value = found.deliveries || "";
-        if ($(cfg.amountId))     $(cfg.amountId).value     = (Number(found.amount)   || 0).toFixed(2);
-        if ($(cfg.paymentsId))   $(cfg.paymentsId).value   = (Number(found.payments) || 0).toFixed(2);
-        if ($(cfg.submitBtnId))  $(cfg.submitBtnId).textContent = "Save Changes";
+        if (dateEl)  dateEl.value  = dateInputFromMmddyyyy(found.date) || today;
+        if (drEl)    drEl.value    = found.drNo       || "";
+        if (delEl)   delEl.value   = found.deliveries || "";
+        if (amtEl)   amtEl.value   = (Number(found.amount)   || 0).toFixed(2);
+        if (payEl)   payEl.value   = (Number(found.payments) || 0).toFixed(2);
+        if (subBtn)  subBtn.textContent = "Save Changes";
       }
-      overlay.classList.add("is-open"); modal.classList.add("is-open");
-      setTimeout(() => $(cfg.deliveriesId)?.focus(), 0);
-    }
-    function closeModal() {
-      overlay?.classList.remove("is-open"); modal?.classList.remove("is-open");
+      overlay.classList.add("is-open");
+      modal.classList.add("is-open");
     }
 
-    $(cfg.addBtnId)?.addEventListener("click",    () => openModal("add"));
-    $(cfg.editBtnId)?.addEventListener("click",   () => {
+    function closeModal() {
+      overlay?.classList.remove("is-open");
+      modal?.classList.remove("is-open");
+    }
+
+    // ── Button listeners ──
+    getEl(cfg.addBtnId)?.addEventListener("click", () => openModal("add"));
+    getEl(cfg.editBtnId)?.addEventListener("click", () => {
       if (!selectedKey) return alert(`Please select a ${cfg.branch} row first.`);
       openModal("edit", selectedKey);
     });
-    $(cfg.closeBtnId)?.addEventListener("click",  closeModal);
-    $(cfg.cancelBtnId)?.addEventListener("click", closeModal);
+    getEl(cfg.closeBtnId)?.addEventListener("click",  closeModal);
+    getEl(cfg.cancelBtnId)?.addEventListener("click", closeModal);
     overlay?.addEventListener("click", closeModal);
 
     // ── Submit ──
-    function handleBranchSubmit(e) {
-      if (e) e.preventDefault();
-      const dateRaw    = $(cfg.dateId)?.value || "";
-      const date       = mmddyyyyFromDateInput(dateRaw) || dateRaw || "";
-      const drNo       = $(cfg.drNoId)?.value.trim()       || "";
-      const deliveries = $(cfg.deliveriesId)?.value.trim() || "";
-      const amount     = parseFloat($(cfg.amountId)?.value)   || 0;
-      const payments   = parseFloat($(cfg.paymentsId)?.value) || 0;
+    function doSubmit() {
+      const dateRaw    = getEl(cfg.dateId)?.value || "";
+      const date       = mmddyyyyFromDateInput(dateRaw) || "";
+      const drNo       = (getEl(cfg.drNoId)?.value       || "").trim();
+      const deliveries = (getEl(cfg.deliveriesId)?.value || "").trim();
+      const amount     = parseFloat(getEl(cfg.amountId)?.value)   || 0;
+      const payments   = parseFloat(getEl(cfg.paymentsId)?.value) || 0;
 
-      if (!date) return alert("Please enter a date.");
+      if (!date) return alert("Please enter a valid date.");
 
       if (mode === "add") {
         const entry = ensureId({ date, drNo, deliveries, amount, payments });
@@ -9439,87 +9413,69 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       } else {
         const idx = cfg.store.findIndex(r => keyFor(r) === editingKey);
         if (idx < 0) return;
-        const updated = ensureId({ date, drNo, deliveries, amount, payments,
-          _id: cfg.store[idx]._id, id: cfg.store[idx].id });
+        const updated = ensureId({
+          date, drNo, deliveries, amount, payments,
+          _id: cfg.store[idx]._id, id: cfg.store[idx].id
+        });
         cfg.store[idx] = updated;
         cfg.dbSave(updated);
       }
-      closeModal(); renderTable();
+      closeModal();
+      renderTable();
     }
-    // Listen on both form submit and button click for reliability
-    $(cfg.formId)?.addEventListener("submit", handleBranchSubmit);
-    $(cfg.submitBtnId)?.addEventListener("click", e => {
-      // Only handle if not already handled by form submit
-      const form = $(cfg.formId);
-      if (form && e.target.type === "submit") return; // let form handle it
-      handleBranchSubmit(e);
-    });
+
+    getEl(cfg.submitBtnId)?.addEventListener("click", doSubmit);
 
     // ── Delete ──
-    $(cfg.deleteBtnId)?.addEventListener("click", () => {
+    getEl(cfg.deleteBtnId)?.addEventListener("click", () => {
       if (!selectedKey) return alert(`Please select a ${cfg.branch} row first.`);
       if (!confirm(`Delete the selected ${cfg.branch} entry?`)) return;
       const row = cfg.store.find(r => keyFor(r) === selectedKey);
       if (row?.id) cfg.dbDelete(row.id);
       cfg.store.splice(cfg.store.findIndex(r => keyFor(r) === selectedKey), 1);
-      selectedKey = null; renderTable();
+      selectedKey = null;
+      renderTable();
     });
 
     // ── Export to Excel ──
-    $(cfg.exportBtnId)?.addEventListener("click", () => {
+    getEl(cfg.exportBtnId)?.addEventListener("click", () => {
       if (!cfg.store.length) return alert(`No ${cfg.branch} entries to export.`);
       const esc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-      const msoM = 'mso-number-format:"\#\,\#\#0\.00"';
-      const msoT = 'mso-number-format:"\@"';
       const sorted = cfg.store.slice().sort((a,b) => {
         const ad = parseMMDDYYYY(a.date)?.getTime() ?? Infinity;
         const bd = parseMMDDYYYY(b.date)?.getTime() ?? Infinity;
         return ad - bd;
       });
-      let runBal = 0, totAmt = 0, totPay = 0;
-      let rows = sorted.map(r => {
+      let runBal = Number(getEl(cfg.openingBalanceId)?.value) || 0;
+      let totAmt = 0, totPay = 0;
+      const rows = sorted.map(r => {
         const amt = Number(r.amount) || 0, pay = Number(r.payments) || 0;
         runBal += amt - pay; totAmt += amt; totPay += pay;
+        const bc = runBal > 0 ? "color:#c0392b;" : runBal < 0 ? "color:#27ae60;" : "";
         return `<tr>
-          <td style="${msoT}">${esc(r.date)}</td>
-          <td style="${msoT}">${esc(r.drNo)}</td>
-          <td style="${msoT}">${esc(r.deliveries)}</td>
-          <td class="num" style="${msoM}">${fmtMoney(amt)}</td>
-          <td class="num" style="${msoM}">${fmtMoney(pay)}</td>
-          <td class="num" style="${msoM};${runBal>0?'color:#c0392b;':runBal<0?'color:#27ae60;':''}">${fmtMoney(runBal)}</td>
+          <td>${esc(r.date)}</td><td>${esc(r.drNo)}</td><td>${esc(r.deliveries)}</td>
+          <td class="num">${fmtMoney(amt)}</td><td class="num">${fmtMoney(pay)}</td>
+          <td class="num" style="${bc}">${fmtMoney(runBal)}</td>
         </tr>`;
       }).join("");
-      rows += `<tr style="font-weight:700;background:#f2f2f2;">
-        <td colspan="3" style="${msoT};text-align:right;">TOTALS</td>
-        <td class="num" style="${msoM}">${fmtMoney(totAmt)}</td>
-        <td class="num" style="${msoM}">${fmtMoney(totPay)}</td>
-        <td class="num" style="${msoM};${runBal>0?'color:#c0392b;font-weight:800;':runBal<0?'color:#27ae60;font-weight:800;':'font-weight:800;'}">${fmtMoney(runBal)}</td>
-      </tr>`;
       const html = `<!doctype html><html><head><meta charset="utf-8">
         <style>table{border-collapse:collapse;font-family:Calibri,Arial;font-size:11pt;}
-        th,td{border:1px solid #ccc;padding:4px 7px;}
-        th{background:#f2f2f2;font-weight:700;text-align:center;}
+        th,td{border:1px solid #ccc;padding:4px 7px;}th{background:#f2f2f2;font-weight:700;}
         td.num{text-align:right;}</style></head><body>
-        <table>
-          <thead><tr>
-            <th>Date</th><th>DR No.</th><th>Deliveries</th>
-            <th>Amount</th><th>Payments</th><th>Balance</th>
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table></body></html>`;
+        <table><thead><tr><th>Date</th><th>DR No.</th><th>Deliveries</th>
+        <th>Amount</th><th>Payments</th><th>Balance</th></tr></thead>
+        <tbody>${rows}</tbody></table></body></html>`;
       const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement("a");
-      a.href = url; a.style.display = "none";
-      a.download = `Branch_${cfg.branch}_${new Date().toISOString().slice(0,10)}.xls`;
-      document.body.appendChild(a); a.click();
+      a.href = url; a.download = `Branch_${cfg.branch}_${new Date().toISOString().slice(0,10)}.xls`;
+      a.style.display = "none"; document.body.appendChild(a); a.click();
       setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 200);
     });
 
     // ── Refresh ──
-    $(cfg.refreshBtnId)?.addEventListener("click", () => {
+    getEl(cfg.refreshBtnId)?.addEventListener("click", () => {
       cfg.dbGet().then(rows => { cfg.store.length = 0; cfg.store.push(...rows); renderTable(); });
-      alert(`Refreshed ${cfg.branch} view.`);
     });
 
     renderTable();
