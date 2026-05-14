@@ -9397,7 +9397,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     });
     getEl(cfg.closeBtnId)?.addEventListener("click",  closeModal);
     getEl(cfg.cancelBtnId)?.addEventListener("click", closeModal);
-    overlay?.addEventListener("click", closeModal);
+    // Only close when clicking the overlay directly, not bubbled clicks from inside the modal
+    overlay?.addEventListener("click", e => { if (e.target === overlay) closeModal(); });
 
     // ── Submit ──
     function doSubmit() {
