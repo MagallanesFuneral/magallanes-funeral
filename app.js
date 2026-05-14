@@ -5640,7 +5640,8 @@ function fmtMoney(n) {
         const rbTr = document.createElement("tr"); rbTr.dataset.rowType = "runningBalance";
         rbTr.style.cssText = "background:transparent;";
         const rbL = document.createElement("td");
-        rbL.textContent = "Running Balance";
+        const openingForLabel = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
+        rbL.textContent = openingForLabel ? `Running Balance (Opening: ${fmtMoney(openingForLabel)})` : "Running Balance";
         rbL.style.cssText = "text-align:right; font-weight:800; font-size:13px; padding:8px 10px; border-top:2px solid var(--accent,#4f8ef7); color:var(--accent,#4f8ef7); border-bottom:none; border-left:none; border-right:none; background:transparent;";
         const rbV = document.createElement("td");
         rbV.textContent = fmtMoney(runningBal);
@@ -6843,6 +6844,9 @@ Cancel = Append`);
   const setBankBalance        = $("#setBankBalance");
   const setPnbSavingsBalance  = $("#setPnbSavingsBalance");
   const setLandbankBalance    = $("#setLandbankBalance");
+  const setSibuyanBalance     = $("#setSibuyanBalance");
+  const setRomblonBalance     = $("#setRomblonBalance");
+  const setSanJoseBalance     = $("#setSanJoseBalance");
   const setSigFinanceClerk   = $("#setSigFinanceClerk");
   const setSigAccountant     = $("#setSigAccountant");
   const setSigFinanceManager = $("#setSigFinanceManager");
@@ -6861,6 +6865,9 @@ Cancel = Append`);
       if(setBankBalance)        setBankBalance.value        = Number(data.bank_balance        || 0).toFixed(2);
       if(setPnbSavingsBalance)  setPnbSavingsBalance.value  = Number(data.pnb_savings_balance || 0).toFixed(2);
       if(setLandbankBalance)    setLandbankBalance.value    = Number(data.landbank_balance     || 0).toFixed(2);
+      if(setSibuyanBalance)     setSibuyanBalance.value     = Number(data.sibuyan_balance      || 0).toFixed(2);
+      if(setRomblonBalance)     setRomblonBalance.value     = Number(data.romblon_balance      || 0).toFixed(2);
+      if(setSanJoseBalance)     setSanJoseBalance.value     = Number(data.san_jose_balance     || 0).toFixed(2);
       if(setSigFinanceClerk)   setSigFinanceClerk.value   = data.finance_clerk   || DEFAULT_SIG.financeClerk;
       if(setSigAccountant)     setSigAccountant.value     = data.accountant      || DEFAULT_SIG.accountant;
       if(setSigFinanceManager) setSigFinanceManager.value = data.finance_manager || DEFAULT_SIG.financeManager;
@@ -6873,6 +6880,9 @@ Cancel = Append`);
       bankBalance:        Number(setBankBalance?.value)        || 0,
       pnbSavingsBalance:  Number(setPnbSavingsBalance?.value)  || 0,
       landbankBalance:    Number(setLandbankBalance?.value)     || 0,
+      sibuyanBalance:     Number(setSibuyanBalance?.value)      || 0,
+      romblonBalance:     Number(setRomblonBalance?.value)      || 0,
+      sanJoseBalance:     Number(setSanJoseBalance?.value)      || 0,
       financeClerk:   setSigFinanceClerk?.value.trim()   || DEFAULT_SIG.financeClerk,
       accountant:     setSigAccountant?.value.trim()     || DEFAULT_SIG.accountant,
       financeManager: setSigFinanceManager?.value.trim() || DEFAULT_SIG.financeManager
@@ -6902,6 +6912,9 @@ Cancel = Append`);
   setBankBalance?.addEventListener("input",        queueSaveSettings);
   setPnbSavingsBalance?.addEventListener("input",  queueSaveSettings);
   setLandbankBalance?.addEventListener("input",    queueSaveSettings);
+  setSibuyanBalance?.addEventListener("input",     queueSaveSettings);
+  setRomblonBalance?.addEventListener("input",     queueSaveSettings);
+  setSanJoseBalance?.addEventListener("input",     queueSaveSettings);
   setSigFinanceClerk?.addEventListener("input",   queueSaveSettings);
   setSigAccountant?.addEventListener("input",     queueSaveSettings);
   setSigFinanceManager?.addEventListener("input", queueSaveSettings);
@@ -9256,7 +9269,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
       // Running balance: starts at 0, each row adds Amount and subtracts Payments
       // Amount increases the balance (delivery/charge), Payment decreases it
-      let runningBalance = 0;
+      // Start from opening balance set in Settings
+      const openingBal = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
+      let runningBalance = openingBal;
       let totalAmount = 0, totalPayments = 0;
 
       sorted.forEach(r => {
@@ -9331,7 +9346,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
         const rbTr = document.createElement("tr");
         const rbL = document.createElement("td"); rbL.colSpan = 5;
-        rbL.textContent = "Running Balance";
+        const openingForLabel = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
+        rbL.textContent = openingForLabel ? `Running Balance (Opening: ${fmtMoney(openingForLabel)})` : "Running Balance";
         rbL.style.cssText = "text-align:right;font-weight:800;font-size:13px;padding:8px 10px;border-top:2px solid var(--accent,#4f8ef7);color:var(--accent,#4f8ef7);border-bottom:none;border-left:none;border-right:none;background:transparent;";
         const rbV = document.createElement("td"); rbV.classList.add("num");
         rbV.textContent = fmtMoney(runningBalance);
@@ -9503,7 +9519,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
   // ── Wire up branch tabs ──
   const sibuyanTab = initBranchTab({
-    branch: "Sibuyan", store: branchSibuyanStore,
+    branch: "Sibuyan", openingBalanceId: "setSibuyanBalance", store: branchSibuyanStore,
     tableId: "branchSibuyanTable", rowCountId: "branchSibuyanRowCount", selectedId: "branchSibuyanSelected",
     overlayId: "sibuyanOverlay", modalId: "sibuyanModal",
     titleId: "sibuyanModalTitle", subtitleId: "sibuyanModalSubtitle", closeBtnId: "btnCloseSibuyan",
@@ -9522,7 +9538,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   });
 
   const romblonTab = initBranchTab({
-    branch: "Romblon", store: branchRomblonStore,
+    branch: "Romblon", openingBalanceId: "setRomblonBalance", store: branchRomblonStore,
     tableId: "branchRomblonTable", rowCountId: "branchRomblonRowCount", selectedId: "branchRomblonSelected",
     overlayId: "romblonOverlay", modalId: "romblonModal",
     titleId: "romblonModalTitle", subtitleId: "romblonModalSubtitle", closeBtnId: "btnCloseRomblon",
@@ -9541,7 +9557,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   });
 
   const sanJoseTab = initBranchTab({
-    branch: "San Jose", store: branchSanJoseStore,
+    branch: "San Jose", openingBalanceId: "setSanJoseBalance", store: branchSanJoseStore,
     tableId: "branchSanJoseTable", rowCountId: "branchSanJoseRowCount", selectedId: "branchSanJoseSelected",
     overlayId: "sanJoseOverlay", modalId: "sanJoseModal",
     titleId: "sanJoseModalTitle", subtitleId: "sanJoseModalSubtitle", closeBtnId: "btnCloseSanJose",

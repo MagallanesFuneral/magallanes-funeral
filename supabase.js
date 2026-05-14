@@ -334,6 +334,9 @@ window.DB = {
       bank_balance:         Number(obj.bankBalance)       || 0,
       pnb_savings_balance:  Number(obj.pnbSavingsBalance) || 0,
       landbank_balance:     Number(obj.landbankBalance)   || 0,
+      sibuyan_balance:      Number(obj.sibuyanBalance)    || 0,
+      romblon_balance:      Number(obj.romblonBalance)    || 0,
+      san_jose_balance:     Number(obj.sanJoseBalance)    || 0,
       finance_clerk:   obj.financeClerk   || "Jennifer F. Landicho",
       accountant:      obj.accountant     || "Ranni V. Dalisay",
       finance_manager: obj.financeManager || "June Lizette M. Quizon",
@@ -381,8 +384,6 @@ window.DB = {
 // Everyone else who logs in will be a read-only Viewer.
 const ADMIN_EMAILS = [
   "patrick@biopticinc.com",
-  "tgfl2106@gmail.com",
-  "fheyfl1013@gmail.com",
   // add more admin emails here if needed
 ];
 
