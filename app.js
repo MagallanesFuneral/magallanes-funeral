@@ -9421,9 +9421,10 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     overlay?.addEventListener("click", closeModal);
 
     // ── Submit ──
-    $(cfg.formId)?.addEventListener("submit", e => {
-      e.preventDefault();
-      const date       = mmddyyyyFromDateInput($(cfg.dateId)?.value)       || "";
+    function handleBranchSubmit(e) {
+      if (e) e.preventDefault();
+      const dateRaw    = $(cfg.dateId)?.value || "";
+      const date       = mmddyyyyFromDateInput(dateRaw) || dateRaw || "";
       const drNo       = $(cfg.drNoId)?.value.trim()       || "";
       const deliveries = $(cfg.deliveriesId)?.value.trim() || "";
       const amount     = parseFloat($(cfg.amountId)?.value)   || 0;
@@ -9444,6 +9445,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         cfg.dbSave(updated);
       }
       closeModal(); renderTable();
+    }
+    // Listen on both form submit and button click for reliability
+    $(cfg.formId)?.addEventListener("submit", handleBranchSubmit);
+    $(cfg.submitBtnId)?.addEventListener("click", e => {
+      // Only handle if not already handled by form submit
+      const form = $(cfg.formId);
+      if (form && e.target.type === "submit") return; // let form handle it
+      handleBranchSubmit(e);
     });
 
     // ── Delete ──

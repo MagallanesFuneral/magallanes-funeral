@@ -427,16 +427,16 @@ function applyRole(user) {
 
   // Hide/show action buttons based on role
   // Selectors for all mutating buttons across the app
+  // Action bar buttons only — NOT modal submit buttons (those stay visible for data entry)
   const ACTION_SELECTORS = [
-    // Generic action buttons (Add, Edit, Delete, Import, Save, Submit, Refresh)
-    ".btn-danger",
-    "[id^='btn'][id*='Add']",
-    "[id^='btn'][id*='Edit']",
-    "[id^='btn'][id*='Delete']",
-    "[id^='btn'][id*='Import']",
-    "[id^='btn'][id*='Submit']",
-    "[id^='btn'][id*='Save']",
-    // Specific buttons
+    // Danger buttons (Delete)
+    ".actions-row .btn-danger",
+    // Action bar Add/Edit/Import buttons (inside .actions-row only)
+    ".actions-row [id*='Add']",
+    ".actions-row [id*='Edit']",
+    ".actions-row [id*='Delete']",
+    ".actions-row [id*='Import']",
+    // Specific named action bar buttons
     "#btnNewContract", "#btnSaveContract",
     "#btnAddCash", "#btnEditCash", "#btnDelCash", "#btnImportCash",
     "#btnAddCashExp", "#btnEditCashExp", "#btnDelCashExp", "#btnImportCashExp",
