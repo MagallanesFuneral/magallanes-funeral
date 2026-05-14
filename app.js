@@ -9243,7 +9243,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     // ── Render ──
     function renderTable() {
-      if (!tableEl) return;
+      const tbl = getEl(cfg.tableId);
+      if (!tbl) { console.warn("[Branch] table not found:", cfg.tableId); return; }
+      const tbody = tbl.tBodies[0];
+      if (!tbody) { console.warn("[Branch] tbody not found in:", cfg.tableId); return; }
+
       const sorted = cfg.store
         .filter(r => branchRowMatchesFilter(r, branchActiveFilter))
         .sort((a, b) => {
@@ -9252,7 +9256,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           return ad - bd;
         });
 
-      const tbody = tableEl.tBodies[0];
+      console.log("[Branch] renderTable", cfg.branch, "store:", cfg.store.length, "sorted:", sorted.length);
       tbody.innerHTML = "";
 
       const openingBal = Number(getEl(cfg.openingBalanceId)?.value) || 0;
@@ -9330,14 +9334,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     }
 
     // ── Row selection ──
-    tableEl?.addEventListener("click", e => {
+    getEl(cfg.tableId)?.addEventListener("click", e => {
       const tr = e.target.closest("tr[data-key]");
       if (!tr) return;
       selectedKey = tr.dataset.key || null;
-      tableEl.querySelectorAll("tr").forEach(r => r.classList.toggle("selected", r.dataset.key === selectedKey));
+      getEl(cfg.tableId)?.querySelectorAll("tr").forEach(r => r.classList.toggle("selected", r.dataset.key === selectedKey));
       if (selectedEl) selectedEl.textContent = selectedKey ? "Selected: 1" : "Selected: —";
     });
-    tableEl?.addEventListener("dblclick", e => {
+    getEl(cfg.tableId)?.addEventListener("dblclick", e => {
       const tr = e.target.closest("tr[data-key]");
       if (tr) { selectedKey = tr.dataset.key; openModal("edit", selectedKey); }
     });
@@ -9397,24 +9401,33 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     // ── Submit ──
     function doSubmit() {
-      const dateRaw    = getEl(cfg.dateId)?.value || "";
-      const date       = mmddyyyyFromDateInput(dateRaw) || "";
-      const drNo       = (getEl(cfg.drNoId)?.value       || "").trim();
-      const deliveries = (getEl(cfg.deliveriesId)?.value || "").trim();
-      const amount     = parseFloat(getEl(cfg.amountId)?.value)   || 0;
-      const payments   = parseFloat(getEl(cfg.paymentsId)?.value) || 0;
+      const dateEl  = getEl(cfg.dateId);
+      const drEl    = getEl(cfg.drNoId);
+      const delEl   = getEl(cfg.deliveriesId);
+      const amtEl   = getEl(cfg.amountId);
+      const payEl   = getEl(cfg.paymentsId);
 
-      if (!date) return alert("Please enter a valid date.");
+      const dateRaw    = dateEl?.value || "";
+      const date       = mmddyyyyFromDateInput(dateRaw) || "";
+      const drNo       = (drEl?.value  || "").trim();
+      const deliveries = (delEl?.value || "").trim();
+      const amount     = parseFloat(amtEl?.value)  || 0;
+      const payments   = parseFloat(payEl?.value)  || 0;
+
+      // If date is empty, keep the dateRaw as-is so we can still save
+      const finalDate  = date || dateRaw;
+      if (!finalDate)  return alert("Please enter a valid date.");
 
       if (mode === "add") {
-        const entry = ensureId({ date, drNo, deliveries, amount, payments });
-        cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
+        const entry = ensureId({ date: finalDate, drNo, deliveries, amount, payments });
         cfg.store.push(entry);
+        console.log("[Branch] added entry to store", cfg.branch, "store size now:", cfg.store.length, "entry:", entry);
+        cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
       } else {
         const idx = cfg.store.findIndex(r => keyFor(r) === editingKey);
         if (idx < 0) return;
         const updated = ensureId({
-          date, drNo, deliveries, amount, payments,
+          date: finalDate, drNo, deliveries, amount, payments,
           _id: cfg.store[idx]._id, id: cfg.store[idx].id
         });
         cfg.store[idx] = updated;
@@ -9424,6 +9437,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       renderTable();
     }
 
+    // Wire to button click — button must be type="button" not type="submit"
     getEl(cfg.submitBtnId)?.addEventListener("click", doSubmit);
 
     // ── Delete ──
