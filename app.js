@@ -9309,7 +9309,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td colspan="3" style="text-align:right;font-weight:700;">TOTALS</td>
           <td class="num" style="font-weight:700;">${fmtMoney(totalAmount)}</td>
           <td class="num" style="font-weight:700;">${fmtMoney(totalPayments)}</td>
-          <td class="num" style="${runningBalance>0?"color:#e74c3c;":"runningBalance<0?'color:#27ae60;':'"}font-weight:700;">${fmtMoney(runningBalance)}</td>`;
+          <td class="num" style="${runningBalance>0?'color:#e74c3c;':runningBalance<0?'color:#27ae60;':''}font-weight:700;">${fmtMoney(runningBalance)}</td>`;
         tbody.appendChild(tot);
         // Running balance row
         const sp2 = document.createElement("tr"); sp2.classList.add("spacer-row");
