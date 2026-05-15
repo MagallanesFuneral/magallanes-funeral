@@ -25,6 +25,9 @@ const TABLE = {
   settings:     "settings",
   contractForms: "contract_forms",
   refundLog:     "refund_log",
+  branchSibuyan: "branch_sibuyan",
+  branchRomblon: "branch_romblon",
+  branchSanJose: "branch_san_jose",
 };
 
 // ── Field name translators (JS camelCase ↔ DB snake_case) ────
@@ -235,6 +238,27 @@ function contractFormFromDb(r) {
   };
 }
 
+function branchEntryToDb(r) {
+  return {
+    id:         r.id        || undefined,
+    date:       r.date      || null,
+    dr_no:      r.drNo      || null,
+    deliveries: r.deliveries|| null,
+    amount:     isFinite(Number(r.amount))   ? Number(r.amount)   : 0,
+    payments:   isFinite(Number(r.payments)) ? Number(r.payments) : 0,
+  };
+}
+function branchEntryFromDb(r) {
+  return {
+    id:         r.id,
+    date:       r.date        || "",
+    drNo:       r.dr_no       || "",
+    deliveries: r.deliveries  || "",
+    amount:     isFinite(Number(r.amount))   ? Number(r.amount)   : 0,
+    payments:   isFinite(Number(r.payments)) ? Number(r.payments) : 0,
+  };
+}
+
 function refundLogToDb(r) {
   return {
     id:           r.id || undefined,
@@ -377,6 +401,20 @@ window.DB = {
   async deleteAllDswd()         { const { error } = await _sb.from(TABLE.dswd).delete().gte("id", "00000000-0000-0000-0000-000000000000");          if (error) throw error; },
   async deleteAllBai()          { const { error } = await _sb.from(TABLE.bai).delete().gte("id", "00000000-0000-0000-0000-000000000000");           if (error) throw error; },
   async deleteAllSettings()     { const { error } = await _sb.from(TABLE.settings).delete().gte("id", "00000000-0000-0000-0000-000000000000");     if (error) throw error; },
+
+
+  // Branch ledgers
+  async getBranchSibuyan()      { return dbGetAll(TABLE.branchSibuyan, branchEntryFromDb); },
+  async saveBranchSibuyan(r)    { return dbUpsert(TABLE.branchSibuyan, r, branchEntryToDb); },
+  async deleteBranchSibuyan(id) { return dbDelete(TABLE.branchSibuyan, id); },
+
+  async getBranchRomblon()      { return dbGetAll(TABLE.branchRomblon, branchEntryFromDb); },
+  async saveBranchRomblon(r)    { return dbUpsert(TABLE.branchRomblon, r, branchEntryToDb); },
+  async deleteBranchRomblon(id) { return dbDelete(TABLE.branchRomblon, id); },
+
+  async getBranchSanJose()      { return dbGetAll(TABLE.branchSanJose, branchEntryFromDb); },
+  async saveBranchSanJose(r)    { return dbUpsert(TABLE.branchSanJose, r, branchEntryToDb); },
+  async deleteBranchSanJose(id) { return dbDelete(TABLE.branchSanJose, id); },
 };
 
 // ── Admin email list ─────────────────────────────────────────
