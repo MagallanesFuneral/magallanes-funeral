@@ -9277,9 +9277,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         if (keyFor(r) === selectedKey) tr.classList.add("selected");
 
         const balColor = runningBalance > 0
-          ? "color:#e74c3c;font-weight:700;"
+          ? "color:#27ae60;font-weight:700;"
           : runningBalance < 0
-            ? "color:#27ae60;font-weight:700;"
+            ? "color:#e74c3c;font-weight:700;"
             : "font-weight:700;opacity:0.5;";
 
         [
@@ -9309,12 +9309,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <td colspan="3" style="text-align:right;font-weight:700;">TOTALS</td>
           <td class="num" style="font-weight:700;">${fmtMoney(totalAmount)}</td>
           <td class="num" style="font-weight:700;">${fmtMoney(totalPayments)}</td>
-          <td class="num" style="${runningBalance>0?'color:#e74c3c;':runningBalance<0?'color:#27ae60;':''}font-weight:700;">${fmtMoney(runningBalance)}</td>`;
+          <td class="num" style="${runningBalance>0?'color:#27ae60;':runningBalance<0?'color:#e74c3c;':''}font-weight:700;">${fmtMoney(runningBalance)}</td>`;
         tbody.appendChild(tot);
         // Running balance row
         const sp2 = document.createElement("tr"); sp2.classList.add("spacer-row");
         sp2.innerHTML = `<td colspan="6"></td>`; tbody.appendChild(sp2);
-        const rbColor = runningBalance > 0 ? "#e74c3c" : runningBalance < 0 ? "#27ae60" : "var(--accent,#4f8ef7)";
+        const rbColor = runningBalance > 0 ? "#27ae60" : runningBalance < 0 ? "#e74c3c" : "var(--accent,#4f8ef7)";
         const rb = document.createElement("tr");
         rb.innerHTML = `
           <td colspan="5" style="text-align:right;font-weight:800;font-size:13px;padding:8px 10px;
