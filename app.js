@@ -6909,95 +6909,85 @@ Cancel = Append`);
   }
 
   // ── Role Manager ──────────────────────────────────────────
-  const roleEmailInput  = $("#roleEmailInput");
-  const roleSelectInput = $("#roleSelectInput");
-  const btnSaveRole     = $("#btnSaveRole");
-  const rolesTableBody  = $("#rolesTableBody");
-  const roleMsg         = $("#roleMsg");
+  // Uses getElementById directly — no $ aliasing
+
+  function gRole(id) { return document.getElementById(id); }
 
   function showRoleMsg(msg, isError) {
-    if (!roleMsg) return;
-    roleMsg.textContent = msg;
-    roleMsg.style.color = isError ? "#e74c3c" : "#27ae60";
-    setTimeout(() => { if (roleMsg) roleMsg.textContent = ""; }, 3000);
+    const el = gRole("roleMsg");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "#e74c3c" : "#27ae60";
+    setTimeout(() => { const e2 = gRole("roleMsg"); if (e2) e2.textContent = ""; }, 3000);
   }
 
   async function loadRoles() {
-    if (!rolesTableBody) return;
-    rolesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;padding:12px;">Loading...</td></tr>';
+    const tbody = gRole("rolesTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;padding:12px;">Loading...</td></tr>';
     try {
       const { data, error } = await window._sb
-        .from("user_roles")
-        .select("id,email,role")
-        .order("email");
+        .from("user_roles").select("id,email,role").order("email");
       if (error) throw error;
       if (!data || !data.length) {
-        rolesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;padding:12px;">No roles defined yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;opacity:0.5;padding:12px;">No roles defined yet. Add one above.</td></tr>';
         return;
       }
-      rolesTableBody.innerHTML = data.map(r => `
+      tbody.innerHTML = data.map(r => `
         <tr>
           <td>${r.email}</td>
           <td style="text-align:center;">
-            <span style="display:inline-block;padding:2px 12px;border-radius:20px;
-              font-size:11px;font-weight:700;letter-spacing:0.04em;
+            <span style="display:inline-block;padding:2px 12px;border-radius:20px;font-size:11px;font-weight:700;
               background:${r.role === "admin" ? "#4f8ef7" : "#666"};color:#fff;">
-              ${r.role === "admin" ? "Admin" : "Viewer"}
-            </span>
+              ${r.role === "admin" ? "Admin" : "Viewer"}</span>
           </td>
           <td style="text-align:center;">
-            <button type="button" class="btn btn-danger"
-              style="padding:2px 10px;font-size:11px;"
+            <button type="button" class="btn btn-danger" style="padding:2px 10px;font-size:11px;"
               data-rid="${r.id}" data-remail="${r.email}">Remove</button>
           </td>
         </tr>`).join("");
-
-      // Wire Remove buttons
-      rolesTableBody.querySelectorAll("[data-rid]").forEach(btn => {
+      tbody.querySelectorAll("[data-rid]").forEach(btn => {
         btn.addEventListener("click", async () => {
-          const email = btn.dataset.remail;
-          if (!confirm(`Remove ${email} from the roles list?
-They will become a Viewer.`)) return;
+          if (!confirm(`Remove ${btn.dataset.remail}?\nThey will become a Viewer on next login.`)) return;
           const { error } = await window._sb.from("user_roles").delete().eq("id", btn.dataset.rid);
           if (error) return showRoleMsg("Error: " + error.message, true);
-          showRoleMsg(`✓ ${email} removed.`);
+          showRoleMsg(`✓ ${btn.dataset.remail} removed.`);
           loadRoles();
         });
       });
     } catch (e) {
-      rolesTableBody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#e74c3c;padding:12px;">Could not load roles. Check Supabase connection.</td></tr>';
+      console.error("loadRoles:", e);
+      tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#e74c3c;padding:12px;">Could not load roles — check console.</td></tr>';
     }
   }
 
-  btnSaveRole?.addEventListener("click", async () => {
-    const email = (roleEmailInput?.value || "").trim().toLowerCase();
-    const role  = roleSelectInput?.value || "viewer";
-    if (!email) return showRoleMsg("Please enter an email address.", true);
+  async function doSaveRole() {
+    const emailEl = gRole("roleEmailInput");
+    const roleEl  = gRole("roleSelectInput");
+    const email   = (emailEl?.value || "").trim().toLowerCase();
+    const role    = roleEl?.value || "viewer";
+    if (!email)               return showRoleMsg("Please enter an email address.", true);
     if (!email.includes("@")) return showRoleMsg("Please enter a valid email.", true);
     try {
       const { error } = await window._sb
-        .from("user_roles")
-        .upsert({ email, role }, { onConflict: "email" });
-      if (error) return showRoleMsg("Error: " + error.message, true);
-      if (roleEmailInput) roleEmailInput.value = "";
+        .from("user_roles").upsert({ email, role }, { onConflict: "email" });
+      if (error) { console.error("saveRole:", error); return showRoleMsg("Error: " + error.message, true); }
+      if (emailEl) emailEl.value = "";
       showRoleMsg(`✓ ${email} saved as ${role}.`);
       loadRoles();
     } catch (e) {
+      console.error("saveRole:", e);
       showRoleMsg("Error: " + e.message, true);
     }
-  });
+  }
 
-  // Allow Enter key in email field to trigger save
-  roleEmailInput?.addEventListener("keydown", e => {
-    if (e.key === "Enter") btnSaveRole?.click();
-  });
-
-  // Load roles whenever Settings subtab is clicked
+  gRole("btnSaveRole")?.addEventListener("click", doSaveRole);
+  gRole("roleEmailInput")?.addEventListener("keydown", e => { if (e.key === "Enter") doSaveRole(); });
   document.querySelectorAll("[data-subtab='settings']").forEach(btn => {
-    btn.addEventListener("click", loadRoles);
+    btn.addEventListener("click", () => setTimeout(loadRoles, 150));
   });
-  // Load immediately in case settings is already active
-  loadRoles();
+  setTimeout(loadRoles, 600);
+
 
   setCashBalance?.addEventListener("input",        queueSaveSettings);
   setBankBalance?.addEventListener("input",        queueSaveSettings);
