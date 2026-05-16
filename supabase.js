@@ -420,17 +420,24 @@ window.DB = {
 // ── Admin email list ─────────────────────────────────────────
 // Add the email addresses that should have full Admin access.
 // Everyone else who logs in will be a read-only Viewer.
-const ADMIN_EMAILS = [
-  "patrick@biopticinc.com",
-  // add more admin emails here if needed
-];
-
-function isAdminEmail(email) {
-  return ADMIN_EMAILS.map(e => e.toLowerCase()).includes((email || "").toLowerCase());
-}
-
-// Expose current role globally so app.js can read it
+// ── Role system — managed via Supabase user_roles table ──────
+// To add/edit/remove admins: use the Role Manager in Settings tab
+// No code changes needed.
 window.MF_ROLE = "viewer"; // "admin" | "viewer"
+
+async function fetchUserRole(email) {
+  try {
+    const { data, error } = await _sb
+      .from("user_roles")
+      .select("role")
+      .eq("email", (email || "").toLowerCase().trim())
+      .maybeSingle();
+    if (error || !data) return "viewer";
+    return data.role === "admin" ? "admin" : "viewer";
+  } catch (e) {
+    return "viewer";
+  }
+}
 
 // ── Auth UI ───────────────────────────────────────────────────
 
@@ -453,7 +460,7 @@ function hideLoginError() {
 }
 
 function applyRole(user) {
-  const role = isAdminEmail(user.email) ? "admin" : "viewer";
+  const role = user._role || "viewer";
   window.MF_ROLE = role;
 
   // Show role badge next to email
@@ -522,12 +529,15 @@ function applyRole(user) {
   }
 }
 
-function showApp(user) {
+async function showApp(user) {
   loginOverlay.style.display = "none";
   userBadge.style.display    = "flex";
   userEmailEl.textContent    = user.email;
-  // Apply role restrictions after a short delay so the DOM is fully rendered
-  setTimeout(() => applyRole(user), 300);
+  // Fetch role from DB then apply
+  const role = await fetchUserRole(user.email);
+  user._role = role;
+  window.MF_ROLE = role;
+  setTimeout(() => applyRole(user), 100);
 }
 
 function showLogin() {
