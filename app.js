@@ -6993,16 +6993,13 @@ Cancel = Append`);
   setTimeout(loadRoles, 600);
 
 
-  setCashBalance?.addEventListener("input",        queueSaveSettings);
-  setBankBalance?.addEventListener("input",        queueSaveSettings);
-  setPnbSavingsBalance?.addEventListener("input",  queueSaveSettings);
-  setLandbankBalance?.addEventListener("input",    queueSaveSettings);
-  setSibuyanBalance?.addEventListener("input",     queueSaveSettings);
-  setRomblonBalance?.addEventListener("input",     queueSaveSettings);
-  setSanJoseBalance?.addEventListener("input",     queueSaveSettings);
-  setSigFinanceClerk?.addEventListener("input",   queueSaveSettings);
-  setSigAccountant?.addEventListener("input",     queueSaveSettings);
-  setSigFinanceManager?.addEventListener("input", queueSaveSettings);
+  // Wire all settings inputs — both "input" (while typing) and "change" (on blur/tab)
+  [setCashBalance, setBankBalance, setPnbSavingsBalance, setLandbankBalance,
+   setSibuyanBalance, setRomblonBalance, setSanJoseBalance,
+   setSigFinanceClerk, setSigAccountant, setSigFinanceManager].forEach(el => {
+    el?.addEventListener("input",  queueSaveSettings);
+    el?.addEventListener("change", queueSaveSettings);
+  });
 
   settingsForm?.addEventListener("submit",(e)=>{
     e.preventDefault();

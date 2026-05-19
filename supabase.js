@@ -354,25 +354,33 @@ window.DB = {
     return data;
   },
   async saveSettings(obj) {
-    // Get existing row id if any
+    // Helper — parse number safely (keeps 0 as 0, only falls back if truly missing)
+    const n = v => { const x = Number(v); return isFinite(x) ? x : 0; };
+
     const existing = await this.getSettings();
     const payload = {
-      id: existing?.id || undefined,
-      cash_balance:         Number(obj.cashBalance)       || 0,
-      bank_balance:         Number(obj.bankBalance)       || 0,
-      pnb_savings_balance:  Number(obj.pnbSavingsBalance) || 0,
-      landbank_balance:     Number(obj.landbankBalance)   || 0,
-      sibuyan_balance:      Number(obj.sibuyanBalance)    || 0,
-      romblon_balance:      Number(obj.romblonBalance)    || 0,
-      san_jose_balance:     Number(obj.sanJoseBalance)    || 0,
-      finance_clerk:   obj.financeClerk   || "Jennifer F. Landicho",
-      accountant:      obj.accountant     || "Ranni V. Dalisay",
-      finance_manager: obj.financeManager || "June Lizette M. Quizon",
-      updated_at:      new Date().toISOString(),
+      id:                   existing?.id || undefined,
+      cash_balance:         n(obj.cashBalance),
+      bank_balance:         n(obj.bankBalance),
+      pnb_savings_balance:  n(obj.pnbSavingsBalance),
+      landbank_balance:     n(obj.landbankBalance),
+      sibuyan_balance:      n(obj.sibuyanBalance),
+      romblon_balance:      n(obj.romblonBalance),
+      san_jose_balance:     n(obj.sanJoseBalance),
+      finance_clerk:        obj.financeClerk   || "Jennifer F. Landicho",
+      accountant:           obj.accountant     || "Ranni V. Dalisay",
+      finance_manager:      obj.financeManager || "June Lizette M. Quizon",
+      updated_at:           new Date().toISOString(),
     };
     if (!payload.id) delete payload.id;
     const { error } = await _sb.from(TABLE.settings).upsert(payload, { onConflict: "id" });
-    if (error) console.error("saveSettings", error);
+    if (error) {
+      console.error("saveSettings error:", error);
+      // Surface the error so it's visible — missing columns are a common cause
+      if (error.message && error.message.includes("column")) {
+        alert("Settings save error — a database column may be missing.\nRun the SQL setup for new columns.\n\nDetails: " + error.message);
+      }
+    }
   },
 
   // Contract Forms
