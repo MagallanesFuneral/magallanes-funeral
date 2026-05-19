@@ -5028,7 +5028,11 @@ function fmtMoney(n) {
       pdDate.value = new Date().toISOString().slice(0,10);
       pdAmount.value = "0.00";
       // Reset source to Cash on Hand and hide transfer note
-      if (pdSource)       { pdSource.value = "cash"; pdSource.closest(".field").style.display = ""; }
+      if (pdSource) {
+        pdSource.value = "cash";
+        pdSource.selectedIndex = 0; // force reset to first option (Cash on Hand)
+        pdSource.closest(".field").style.display = "";
+      }
       if (pdTransferNote) { pdTransferNote.style.display = "none"; }
     } else {
       pnbTitle.textContent = "Edit Entry";
