@@ -5597,7 +5597,7 @@ function fmtMoney(n) {
         // Month header
         const hdr = document.createElement("tr");
         hdr.dataset.rowType = "monthHeader"; hdr.classList.add("group-row");
-        const hdrTd = document.createElement("td"); hdrTd.colSpan = 2;
+        const hdrTd = document.createElement("td"); hdrTd.colSpan = cfg.hasDescription ? 3 : 2;
         hdrTd.innerHTML = `<span class="group-chip"><span class="dot"></span><span>${monthLabelFromKey(key)}</span></span>`;
         hdr.appendChild(hdrTd); tbody.appendChild(hdr);
 
@@ -5611,6 +5611,12 @@ function fmtMoney(n) {
           const td1 = document.createElement("td"); td1.textContent = r.date || "";
           const td2 = document.createElement("td"); td2.classList.add("num"); td2.textContent = fmtMoney(amt);
           tr.appendChild(td1); tr.appendChild(td2);
+          if (cfg.hasDescription) {
+            // Auto-populate description from amount sign if not set
+            const desc = r.description || (amt >= 0 ? "Deposit" : "Withdrawal");
+            const td3 = document.createElement("td"); td3.textContent = desc;
+            tr.appendChild(td3);
+          }
           tbody.appendChild(tr);
         });
 
@@ -5618,6 +5624,7 @@ function fmtMoney(n) {
         const mtr = document.createElement("tr"); mtr.dataset.rowType = "monthTotal"; mtr.classList.add("total-row");
         const ml = document.createElement("td"); ml.textContent = ""; mtr.appendChild(ml);
         const mv = document.createElement("td"); mv.classList.add("num"); mv.textContent = fmtMoney(monthTotal); mtr.appendChild(mv);
+        if (cfg.hasDescription) { const md = document.createElement("td"); mtr.appendChild(md); }
         tbody.appendChild(mtr);
 
         if (gi < keys.length - 1) {
@@ -5634,13 +5641,14 @@ function fmtMoney(n) {
         const gtr = document.createElement("tr"); gtr.dataset.rowType = "grandTotal"; gtr.classList.add("grand-total-row");
         const gl = document.createElement("td"); gl.textContent = "Grand Total"; gtr.appendChild(gl);
         const gv = document.createElement("td"); gv.classList.add("num"); gv.textContent = fmtMoney(grand); gtr.appendChild(gv);
+        if (cfg.hasDescription) { const gd = document.createElement("td"); gtr.appendChild(gd); }
         tbody.appendChild(gtr);
 
         // ── Running Balance row ──
         const openingBal = Number(document.querySelector(`#${cfg.openingBalanceId}`)?.value) || 0;
         const runningBal = openingBal + grand;
         const spRb = document.createElement("tr"); spRb.classList.add("spacer-row");
-        const spRbTd = document.createElement("td"); spRbTd.colSpan = 2; spRb.appendChild(spRbTd); tbody.appendChild(spRb);
+        const spRbTd = document.createElement("td"); spRbTd.colSpan = cfg.hasDescription ? 3 : 2; spRb.appendChild(spRbTd); tbody.appendChild(spRb);
         const rbTr = document.createElement("tr"); rbTr.dataset.rowType = "runningBalance";
         rbTr.style.cssText = "background:transparent;";
         const rbL = document.createElement("td");
@@ -5687,6 +5695,7 @@ function fmtMoney(n) {
         if ($(cfg.dateId))   $(cfg.dateId).value   = "";
         if ($(cfg.amountId)) $(cfg.amountId).value = "0.00";
         if ($(cfg.submitBtnId)) $(cfg.submitBtnId).textContent = "Add Entry";
+        if (cfg.hasDescription && $(cfg.descriptionId)) $(cfg.descriptionId).value = "Deposit";
       } else {
         const found = cfg.store.find(r => keyFor(r) === key);
         if (!found) return;
@@ -5696,6 +5705,9 @@ function fmtMoney(n) {
         if ($(cfg.dateId))   $(cfg.dateId).value   = dateInputFromMmddyyyy(found.date) || "";
         if ($(cfg.amountId)) $(cfg.amountId).value = (Number(found.amount)||0).toFixed(2);
         if ($(cfg.submitBtnId)) $(cfg.submitBtnId).textContent = "Save Changes";
+        if (cfg.hasDescription && $(cfg.descriptionId)) {
+          $(cfg.descriptionId).value = found.description || (Number(found.amount) >= 0 ? "Deposit" : "Withdrawal");
+        }
       }
       overlay.classList.add("is-open"); modal.classList.add("is-open");
     }
@@ -5717,15 +5729,19 @@ function fmtMoney(n) {
       e.preventDefault();
       const date   = mmddyyyyFromDateInput($(cfg.dateId)?.value) || "";
       const amount = parseFloat($(cfg.amountId)?.value) || 0;
+      const description = cfg.hasDescription
+        ? ($(cfg.descriptionId)?.value.trim() || (amount >= 0 ? "Deposit" : "Withdrawal"))
+        : undefined;
       if (!date) return alert("Please enter a date.");
       if (mode === "add") {
-        const entry = ensureId({ date, amount });
+        const entry = ensureId({ date, amount, ...(cfg.hasDescription ? { description } : {}) });
         cfg.dbSave(entry).then(saved => { if (saved) entry.id = saved.id; });
         cfg.store.push(entry);
       } else {
         const idx = cfg.store.findIndex(r => keyFor(r) === editingKey);
         if (idx < 0) return;
-        const updated = ensureId({ date, amount, _id: cfg.store[idx]._id, id: cfg.store[idx].id });
+        const updated = ensureId({ date, amount, ...(cfg.hasDescription ? { description } : {}),
+          _id: cfg.store[idx]._id, id: cfg.store[idx].id });
         cfg.store[idx] = updated;
         cfg.dbSave(updated);
       }
@@ -5870,6 +5886,8 @@ Cancel = Append`);
 
   const landbankTab = initDepositTab({
     name:             "Landbank",
+    hasDescription:   true,
+    descriptionId:    "lbDescription",
     openingBalanceId: "setLandbankBalance",
     store:            landbankStore,
     tableId:          "landbankTable",

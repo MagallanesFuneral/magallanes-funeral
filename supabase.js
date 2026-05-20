@@ -125,11 +125,18 @@ function pnbSavingsFromDb(r) {
   return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
 }
 function landbankToDb(r) {
-  return { id: r.id || undefined, date: r.date || null, amount: Number(r.amount) || 0 };
+  const amt = Number(r.amount);
+  return { id: r.id || undefined, date: r.date || null,
+    amount: isFinite(amt) ? amt : 0,
+    description: r.description || (amt >= 0 ? "Deposit" : "Withdrawal") };
 }
 function landbankFromDb(r) {
-  return { id: r.id, date: r.date, amount: Number(r.amount) || 0 };
+  const amt = Number(r.amount);
+  return { id: r.id, date: r.date || "",
+    amount: isFinite(amt) ? amt : 0,
+    description: r.description || (amt >= 0 ? "Deposit" : "Withdrawal") };
 }
+
 
 function baiToDb(r) {
   return {
