@@ -9285,7 +9285,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         inp.appendChild(w);
       };
       if (cat === "date")       { makeText("Date", "MM/DD/YYYY or MM/YYYY or YYYY"); }
-      else if (cat === "drNo")       { makeText("DR No.", "e.g. DR-001"); }
+      else if (cat === "drNo")       { makeText(cfg.drNoLabel || "DR No.", "e.g. DR-001"); }
       else if (cat === "deliveries") { makeText("Deliveries", "contains..."); }
       else if (cat === "amount")     { makeRange("Amount"); }
       else if (cat === "payments")   { makeRange("Payments"); }
@@ -9577,7 +9577,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <style>table{border-collapse:collapse;font-family:Calibri,Arial;font-size:11pt;}
         th,td{border:1px solid #ccc;padding:4px 7px;}th{background:#f2f2f2;font-weight:700;}
         td.num{text-align:right;}</style></head><body>
-        <table><thead><tr><th>Date</th><th>DR No.</th><th>Deliveries</th>
+        <table><thead><tr><th>Date</th><th>${cfg.drNoLabel||'DR No.'}</th><th>Deliveries</th>
         <th>Amount</th><th>Payments</th><th>Balance</th></tr></thead>
         <tbody>${rows}</tbody></table></body></html>`;
       const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
@@ -9618,7 +9618,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   });
 
   const romblonTab = initBranchTab({
-    branch: "Romblon", openingBalanceId: "setRomblonBalance", store: branchRomblonStore,
+    branch: "Romblon", drNoLabel: "Contract No.", openingBalanceId: "setRomblonBalance", store: branchRomblonStore,
     tableId: "branchRomblonTable", rowCountId: "branchRomblonRowCount", selectedId: "branchRomblonSelected",
     overlayId: "romblonOverlay", modalId: "romblonModal",
     titleId: "romblonModalTitle", subtitleId: "romblonModalSubtitle", closeBtnId: "btnCloseRomblon",
