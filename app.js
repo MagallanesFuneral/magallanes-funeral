@@ -9599,7 +9599,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
   // ── Wire up branch tabs ──
   const sibuyanTab = initBranchTab({
-    branch: "Sibuyan", openingBalanceId: "setSibuyanBalance", store: branchSibuyanStore,
+    branch: "Sibuyan", drNoLabel: "Contract No.", openingBalanceId: "setSibuyanBalance", store: branchSibuyanStore,
     tableId: "branchSibuyanTable", rowCountId: "branchSibuyanRowCount", selectedId: "branchSibuyanSelected",
     overlayId: "sibuyanOverlay", modalId: "sibuyanModal",
     titleId: "sibuyanModalTitle", subtitleId: "sibuyanModalSubtitle", closeBtnId: "btnCloseSibuyan",
@@ -9637,7 +9637,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   });
 
   const sanJoseTab = initBranchTab({
-    branch: "San Jose", openingBalanceId: "setSanJoseBalance", store: branchSanJoseStore,
+    branch: "San Jose", drNoLabel: "Contract No.", openingBalanceId: "setSanJoseBalance", store: branchSanJoseStore,
     tableId: "branchSanJoseTable", rowCountId: "branchSanJoseRowCount", selectedId: "branchSanJoseSelected",
     overlayId: "sanJoseOverlay", modalId: "sanJoseModal",
     titleId: "sanJoseModalTitle", subtitleId: "sanJoseModalSubtitle", closeBtnId: "btnCloseSanJose",
