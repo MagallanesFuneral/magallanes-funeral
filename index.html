@@ -483,7 +483,7 @@
   <div class="panel-toolbar">
     <div class="toolbar-left">
       <h3>Bank Received</h3>
-      <span class="hint">Ledger for GCASH / Bank Transfer receipts (saved to shared database).</span>
+      <span class="hint">Ledger for GCASH / Bank Transfer / Deceased Account receipts (saved to shared database).</span>
     </div>
     <div class="toolbar-right">
       <span class="kpi" id="bankReceivedRowCount">Rows: 0</span>
@@ -509,7 +509,7 @@
           <option value="">(none)</option>
           <option value="date">Date</option>
           <option value="contract">Contract #</option>
-          <option value="type">Gcash/Bank Transfer</option>
+          <option value="type">Gcash/Bank Transfer/Deceased Account</option>
           <option value="client">Name of Client</option>
           <option value="amount">Amount Range</option>
         </select>
@@ -531,7 +531,7 @@
           <tr>
             <th>Date</th>
             <th>Contract #</th>
-            <th>Gcash/Bank Transfer</th>
+            <th>Gcash/Bank Transfer/Deceased Account</th>
             <th>Name of Client</th>
             <th class="num">Amount</th>
           </tr>
@@ -1948,10 +1948,11 @@
         </label>
 
         <label class="field">
-          <span>Gcash/Bank Transfer</span>
+          <span>Gcash/Bank Transfer/Deceased Account</span>
           <select class="select" id="brType" required>
             <option value="GCASH">GCASH</option>
             <option value="BANK TRANSFER">BANK TRANSFER</option>
+            <option value="DECEASED ACCOUNT">DECEASED ACCOUNT</option>
           </select>
         </label>
 

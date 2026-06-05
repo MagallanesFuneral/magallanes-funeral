@@ -3663,6 +3663,7 @@ function fmtMoney(n) {
     if (!p) return "GCASH";
     if (/g[\s\-]?cash/.test(p) || p.includes("gcash")) return "GCASH";
     if (p.includes("bank") || p.includes("transfer")) return "BANK TRANSFER";
+    if (p.includes("deceased") || p.includes("account")) return "DECEASED ACCOUNT";
     return String(t).trim().toUpperCase();
   }
 
@@ -3704,7 +3705,8 @@ function fmtMoney(n) {
     if (category === "type") return makeSelect("bankFilterType","Type",[
       {value:"", label:"(any)"},
       {value:"GCASH", label:"GCASH"},
-      {value:"BANK TRANSFER", label:"BANK TRANSFER"}
+      {value:"BANK TRANSFER", label:"BANK TRANSFER"},
+      {value:"DECEASED ACCOUNT", label:"DECEASED ACCOUNT"}
     ]);
     if (category === "amount") { makeNumber("bankFilterMin","Min","0.00"); makeNumber("bankFilterMax","Max","10000.00"); }
   }
@@ -4025,7 +4027,7 @@ function fmtMoney(n) {
     return {
       date: find("date"),
       contract: find("contract #","contract#","contract number","contract no","contract"),
-      type: find("gcash/bank transfer","type","payment type","method"),
+      type: find("gcash/bank transfer","gcash/bank transfer/deceased account","type","payment type","method"),
       client: find("name of client","client","name","customer","customer name"),
       amount: find("amount","amt","value")
     };
@@ -4052,7 +4054,7 @@ function fmtMoney(n) {
       headers = rows2d[headerRowIndex].map(x => String(x ?? "").trim());
       dataRows = rows2d.slice(headerRowIndex + 1);
     } else {
-      headers = ["Date","Contract #","Gcash/Bank Transfer","Name of Client","Amount"];
+      headers = ["Date","Contract #","Gcash/Bank Transfer/Deceased Account","Name of Client","Amount"];
       dataRows = rows2d;
     }
     dataRows = dataRows.filter(r => r && r.some(v => String(v ?? "").trim() !== ""));
@@ -4120,7 +4122,7 @@ function fmtMoney(n) {
   });
 
   btnBankExport?.addEventListener("click",()=>{
-    const cols = ["Date","Contract #","Gcash/Bank Transfer","Name of Client","Amount"];
+    const cols = ["Date","Contract #","Gcash/Bank Transfer/Deceased Account","Name of Client","Amount"];
     const msoMoney = 'mso-number-format:"\\#\\,\\#\\#0\\.00"';
     const msoText = 'mso-number-format:"\\@"';
     const esc = (s)=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
@@ -7584,7 +7586,7 @@ const reportDatePicker = $("#reportDatePicker");
               <td style="text-align:right;font-weight:800;">${fmtMoney(bankBF)}</td>
             </tr>
             <tr class="dr-header-row">
-              <td>Contract #</td><td>Gcash/Bank Transfer</td><td>Name of Client</td><td>Particular</td><td>Amount</td>
+              <td>Contract #</td><td>Gcash/Bank Transfer/Deceased Account</td><td>Name of Client</td><td>Particular</td><td>Amount</td>
             </tr>
             ${bankBody || `<tr><td colspan="5" class="dr-muted">(no matching Bank Received entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td></td><td>Total Bank Received</td><td style="text-align:right;">${fmtMoney(totalBankReceived)}</td></tr>
