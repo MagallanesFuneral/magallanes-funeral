@@ -7619,7 +7619,7 @@ const reportDatePicker = $("#reportDatePicker");
           <tbody>
             <tr class="dr-grand-row"><td></td><td></td><td>Cash On Hand</td><td></td><td style="text-align:right;">${fmtMoney(cashOnHand)}</td></tr>
             <tr><td colspan="5" style="height:10px; border:none; background:transparent;"></td></tr>
-            <tr class="dr-grand-row"><td></td><td></td><td><strong>Cash in Bank</strong></td><td style="text-align:right;">${fmtMoney(acctBal.total)}</td><td></td></tr>
+            <tr class="dr-grand-row"><td></td><td></td><td><strong>Cash in Bank</strong></td><td></td><td style="text-align:right;">${fmtMoney(acctBal.total)}</td></tr>
             <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">PNB Checking</td><td style="text-align:right;">${fmtMoney(acctBal.pnbChecking)}</td><td></td></tr>
             <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">PNB Savings</td><td style="text-align:right;">${fmtMoney(acctBal.pnbSavings)}</td><td></td></tr>
             <tr class="dr-total-row"><td></td><td></td><td style="padding-left:18px;">Landbank</td><td style="text-align:right;">${fmtMoney(acctBal.landbank)}</td><td></td></tr>
