@@ -7494,9 +7494,9 @@ const reportDatePicker = $("#reportDatePicker");
       ...pnbRows.map(r=>`
         <tr>
           <td></td>
-          <td>PNB Checking</td>
+          <td>Landbank</td>
           <td></td>
-          <td>Cash deposit to ${r._src||'PNB Checking'}</td>
+          <td>Check deposit to Landbank</td>
           <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
         </tr>
       `),
