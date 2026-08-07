@@ -5623,11 +5623,13 @@ function fmtMoney(n) {
         });
 
         // Month total
-        const mtr = document.createElement("tr"); mtr.dataset.rowType = "monthTotal"; mtr.classList.add("total-row");
-        const ml = document.createElement("td"); ml.textContent = ""; mtr.appendChild(ml);
-        const mv = document.createElement("td"); mv.classList.add("num"); mv.textContent = fmtMoney(monthTotal); mtr.appendChild(mv);
-        if (cfg.hasDescription) { const md = document.createElement("td"); mtr.appendChild(md); }
-        tbody.appendChild(mtr);
+        if (!cfg.hideMonthTotal) {
+          const mtr = document.createElement("tr"); mtr.dataset.rowType = "monthTotal"; mtr.classList.add("total-row");
+          const ml = document.createElement("td"); ml.textContent = ""; mtr.appendChild(ml);
+          const mv = document.createElement("td"); mv.classList.add("num"); mv.textContent = fmtMoney(monthTotal); mtr.appendChild(mv);
+          if (cfg.hasDescription) { const md = document.createElement("td"); mtr.appendChild(md); }
+          tbody.appendChild(mtr);
+        }
 
         if (gi < keys.length - 1) {
           const sp = document.createElement("tr"); sp.classList.add("spacer-row");
@@ -5889,6 +5891,7 @@ Cancel = Append`);
   const landbankTab = initDepositTab({
     name:             "Landbank",
     hasDescription:   true,
+    hideMonthTotal:   true,
     descriptionId:    "lbDescription",
     openingBalanceId: "setLandbankBalance",
     store:            landbankStore,
