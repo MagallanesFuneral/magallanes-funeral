@@ -2599,14 +2599,15 @@ function fmtMoney(n) {
         tr.dataset.rowType = "data";
         tr.dataset.receipt = cashKeyFor(r);
 
-        const tdDate = document.createElement("td"); tdDate.textContent = r.date;
-        const tdContract = document.createElement("td"); tdContract.textContent = r.contract;
-        const tdReceipt = document.createElement("td"); tdReceipt.textContent = r.receipt || "";
-        const tdClient = document.createElement("td"); tdClient.textContent = r.client;
-        const tdPart = document.createElement("td"); tdPart.textContent = r.particular;
-        const tdAmt = document.createElement("td"); tdAmt.textContent = fmtMoney(r.amount); tdAmt.classList.add("num");
+        const tdDate     = document.createElement("td"); tdDate.textContent     = r.date        || "";
+        const tdContract = document.createElement("td"); tdContract.textContent = r.contract   || "";
+        const tdReceipt  = document.createElement("td"); tdReceipt.textContent  = r.receipt    || "";
+        const tdClient   = document.createElement("td"); tdClient.textContent   = r.client     || "";
+        const tdPart     = document.createElement("td"); tdPart.textContent     = r.particular || "";
+        const tdDec      = document.createElement("td"); tdDec.textContent      = r.deceaseDate|| "";
+        const tdAmt      = document.createElement("td"); tdAmt.textContent      = fmtMoney(r.amount); tdAmt.classList.add("num");
 
-        tr.append(tdDate, tdContract, tdReceipt, tdClient, tdPart, tdAmt);
+        tr.append(tdDate, tdContract, tdReceipt, tdClient, tdPart, tdDec, tdAmt);
         cashTable.tBodies[0].appendChild(tr);
 
         monthTotal += Number(r.amount) || 0;
