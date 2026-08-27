@@ -67,13 +67,17 @@ function cashToDb(r) {
     id: r.id || undefined,
     date: r.date || null, contract: r.contract || null,
     receipt: r.receipt || null, client: r.client || null,
-    particular: r.particular || null, amount: Number(r.amount) || 0,
+    particular: r.particular || null,
+    decease_date: r.deceaseDate || null,
+    amount: Number(r.amount) || 0,
   };
 }
 function cashFromDb(r) {
   return { id: r.id, date: r.date, contract: r.contract,
     receipt: r.receipt, client: r.client,
-    particular: r.particular, amount: Number(r.amount) || 0 };
+    particular: r.particular,
+    deceaseDate: r.decease_date || "",
+    amount: Number(r.amount) || 0 };
 }
 
 function cashExpToDb(r) {
