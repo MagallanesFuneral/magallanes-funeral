@@ -515,7 +515,7 @@ function fmtMoney(n) {
     tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
 
     // 0..3 blank, 4 label under Address column
-    for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+    for (let i = 0; i < 5; i++) tr.appendChild(document.createElement("td"));
 
     const tdLabel = document.createElement("td");
     tdLabel.textContent = label;
@@ -2023,8 +2023,9 @@ function fmtMoney(n) {
   const crContract = $("#crContract");
   const crReceipt = $("#crReceipt");
   const crClient = $("#crClient");
-  const crParticular = $("#crParticular");
-  const crAmount = $("#crAmount");
+  const crParticular  = $("#crParticular");
+  const crDeceaseDate = $("#crDeceaseDate");
+  const crAmount      = $("#crAmount");
 
   const CASH_STORE_KEY = "mf_cash_received_store_v28";
 
@@ -2093,8 +2094,9 @@ function fmtMoney(n) {
       crContract.value = "";
       crReceipt.value = "";
       crClient.value = "";
-      crParticular.value = "";
-      crAmount.value = "0.00";
+      crParticular.value  = "";
+      if (crDeceaseDate) crDeceaseDate.value = "";
+      crAmount.value      = "0.00";
     } else {
       cashTitle.textContent = "Edit Entry";
       cashSubtitle.textContent = "Update the selected cash receipt entry.";
@@ -2109,8 +2111,12 @@ function fmtMoney(n) {
       crContract.value = found.contract || "";
       crReceipt.value = found.receipt || "";
       crClient.value = found.client || "";
-      crParticular.value = found.particular || "";
-      crAmount.value = (Number(found.amount) || 0).toFixed(2);
+      crParticular.value  = found.particular  || "";
+      // stored as MM/YYYY — type="month" input needs YYYY-MM
+      if (crDeceaseDate) crDeceaseDate.value = found.deceaseDate
+        ? (p => p.length===2 ? p[1]+"-"+p[0].padStart(2,"0") : "")(found.deceaseDate.split("/"))
+        : "";
+      crAmount.value      = (Number(found.amount) || 0).toFixed(2);
     }
 
     cashOverlay.classList.add("is-open");
@@ -2268,7 +2274,7 @@ function fmtMoney(n) {
     tr.classList.add("cashMonthHeader");
     tr.dataset.rowType = "cashMonthHeader";
     const td = document.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = String(label || "").toUpperCase();
     tr.appendChild(td);
     return tr;
@@ -2280,7 +2286,7 @@ function fmtMoney(n) {
     tr.dataset.rowType = "cashMonthTotal";
 
     // Date, Contract, Receipt, Client empty; label under Particular; amount under Amount
-    for (let i=0;i<4;i++){ tr.appendChild(document.createElement("td")); }
+    for (let i=0;i<5;i++){ tr.appendChild(document.createElement("td")); }
     const label = document.createElement("td");
     label.textContent = "TOTAL";
     label.classList.add("label");
@@ -2298,7 +2304,7 @@ function fmtMoney(n) {
     tr.classList.add("cashGrandTotal");
     tr.dataset.rowType = "cashGrandTotal";
 
-    for (let i=0;i<4;i++){ tr.appendChild(document.createElement("td")); }
+    for (let i=0;i<5;i++){ tr.appendChild(document.createElement("td")); }
     const label = document.createElement("td");
     label.textContent = "GRAND TOTAL";
     label.classList.add("label");
@@ -2316,7 +2322,7 @@ function fmtMoney(n) {
     tr.classList.add("spacer");
     tr.dataset.rowType = "spacer";
     const td = document.createElement("td");
-    td.colSpan = 6;
+    td.colSpan = 7;
     td.textContent = "";
     tr.appendChild(td);
     return tr;
@@ -2355,7 +2361,7 @@ function fmtMoney(n) {
     const tr = document.createElement("tr");
     tr.classList.add("cashParticularRow");
     tr.dataset.rowType = "cashParticular";
-    for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+    for (let i = 0; i < 5; i++) tr.appendChild(document.createElement("td"));
     const tdLabel = document.createElement("td");
     tdLabel.textContent = label;
     tdLabel.style.cssText = "padding-left:18px;font-size:0.88em;font-style:italic;";
@@ -2672,14 +2678,19 @@ function fmtMoney(n) {
     const date = cashYyyyMMddToMMDDYYYY(crDate.value) || "";
     const contract = (crContract.value || "").trim();
     const receipt = (crReceipt.value || "").trim(); // optional
-    const client = (crClient.value || "").trim();
-    const particular = canonicalizeParticularText(crParticular.value);
+    const client      = (crClient.value || "").trim();
+    const particular  = canonicalizeParticularText(crParticular.value);
+    const rawDD       = (crDeceaseDate?.value || "").trim();
+    // type="month" returns YYYY-MM — store as MM/YYYY
+    const deceaseDate = rawDD
+      ? (p => p.length===2 ? p[1]+"/"+p[0] : rawDD)(rawDD.split("-"))
+      : "";
     const amount = parseMoney2(crAmount.value);
 
     if (!client) return alert("Name of Client is required.");
 
     if (cashMode === "add") {
-      const entry = ensureCashId({ date, contract, receipt, client, particular, amount });
+      const entry = ensureCashId({ date, contract, receipt, client, particular, deceaseDate, amount });
       if (receipt) {
         const exists = cashStore.some(x => normalizeText(x.receipt) === normalizeText(receipt));
         if (exists && !confirm("That Receipt # already exists. Add anyway?")) return;
@@ -2698,7 +2709,7 @@ function fmtMoney(n) {
     if (!key) return;
     const idx = cashStore.findIndex(x => cashKeyFor(x) === key);
     if (idx < 0) return;
-    const updatedEntry = ensureCashId({ date, contract, receipt, client, particular, amount, _id: cashStore[idx]._id, id: cashStore[idx].id });
+    const updatedEntry = ensureCashId({ date, contract, receipt, client, particular, deceaseDate, amount, _id: cashStore[idx]._id, id: cashStore[idx].id });
     const newKey = cashKeyFor(updatedEntry);
     if (receipt) {
       const dup = cashStore.some((x, i) => i !== idx && normalizeText(x.receipt) === normalizeText(receipt));
@@ -8399,7 +8410,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       tr.classList.add(rowType === "grandTotal" ? "grand-total-row" : "total-row");
       const n = v => { const td = document.createElement("td"); td.classList.add("num"); td.textContent = fmtMoney(v); return td; };
       // Col 1-4: blank
-      for (let i = 0; i < 4; i++) tr.appendChild(document.createElement("td"));
+      for (let i = 0; i < 5; i++) tr.appendChild(document.createElement("td"));
       // Col 5: label
       const lbl = document.createElement("td"); lbl.textContent = label; lbl.classList.add("total-label"); tr.appendChild(lbl);
       // Col 6: Contract Amount
