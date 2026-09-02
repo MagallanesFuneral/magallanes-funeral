@@ -7506,9 +7506,9 @@ const reportDatePicker = $("#reportDatePicker");
       ...pnbRows.map(r=>`
         <tr>
           <td></td>
-          <td>Landbank</td>
+          <td>${r._src === 'PNB Checking' ? 'PNB Checking' : 'Landbank'}</td>
           <td></td>
-          <td>Check deposit to Landbank</td>
+          <td>${r._src === 'PNB Checking' ? 'Cash deposit to Landbank' : 'Check deposit to Landbank'}</td>
           <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
         </tr>
       `),
