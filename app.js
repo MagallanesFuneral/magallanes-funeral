@@ -7508,7 +7508,11 @@ const reportDatePicker = $("#reportDatePicker");
           <td></td>
           <td>${r._src === 'PNB Checking' ? 'PNB Checking' : 'Landbank'}</td>
           <td></td>
-          <td>${r._src === 'PNB Checking' ? 'Cash deposit to Landbank' : 'Check deposit to Landbank'}</td>
+          <td>${r._src === 'PNB Checking'
+            ? 'Cash Deposit to PNB Checking'
+            : Number(r.amount) < 0
+              ? 'Check Withdrawal from Landbank'
+              : 'Check Deposit to Landbank'}</td>
           <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
         </tr>
       `),
