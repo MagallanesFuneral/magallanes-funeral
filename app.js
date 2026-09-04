@@ -7455,15 +7455,35 @@ const reportDatePicker = $("#reportDatePicker");
     const cashTotal = cashBF + cashCollection;
     const totalCashReceived = cashTotal - pnb;
 
-    const cashBody = cashRows.map(r=>`
+    // Format MM/YYYY → "Month YYYY" for Service Date display
+    const MONTH_NAMES = ["January","February","March","April","May","June",
+                         "July","August","September","October","November","December"];
+    function formatServiceDate(sd) {
+      if (!sd) return "";
+      const parts = sd.split("/");
+      if (parts.length === 2) {
+        const m = parseInt(parts[0], 10);
+        const y = parts[1];
+        if (m >= 1 && m <= 12) return MONTH_NAMES[m-1] + " " + y;
+      }
+      return sd;
+    }
+
+    const cashBody = cashRows.map(r=>{
+      const particular = r.particular ?? "";
+      const serviceDate = formatServiceDate(r.deceaseDate || "");
+      const particularDisplay = particular && serviceDate
+        ? particular + " - " + serviceDate
+        : particular;
+      return `
       <tr>
         <td>${escapeHtml(r.contract ?? r.contractNumber ?? "")}</td>
         <td>${escapeHtml(r.receipt ?? r.receiptNumber ?? "")}</td>
         <td>${escapeHtml(r.client ?? r.clientName ?? r.nameOfClient ?? "")}</td>
-        <td>${escapeHtml(r.particular ?? "")}</td>
+        <td>${escapeHtml(particularDisplay)}</td>
         <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
-      </tr>
-    `).join("");
+      </tr>`;
+    }).join("");
 
     // ---------------- Cash Expense ----------------
     const cashExpRows = (cashExpStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
