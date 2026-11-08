@@ -7766,7 +7766,7 @@ const reportDatePicker = $("#reportDatePicker");
             <tr>
               <td>Finance Clerk</td>
               <td></td>
-              <td>Accountant</td>
+              <td>Staff Accountant</td>
               <td></td>
               <td>Finance Manager</td>
             </tr>
@@ -8676,7 +8676,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           <tr>
             <td style="border:none;padding:0 4px;font-size:7.5pt;">Finance Clerk</td>
             <td style="border:none;"></td>
-            <td style="border:none;padding:0 4px;font-size:7.5pt;">Accountant</td>
+            <td style="border:none;padding:0 4px;font-size:7.5pt;">Staff Accountant</td>
             <td style="border:none;"></td>
             <td style="border:none;padding:0 4px;font-size:7.5pt;">Finance Manager</td>
           </tr>
@@ -8859,7 +8859,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         <tr>
           <td style="${msoT};border:none;font-size:8pt;">Finance Clerk</td>
           <td style="border:none;"></td>
-          <td style="${msoT};border:none;font-size:8pt;">Accountant</td>
+          <td style="${msoT};border:none;font-size:8pt;">Staff Accountant</td>
           <td style="border:none;"></td>
           <td style="${msoT};border:none;font-size:8pt;">Finance Manager</td>
           <td colspan="${NC - 5}" style="border:none;"></td>
