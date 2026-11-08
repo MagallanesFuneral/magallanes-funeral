@@ -323,6 +323,8 @@
   <nav class="subtabs" role="tablist" aria-label="Transactions sub-tabs">
     <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="cashReceived">Cash Received</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="cashExpense">Cash Expense</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="gcashReceived">Gcash Received</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="gcashExpense">Gcash Expenses</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankReceived">Bank Received</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="bankExpense">Bank Expense</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="pnbDeposit">PNB Checking</button>
@@ -472,6 +474,120 @@
 </div>
 
   
+<div class="subpanel" id="subpanel-gcashReceived" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Gcash Received</h3>
+      <span class="hint">Ledger for Gcash receipts (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="gcashRecRowCount">Rows: 0</span>
+      <span class="kpi" id="gcashRecSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Gcash Received actions">
+    <button class="btn" id="btnGcashRecAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnGcashRecEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnGcashRecDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnGcashRecImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnGcashRecExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnGcashRecRefresh">Refresh</button>
+    <input type="file" id="fileGcashRecImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="gcashRecFilterRow" aria-label="Gcash Received filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="gcashRecFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="particular">Particular</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+      <div id="gcashRecFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnGcashRecApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnGcashRecClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid ledger-simple" id="gcashReceivedTable" aria-label="Gcash Received table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Particular</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="subpanel" id="subpanel-gcashExpense" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Gcash Expenses</h3>
+      <span class="hint">Ledger for Gcash expenses (saved to shared database).</span>
+    </div>
+    <div class="toolbar-right">
+      <span class="kpi" id="gcashExpRowCount">Rows: 0</span>
+      <span class="kpi" id="gcashExpSelected">Selected: —</span>
+    </div>
+  </div>
+
+  <div class="actions-row" aria-label="Gcash Expenses actions">
+    <button class="btn" id="btnGcashExpAddEntry">Add Entry</button>
+    <button class="btn btn-secondary" id="btnGcashExpEditSelected">Edit Selected</button>
+    <button class="btn btn-danger" id="btnGcashExpDeleteSelected">Delete Selected</button>
+    <button class="btn btn-secondary" id="btnGcashExpImportExcel">Import from Excel</button>
+    <button class="btn btn-secondary" id="btnGcashExpExportExcel">Export to Excel</button>
+    <button class="btn btn-secondary" id="btnGcashExpRefresh">Refresh</button>
+    <input type="file" id="fileGcashExpImport" accept=".xlsx,.csv" style="display:none" />
+  </div>
+
+  <div class="filter-row" id="gcashExpFilterRow" aria-label="Gcash Expenses filters">
+    <div class="filter-left">
+      <label class="field inline">
+        <span>Filter By</span>
+        <select class="select" id="gcashExpFilterCategory">
+          <option value="">(none)</option>
+          <option value="date">Date</option>
+          <option value="particular">Particular</option>
+          <option value="amount">Amount Range</option>
+        </select>
+      </label>
+      <div id="gcashExpFilterInputs" class="filter-inputs"></div>
+    </div>
+    <div class="filter-right">
+      <button class="btn btn-secondary" id="btnGcashExpApplyFilter">Apply Filter</button>
+      <button class="btn btn-secondary" id="btnGcashExpClearFilter">Clear Filter</button>
+    </div>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid ledger-simple" id="gcashExpenseTable" aria-label="Gcash Expenses table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Particular</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="subpanel" id="subpanel-bankReceived" role="tabpanel">
   <div class="panel-toolbar">
     <div class="toolbar-left">
@@ -1874,6 +1990,78 @@
 
   
   <!-- Cash Expense Modal -->
+  <!-- Gcash Received Modal -->
+  <div class="overlay" id="gcashRecOverlay" aria-hidden="true"></div>
+  <div class="modal" id="gcashRecModal" role="dialog" aria-modal="true" aria-labelledby="gcashRecTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="gcashRecTitle">Add Entry</div>
+        <div class="modal-subtitle" id="gcashRecSubtitle">Gcash received entry (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseGcashRec" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="gcashRecForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="grDate" type="date" required />
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Particular</span>
+          <input class="input" id="grParticular" type="text" placeholder="Description" required />
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="grAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelGcashRec">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitGcashRec">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Gcash Expenses Modal -->
+  <div class="overlay" id="gcashExpOverlay" aria-hidden="true"></div>
+  <div class="modal" id="gcashExpModal" role="dialog" aria-modal="true" aria-labelledby="gcashExpTitle">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="gcashExpTitle">Add Entry</div>
+        <div class="modal-subtitle" id="gcashExpSubtitle">Gcash expense entry (saved to shared database).</div>
+      </div>
+      <button class="icon-btn" id="btnCloseGcashExp" aria-label="Close">✕</button>
+    </div>
+
+    <form class="form" id="gcashExpForm">
+      <div class="form-grid">
+        <label class="field">
+          <span>Date</span>
+          <input class="input" id="geDate" type="date" required />
+        </label>
+
+        <label class="field" style="grid-column: 1 / -1;">
+          <span>Particular</span>
+          <input class="input" id="geParticular" type="text" placeholder="Description" required />
+        </label>
+
+        <label class="field">
+          <span>Amount</span>
+          <input class="input" id="geAmount" type="number" step="0.01" value="0.00" required />
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnCancelGcashExp">Cancel</button>
+        <button type="submit" class="btn" id="btnSubmitGcashExp">Add Entry</button>
+      </div>
+    </form>
+  </div>
+
   <div class="overlay" id="cashExpOverlay" aria-hidden="true"></div>
   <div class="modal" id="cashExpModal" role="dialog" aria-modal="true" aria-labelledby="cashExpTitle">
     <div class="modal-header">

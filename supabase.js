@@ -15,6 +15,8 @@ const TABLE = {
   contracts:    "contracts",
   cashReceived: "cash_received",
   cashExpense:  "cash_expense",
+  gcashReceived: "gcash_received",
+  gcashExpense:  "gcash_expense",
   bankReceived: "bank_received",
   bankExpense:  "bank_expense",
   pnbDeposit:   "pnb_deposit",
@@ -78,6 +80,18 @@ function cashFromDb(r) {
     particular: r.particular,
     deceaseDate: r.decease_date || "",
     amount: Number(r.amount) || 0 };
+}
+
+// Gcash Received / Gcash Expenses share the same simple shape: date, particular, amount
+function gcashToDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id || undefined, date: r.date || null,
+    particular: r.particular || null, amount: isFinite(amt) ? amt : 0 };
+}
+function gcashFromDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id, date: r.date || "",
+    particular: r.particular || "", amount: isFinite(amt) ? amt : 0 };
 }
 
 function cashExpToDb(r) {
@@ -332,6 +346,14 @@ window.DB = {
   async getCashExpense()        { return dbGetAll(TABLE.cashExpense, cashExpFromDb); },
   async saveCashExpense(r)      { return dbUpsert(TABLE.cashExpense, r, cashExpToDb); },
   async deleteCashExpense(id)   { return dbDelete(TABLE.cashExpense, id); },
+
+  // Gcash ledgers
+  async getGcashReceived()       { return dbGetAll(TABLE.gcashReceived, gcashFromDb); },
+  async saveGcashReceived(r)     { return dbUpsert(TABLE.gcashReceived, r, gcashToDb); },
+  async deleteGcashReceived(id)  { return dbDelete(TABLE.gcashReceived, id); },
+  async getGcashExpense()        { return dbGetAll(TABLE.gcashExpense, gcashFromDb); },
+  async saveGcashExpense(r)      { return dbUpsert(TABLE.gcashExpense, r, gcashToDb); },
+  async deleteGcashExpense(id)   { return dbDelete(TABLE.gcashExpense, id); },
 
   // Bank Received
   async getBankReceived()       { return dbGetAll(TABLE.bankReceived, bankFromDb); },

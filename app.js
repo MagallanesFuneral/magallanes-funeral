@@ -9701,6 +9701,506 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
   DB.getBranchRomblon().then(rows => { branchRomblonStore.push(...rows); romblonTab?.renderTable(); });
   DB.getBranchSanJose().then(rows => { branchSanJoseStore.push(...rows); sanJoseTab?.renderTable(); });
 
+  // ══════════════════════════════════════════════════════════
+  // GCASH LEDGERS — "Gcash Received" and "Gcash Expenses"
+  // Simple ledgers (Date | Particular | Amount), grouped by month,
+  // laid out like the Cash Expense tab. One factory powers both tabs.
+  // ══════════════════════════════════════════════════════════
+  function initSimpleLedger(cfg) {
+    const g = (id) => document.getElementById(id);
+    const tableEl = g(cfg.tableId);
+    if (!tableEl) { console.warn("[" + cfg.name + "] table not found:", cfg.tableId); return null; }
+
+    let store = [];
+    let selectedKey = null;
+    let activeFilter = { category: "", value: null };
+    let mode = "add";
+    let editingKey = null;
+
+    // ── identity helpers ──
+    function newId() { return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+    function ensureId(r) { if (!r._id) r._id = newId(); return r; }
+    function keyFor(r) { return String(r._id || ""); }
+    function todayIso() {
+      const d = new Date();   // local date (not UTC) so early-morning entries don't land on yesterday
+      return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+    }
+
+    // ── saving (serialised per row, so a quick edit/delete can't race the first save) ──
+    function saveRow(row) {
+      const prev = row._p || Promise.resolve();
+      const p = prev
+        .then(function () { return cfg.dbSave(row); })
+        .then(function (saved) {
+          if (saved && saved.id) { row.id = saved.id; return true; }
+          return false;
+        })
+        .catch(function (err) { console.error("[" + cfg.name + "] save failed", err); return false; });
+      row._p = p;
+      return p;
+    }
+    function deleteRow(row) {
+      const prev = row._p || Promise.resolve();
+      prev.then(function () { if (row.id) return cfg.dbDelete(row.id); });
+    }
+    function warnSaveFailed(count) {
+      alert("⚠ " + (count > 1 ? count + " entries" : "The entry") + " could not be saved to the database.\n\n" +
+        "It is shown here but will be lost when the page is refreshed.\n" +
+        "Please check your connection and that the Supabase table for " + cfg.name + " has been created.");
+    }
+
+    // ── sorting / grouping ──
+    function compareRows(a, b) {
+      const ak = monthKeyFromDate(a.date), bk = monthKeyFromDate(b.date);
+      if (ak !== bk) {
+        if (ak === "unknown") return 1;
+        if (bk === "unknown") return -1;
+        return ak.localeCompare(bk);
+      }
+      const ad = parseMMDDYYYY(a.date) ? parseMMDDYYYY(a.date).getTime() : Number.POSITIVE_INFINITY;
+      const bd = parseMMDDYYYY(b.date) ? parseMMDDYYYY(b.date).getTime() : Number.POSITIVE_INFINITY;
+      if (ad !== bd) return ad - bd;
+      return String(a.particular || "").localeCompare(String(b.particular || ""));
+    }
+
+    // ── filter ──
+    const filterCat = g(cfg.filterCatId);
+    const filterBox = g(cfg.filterInputsId);
+
+    function buildFilterInputs(cat) {
+      if (!filterBox) return;
+      filterBox.innerHTML = "";
+      function mk(label, type, placeholder, key) {
+        const w = document.createElement("label");
+        w.className = "field inline";
+        const s = document.createElement("span"); s.textContent = label;
+        const i = document.createElement("input");
+        i.className = "input"; i.type = type; i.placeholder = placeholder; i.setAttribute("data-k", key);
+        if (type === "number") i.step = "0.01";
+        w.appendChild(s); w.appendChild(i);
+        filterBox.appendChild(w);
+      }
+      if (cat === "date") mk("Date", "text", "MM/DD/YYYY or MM/YYYY or YYYY", "date");
+      else if (cat === "particular") mk("Particular", "text", "contains...", "particular");
+      else if (cat === "amount") { mk("Min", "number", "0.00", "min"); mk("Max", "number", "10000.00", "max"); }
+    }
+    function readFilter() {
+      const cat = filterCat ? filterCat.value : "";
+      if (!cat || !filterBox) return { category: "", value: null };
+      function val(k) { const el = filterBox.querySelector('[data-k="' + k + '"]'); return el ? el.value : ""; }
+      if (cat === "date") return { category: "date", value: parseFilterDatePattern2(val("date")) };
+      if (cat === "particular") return { category: "particular", value: normalizeText(val("particular")) };
+      if (cat === "amount") {
+        const lo = String(val("min")).trim(), hi = String(val("max")).trim();
+        return { category: "amount", value: {
+          min: lo === "" || !Number.isFinite(Number(lo)) ? null : Number(lo),
+          max: hi === "" || !Number.isFinite(Number(hi)) ? null : Number(hi)
+        } };
+      }
+      return { category: "", value: null };
+    }
+    function matches(r) {
+      const f = activeFilter;
+      if (!f || !f.category) return true;
+      if (f.category === "date") return rowMatchesDateFilter2(r.date, f.value);
+      if (f.category === "particular") return !f.value || normalizeText(r.particular).indexOf(f.value) !== -1;
+      if (f.category === "amount") {
+        const a = Number(r.amount) || 0, v = f.value || {};
+        if (v.min != null && a < v.min) return false;
+        if (v.max != null && a > v.max) return false;
+        return true;
+      }
+      return true;
+    }
+    function filteredSortedRows() { return store.filter(matches).sort(compareRows); }
+
+    // ── render ──
+    function cell(text, cls) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (cls) td.className = cls;
+      return td;
+    }
+    function spacerRow() {
+      const tr = document.createElement("tr");
+      tr.className = "spacer"; tr.setAttribute("data-row-type", "spacer");
+      const td = document.createElement("td"); td.colSpan = 3; tr.appendChild(td);
+      return tr;
+    }
+    function totalRow(cls, label, amount) {
+      const tr = document.createElement("tr");
+      tr.className = cls; tr.setAttribute("data-row-type", cls);
+      tr.appendChild(cell(""));
+      tr.appendChild(cell(label, "label"));
+      tr.appendChild(cell(fmtMoney(amount), "num"));
+      return tr;
+    }
+    function updateSelectedLabel() {
+      const el = g(cfg.selectedId);
+      if (!el) return;
+      const row = selectedKey ? store.find(function (r) { return keyFor(r) === selectedKey; }) : null;
+      el.textContent = row ? "Selected: " + (row.particular || "—") : "Selected: —";
+    }
+    function render() {
+      const tbody = tableEl.tBodies[0];
+      tbody.innerHTML = "";
+      const rows = filteredSortedRows();
+
+      const groups = new Map();
+      rows.forEach(function (r) {
+        const k = monthKeyFromDate(r.date);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(r);
+      });
+      const keys = Array.from(groups.keys());   // rows are already sorted, so this is chronological
+
+      let grand = 0;
+      keys.forEach(function (key, gi) {
+        const hdr = document.createElement("tr");
+        hdr.className = "ledMonthHeader"; hdr.setAttribute("data-row-type", "monthHeader");
+        const hd = document.createElement("td"); hd.colSpan = 3;
+        hd.textContent = monthLabelFromKey(key).toUpperCase();
+        hdr.appendChild(hd); tbody.appendChild(hdr);
+
+        let monthTotal = 0;
+        groups.get(key).forEach(function (r) {
+          ensureId(r);
+          const tr = document.createElement("tr");
+          tr.setAttribute("data-row-type", "data");
+          tr.setAttribute("data-key", keyFor(r));
+          if (keyFor(r) === selectedKey) tr.classList.add("is-selected");
+          tr.appendChild(cell(r.date || ""));
+          tr.appendChild(cell(r.particular || ""));
+          tr.appendChild(cell(fmtMoney(r.amount), "num"));
+          tbody.appendChild(tr);
+          monthTotal += Number(r.amount) || 0;
+        });
+
+        tbody.appendChild(totalRow("ledMonthTotal", "TOTAL", monthTotal));
+        grand += monthTotal;
+        if (gi < keys.length - 1) tbody.appendChild(spacerRow());
+      });
+
+      if (rows.length) {
+        tbody.appendChild(spacerRow());
+        tbody.appendChild(totalRow("ledGrandTotal", "GRAND TOTAL", grand));
+      }
+
+      const rc = g(cfg.rowCountId);
+      if (rc) rc.textContent = "Rows: " + rows.length;
+      if (selectedKey && !store.some(function (r) { return keyFor(r) === selectedKey; })) selectedKey = null;
+      updateSelectedLabel();
+    }
+
+    function selectKey(key) {
+      selectedKey = key || null;
+      Array.from(tableEl.tBodies[0].rows).forEach(function (r) { r.classList.remove("is-selected"); });
+      if (selectedKey) {
+        const tr = tableEl.tBodies[0].querySelector('tr[data-row-type="data"][data-key="' + CSS.escape(selectedKey) + '"]');
+        if (tr) tr.classList.add("is-selected");
+      }
+      updateSelectedLabel();
+    }
+
+    // ── add / edit dialog ──
+    const overlay = g(cfg.overlayId), modal = g(cfg.modalId);
+    function openModal(m, key) {
+      if (!overlay || !modal) { alert(cfg.name + " form not available."); return; }
+      mode = m; editingKey = null;
+      const titleEl = g(cfg.titleId), subEl = g(cfg.subtitleId), submitEl = g(cfg.submitBtnId);
+      if (m === "add") {
+        if (titleEl) titleEl.textContent = "Add Entry";
+        if (subEl) subEl.textContent = "Enter " + cfg.name + " details.";
+        if (submitEl) submitEl.textContent = "Add Entry";
+        g(cfg.dateId).value = todayIso();
+        g(cfg.particularId).value = "";
+        g(cfg.amountId).value = "0.00";
+      } else {
+        const found = store.find(function (r) { return keyFor(r) === key; });
+        if (!found) { alert("Could not find the selected entry."); return; }
+        editingKey = key;
+        if (titleEl) titleEl.textContent = "Edit Entry";
+        if (subEl) subEl.textContent = "Update the selected " + cfg.name + " entry.";
+        if (submitEl) submitEl.textContent = "Save Changes";
+        g(cfg.dateId).value = mmddyyyyToYyyyMMdd(found.date) || todayIso();
+        g(cfg.particularId).value = found.particular || "";
+        g(cfg.amountId).value = (Number(found.amount) || 0).toFixed(2);
+      }
+      overlay.classList.add("is-open");
+      modal.classList.add("is-open");
+      setTimeout(function () { const p = g(cfg.particularId); if (p) p.focus(); }, 0);
+    }
+    function closeModal() {
+      if (overlay) overlay.classList.remove("is-open");
+      if (modal) modal.classList.remove("is-open");
+      mode = "add"; editingKey = null;
+    }
+
+    function onSubmit(e) {
+      e.preventDefault();
+      const date = yyyyMMddToMMDDYYYY(g(cfg.dateId).value);
+      const particular = String(g(cfg.particularId).value || "").trim();
+      const amount = parseMoney3(g(cfg.amountId).value);
+      if (!date) { alert("Please enter a date."); return; }
+      if (!particular) { alert("Particular is required."); return; }
+
+      if (mode === "add") {
+        const entry = ensureId({ date: date, particular: particular, amount: amount });
+        store.push(entry);
+        saveRow(entry).then(function (ok) { if (!ok) warnSaveFailed(1); });
+        closeModal();
+        selectedKey = keyFor(entry);
+        render();
+        return;
+      }
+
+      const row = store.find(function (r) { return keyFor(r) === editingKey; });
+      if (!row) { closeModal(); return; }
+      row.date = date; row.particular = particular; row.amount = amount;
+      saveRow(row).then(function (ok) { if (!ok) warnSaveFailed(1); });
+      closeModal();
+      selectedKey = keyFor(row);
+      render();
+    }
+
+    // ── import / export ──
+    function normalizeImportDate(v) {
+      let out = "";
+      if (v instanceof Date && !isNaN(v.getTime())) {
+        out = pad2(v.getMonth() + 1) + "/" + pad2(v.getDate()) + "/" + v.getFullYear();
+      } else if (typeof v === "number" && v > 20000 && v < 80000) {          // Excel serial date
+        const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+        out = pad2(d.getUTCMonth() + 1) + "/" + pad2(d.getUTCDate()) + "/" + d.getUTCFullYear();
+      } else {
+        const s = String(v == null ? "" : v).trim();
+        let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+        if (m) out = m[2] + "/" + m[3] + "/" + m[1];
+        else {
+          m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+          if (m) out = pad2(m[1]) + "/" + pad2(m[2]) + "/" + m[3];
+        }
+      }
+      return parseMMDDYYYY(out) ? out : "";                                  // reject impossible dates
+    }
+
+    async function importRows(rows2d) {
+      let headerIdx = -1;
+      for (let r = 0; r < Math.min(rows2d.length, 6) && headerIdx < 0; r++) {
+        const row = rows2d[r].map(function (x) { return String(x == null ? "" : x).trim().toLowerCase(); });
+        if (row.indexOf("date") !== -1 &&
+            (row.indexOf("particular") !== -1 || row.indexOf("description") !== -1) &&
+            (row.indexOf("amount") !== -1 || row.indexOf("amt") !== -1)) headerIdx = r;
+      }
+      let dataRows = headerIdx >= 0 ? rows2d.slice(headerIdx + 1) : rows2d;
+      dataRows = dataRows.filter(function (r) { return r && r.some(function (v) { return String(v == null ? "" : v).trim() !== ""; }); });
+      if (!dataRows.length) { alert("No data rows found."); return; }
+
+      const replace = confirm("Replace current " + cfg.name + " entries with the imported data?\n\n" +
+        "OK = Replace (current entries are deleted)\nCancel = Append (keep current entries)");
+      if (replace) { store.forEach(deleteRow); store = []; selectedKey = null; }
+
+      const fresh = [];
+      let skipped = 0;
+      dataRows.forEach(function (row) {
+        const date = normalizeImportDate(row[0]);
+        const particular = String(row[1] == null ? "" : row[1]).trim();
+        const amount = parseMoney3(row[2] == null ? "" : row[2]);
+        if (!date || !particular) { skipped++; return; }
+        const entry = ensureId({ date: date, particular: particular, amount: amount });
+        store.push(entry); fresh.push(entry);
+      });
+      render();
+
+      let failed = 0;
+      for (let i = 0; i < fresh.length; i += 25) {
+        await Promise.all(fresh.slice(i, i + 25).map(function (e) {
+          return saveRow(e).then(function (ok) { if (!ok) failed++; });
+        }));
+      }
+      alert("Import complete.\nAdded: " + fresh.length + "\nSkipped (missing/invalid date or particular): " + skipped +
+        (failed ? "\n\n⚠ " + failed + " row(s) could not be saved to the database." : ""));
+    }
+
+    function exportExcel() {
+      const msoMoney = 'mso-number-format:"\\#\\,\\#\\#0\\.00"';
+      const msoText = 'mso-number-format:"\\@"';
+      const esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+      const rows = filteredSortedRows();
+      const groups = new Map();
+      rows.forEach(function (r) {
+        const k = monthKeyFromDate(r.date);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(r);
+      });
+      const keys = Array.from(groups.keys());
+
+      const css = "<style>" +
+        "table{ border-collapse:collapse; font-family:Calibri,Arial,sans-serif; font-size:11pt; }" +
+        "th,td{ border:1px solid #cfcfcf; padding:4px 6px; white-space:nowrap; }" +
+        "th{ font-weight:700; text-align:center; background:#fff; }" +
+        "td.num{ text-align:right; }" +
+        "tr.month-header td{ font-weight:800; text-align:center; background:#d9d9d9; border-top:2px solid #000; border-bottom:2px solid #000; }" +
+        "tr.month-total td{ font-weight:800; background:#fff2cc; border-top:2px solid #000; }" +
+        "tr.month-total td.label{ text-align:center; letter-spacing:.10em; }" +
+        "tr.grand-total td{ font-weight:900; background:#92d050; border-top:2px solid #000; border-bottom:2px solid #000; }" +
+        "tr.grand-total td.label{ text-align:center; letter-spacing:.10em; }" +
+        "tr.spacer td{ border:none; height:10px; }" +
+        "</style>";
+
+      let html = '<!doctype html><html><head><meta charset="utf-8" />' + css + "</head><body><table><tbody>";
+      let grand = 0;
+      keys.forEach(function (key, gi) {
+        const grp = groups.get(key);
+        html += '<tr class="month-header"><td colspan="3" style="' + msoText + '">' + esc(monthLabelFromKey(key).toUpperCase()) + "</td></tr>";
+        html += "<tr><th>Date</th><th>Particular</th><th>Amount</th></tr>";
+        let monthTotal = 0;
+        grp.forEach(function (r) {
+          html += "<tr>" +
+            '<td style="' + msoText + '">' + esc(r.date) + "</td>" +
+            '<td style="' + msoText + '">' + esc(r.particular) + "</td>" +
+            '<td class="num" style="' + msoMoney + '">' + fmtMoney(r.amount) + "</td></tr>";
+          monthTotal += Number(r.amount) || 0;
+        });
+        html += '<tr class="month-total"><td></td><td class="label">TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(monthTotal) + "</td></tr>";
+        grand += monthTotal;
+        if (gi < keys.length - 1) html += '<tr class="spacer"><td colspan="3"></td></tr>';
+      });
+      if (rows.length) {
+        html += '<tr class="spacer"><td colspan="3"></td></tr>';
+        html += '<tr class="grand-total"><td></td><td class="label">GRAND TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(grand) + "</td></tr>";
+      }
+      html += "</tbody></table></body></html>";
+
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "Magallanes_" + cfg.fileTag + "_" + new Date().toISOString().slice(0, 10) + ".xls";
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ── load from the database ──
+    function reload() {
+      return cfg.dbGet().then(function (rows) {
+        store = (rows || []).map(function (r) { r._id = r.id || newId(); return r; });
+        render();
+      });
+    }
+
+    // ── wire up ──
+    if (filterCat) filterCat.addEventListener("change", function () { buildFilterInputs(filterCat.value); });
+    const applyBtn = g(cfg.applyFilterBtnId), clearBtn = g(cfg.clearFilterBtnId);
+    if (applyBtn) applyBtn.addEventListener("click", function () { activeFilter = readFilter(); render(); });
+    if (clearBtn) clearBtn.addEventListener("click", function () {
+      activeFilter = { category: "", value: null };
+      if (filterCat) filterCat.value = "";
+      buildFilterInputs("");
+      render();
+    });
+
+    tableEl.addEventListener("click", function (e) {
+      const tr = e.target.closest("tr");
+      if (!tr || !tr.parentElement || tr.parentElement.tagName !== "TBODY") return;
+      if ((tr.getAttribute("data-row-type") || "data") !== "data") return;
+      selectKey(tr.getAttribute("data-key"));
+    });
+    tableEl.addEventListener("dblclick", function (e) {
+      const tr = e.target.closest("tr");
+      if (!tr || !tr.parentElement || tr.parentElement.tagName !== "TBODY") return;
+      if ((tr.getAttribute("data-row-type") || "data") !== "data") return;
+      selectKey(tr.getAttribute("data-key"));
+      openModal("edit", tr.getAttribute("data-key"));
+    });
+
+    const addBtn = g(cfg.addBtnId), editBtn = g(cfg.editBtnId), delBtn = g(cfg.deleteBtnId);
+    if (addBtn) addBtn.addEventListener("click", function () { openModal("add"); });
+    if (editBtn) editBtn.addEventListener("click", function () {
+      if (!selectedKey) { alert("Please select a " + cfg.name + " row first."); return; }
+      openModal("edit", selectedKey);
+    });
+    if (delBtn) delBtn.addEventListener("click", function () {
+      if (!selectedKey) { alert("Please select a " + cfg.name + " row first."); return; }
+      if (!confirm("Delete the selected " + cfg.name + " entry?")) return;
+      const row = store.find(function (r) { return keyFor(r) === selectedKey; });
+      if (row) { deleteRow(row); store = store.filter(function (r) { return r !== row; }); }
+      selectedKey = null;
+      render();
+    });
+
+    const closeBtn = g(cfg.closeBtnId), cancelBtn = g(cfg.cancelBtnId), form = g(cfg.formId);
+    if (closeBtn) closeBtn.addEventListener("click", closeModal);
+    if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+    if (overlay) overlay.addEventListener("click", closeModal);
+    if (form) form.addEventListener("submit", onSubmit);
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && modal && modal.classList.contains("is-open")) closeModal();
+    });
+
+    const impBtn = g(cfg.importBtnId), fileInp = g(cfg.fileInputId), expBtn = g(cfg.exportBtnId), refBtn = g(cfg.refreshBtnId);
+    if (impBtn && fileInp) impBtn.addEventListener("click", function () { fileInp.click(); });
+    if (fileInp) fileInp.addEventListener("change", async function () {
+      const file = fileInp.files && fileInp.files[0];
+      if (!file) return;
+      try {
+        const name = (file.name || "").toLowerCase();
+        if (name.endsWith(".csv")) {
+          await importRows(parseCSVTo2D(await file.text()));
+        } else if (name.endsWith(".xlsx")) {
+          if (typeof XLSX === "undefined") { alert("XLSX library not loaded. Import a CSV instead."); return; }
+          const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          await importRows(XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }));
+        } else {
+          alert("Unsupported file type. Please select a .csv or .xlsx file.");
+        }
+      } catch (err) {
+        alert("Import failed: " + (err && err.message ? err.message : String(err)));
+      } finally {
+        fileInp.value = "";
+      }
+    });
+    if (expBtn) expBtn.addEventListener("click", exportExcel);
+    if (refBtn) refBtn.addEventListener("click", function () { reload(); });
+
+    buildFilterInputs(filterCat ? filterCat.value : "");
+    render();
+    reload();
+    return { render: render, reload: reload };
+  }
+
+  initSimpleLedger({
+    name: "Gcash Received", fileTag: "GcashReceived",
+    tableId: "gcashReceivedTable", rowCountId: "gcashRecRowCount", selectedId: "gcashRecSelected",
+    addBtnId: "btnGcashRecAddEntry", editBtnId: "btnGcashRecEditSelected", deleteBtnId: "btnGcashRecDeleteSelected",
+    importBtnId: "btnGcashRecImportExcel", exportBtnId: "btnGcashRecExportExcel", refreshBtnId: "btnGcashRecRefresh",
+    fileInputId: "fileGcashRecImport",
+    filterCatId: "gcashRecFilterCategory", filterInputsId: "gcashRecFilterInputs",
+    applyFilterBtnId: "btnGcashRecApplyFilter", clearFilterBtnId: "btnGcashRecClearFilter",
+    overlayId: "gcashRecOverlay", modalId: "gcashRecModal", titleId: "gcashRecTitle", subtitleId: "gcashRecSubtitle",
+    closeBtnId: "btnCloseGcashRec", formId: "gcashRecForm", cancelBtnId: "btnCancelGcashRec", submitBtnId: "btnSubmitGcashRec",
+    dateId: "grDate", particularId: "grParticular", amountId: "grAmount",
+    dbGet: function () { return DB.getGcashReceived(); },
+    dbSave: function (r) { return DB.saveGcashReceived(r); },
+    dbDelete: function (id) { return DB.deleteGcashReceived(id); }
+  });
+
+  initSimpleLedger({
+    name: "Gcash Expenses", fileTag: "GcashExpenses",
+    tableId: "gcashExpenseTable", rowCountId: "gcashExpRowCount", selectedId: "gcashExpSelected",
+    addBtnId: "btnGcashExpAddEntry", editBtnId: "btnGcashExpEditSelected", deleteBtnId: "btnGcashExpDeleteSelected",
+    importBtnId: "btnGcashExpImportExcel", exportBtnId: "btnGcashExpExportExcel", refreshBtnId: "btnGcashExpRefresh",
+    fileInputId: "fileGcashExpImport",
+    filterCatId: "gcashExpFilterCategory", filterInputsId: "gcashExpFilterInputs",
+    applyFilterBtnId: "btnGcashExpApplyFilter", clearFilterBtnId: "btnGcashExpClearFilter",
+    overlayId: "gcashExpOverlay", modalId: "gcashExpModal", titleId: "gcashExpTitle", subtitleId: "gcashExpSubtitle",
+    closeBtnId: "btnCloseGcashExp", formId: "gcashExpForm", cancelBtnId: "btnCancelGcashExp", submitBtnId: "btnSubmitGcashExp",
+    dateId: "geDate", particularId: "geParticular", amountId: "geAmount",
+    dbGet: function () { return DB.getGcashExpense(); },
+    dbSave: function (r) { return DB.saveGcashExpense(r); },
+    dbDelete: function (id) { return DB.deleteGcashExpense(id); }
+  });
+
   // CONTRACT FORM — Data, Auto-fill, Save, Print
   // ══════════════════════════════════════════════════════════
   (function initContractForm() {
