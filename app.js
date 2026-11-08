@@ -458,6 +458,9 @@ function fmtMoney(n) {
   let refundLogStore = [];  // refund log entries
   let pnbSavingsStore = []; // PNB Savings store
   let landbankStore   = []; // Landbank store
+  // Gcash ledgers: their rows live inside the ledger objects created by initSimpleLedger(); the Daily Report reads them through these
+  let gcashRecLedger = null;
+  let gcashExpLedger = null;
 
   function saveStore() {
     // No-op: individual saves happen via DB.saveContract() per operation
@@ -7433,6 +7436,20 @@ const reportDatePicker = $("#reportDatePicker");
     return cashOnHand;
   }
 
+  // Gcash entries (Gcash Received / Gcash Expenses tabs) for one day. Returns [] if that tab has not loaded yet.
+  function getGcashRowsForDay(ledger, ymd){
+    const rows = (ledger && typeof ledger.getRows === "function") ? ledger.getRows() : [];
+    return rows.filter(r => drParseYmd(r.date) === ymd);
+  }
+
+  // Re-draw the Daily Report only if it is the tab currently being viewed (used when Gcash data finishes loading).
+  function refreshDailyReportIfOpen(){
+    const panel = document.querySelector("#panel-dailyreport");
+    if(panel && panel.classList.contains("is-active")){
+      try{ renderDailyReportCashReceived(); }catch(e){ console.warn(e); }
+    }
+  }
+
   function renderDailyReportCashReceived(){
     const panel = document.querySelector("#panel-dailyreport");
     const content = panel?.querySelector("#dailyReportContent");
@@ -7492,6 +7509,29 @@ const reportDatePicker = $("#reportDatePicker");
     const cashExpRows = (cashExpStore||[]).filter(r=>drParseYmd(r.date)===selectedYmd);
     const totalCashExpenses = cashExpRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
     const cashExpBody = cashExpRows.map(r=>`
+      <tr>
+        <td></td><td></td>
+        <td>${escapeHtml(r.particular ?? "")}</td>
+        <td></td>
+        <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
+      </tr>
+    `).join("");
+
+    // ---------------- Gcash Received / Gcash Expense ----------------
+    const gcashRecRows = getGcashRowsForDay(gcashRecLedger, selectedYmd);
+    const totalGcashReceived = gcashRecRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const gcashRecBody = gcashRecRows.map(r=>`
+      <tr>
+        <td></td><td></td>
+        <td>${escapeHtml(r.particular ?? "")}</td>
+        <td></td>
+        <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
+      </tr>
+    `).join("");
+
+    const gcashExpRows = getGcashRowsForDay(gcashExpLedger, selectedYmd);
+    const totalGcashExpenses = gcashExpRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
+    const gcashExpBody = gcashExpRows.map(r=>`
       <tr>
         <td></td><td></td>
         <td>${escapeHtml(r.particular ?? "")}</td>
@@ -7608,6 +7648,36 @@ const reportDatePicker = $("#reportDatePicker");
             <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
             ${cashExpBody || `<tr><td colspan="5" class="dr-muted">(no matching Cash Expense entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td>Total Cash Expenses</td><td></td><td style="text-align:right;">${fmtMoney(totalCashExpenses)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="dr-section-spacer"></div>
+      <div class="dr-section-title">Gcash Received</div>
+      <div class="dr-table-wrap">
+        <table class="dr-table" id="drGcashReceivedTable">
+          <colgroup>
+            <col class="dr-col1"><col class="dr-col2"><col class="dr-col3"><col class="dr-col4"><col class="dr-col5">
+          </colgroup>
+          <tbody>
+            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
+            ${gcashRecBody || `<tr><td colspan="5" class="dr-muted">(no matching Gcash Received entries)</td></tr>`}
+            <tr class="dr-grand-row"><td></td><td></td><td>Total Gcash Received</td><td></td><td style="text-align:right;">${fmtMoney(totalGcashReceived)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="dr-section-spacer"></div>
+      <div class="dr-section-title">Gcash Expense</div>
+      <div class="dr-table-wrap">
+        <table class="dr-table" id="drGcashExpenseTable">
+          <colgroup>
+            <col class="dr-col1"><col class="dr-col2"><col class="dr-col3"><col class="dr-col4"><col class="dr-col5">
+          </colgroup>
+          <tbody>
+            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
+            ${gcashExpBody || `<tr><td colspan="5" class="dr-muted">(no matching Gcash Expense entries)</td></tr>`}
+            <tr class="dr-grand-row"><td></td><td></td><td>Total Gcash Expenses</td><td></td><td style="text-align:right;">${fmtMoney(totalGcashExpenses)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -7943,11 +8013,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     const crTitle  = getSectionTitle("drCashReceivedTable")  || "Cash Received";
     const ceTitle  = getSectionTitle("drCashExpenseTable")   || "Cash Expense";
+    const gcrTitle = getSectionTitle("drGcashReceivedTable") || "Gcash Received";
+    const gceTitle = getSectionTitle("drGcashExpenseTable")  || "Gcash Expense";
     const brTitle  = getSectionTitle("drBankReceivedTable")  || "Bank Received";
     const beTitle  = getSectionTitle("drBankExpenseTable")   || "Bank Expense";
 
     const crRows = tableToRows(content.querySelector("#drCashReceivedTable"));
     const ceRows = tableToRows(content.querySelector("#drCashExpenseTable"));
+    const gcrRows = tableToRows(content.querySelector("#drGcashReceivedTable"));
+    const gceRows = tableToRows(content.querySelector("#drGcashExpenseTable"));
     const brRows = tableToRows(content.querySelector("#drBankReceivedTable"));
     const beRows = tableToRows(content.querySelector("#drBankExpenseTable"));
     const sumRows= tableToRows(content.querySelector("#drSummaryTable"));
@@ -8135,6 +8209,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         // ── Sections ──
         drawSection(crTitle, crRows, COL5);
         drawSection(ceTitle, ceRows, COL5);
+        drawSection(gcrTitle, gcrRows, COL5);
+        drawSection(gceTitle, gceRows, COL5);
         drawSection(brTitle, brRows, COL5);
         drawSection(beTitle, beRows, COL5);
 
@@ -10088,6 +10164,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       return cfg.dbGet().then(function (rows) {
         store = (rows || []).map(function (r) { r._id = r.id || newId(); return r; });
         render();
+        if (typeof cfg.onLoaded === "function") { try { cfg.onLoaded(); } catch (e) { console.warn(e); } }
       });
     }
 
@@ -10169,11 +10246,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     buildFilterInputs(filterCat ? filterCat.value : "");
     render();
     reload();
-    return { render: render, reload: reload };
+    return { render: render, reload: reload, getRows: function () { return store.slice(); } };
   }
 
-  initSimpleLedger({
-    name: "Gcash Received", fileTag: "GcashReceived",
+  gcashRecLedger = initSimpleLedger({
+    name: "Gcash Received", fileTag: "GcashReceived", onLoaded: refreshDailyReportIfOpen,
     tableId: "gcashReceivedTable", rowCountId: "gcashRecRowCount", selectedId: "gcashRecSelected",
     addBtnId: "btnGcashRecAddEntry", editBtnId: "btnGcashRecEditSelected", deleteBtnId: "btnGcashRecDeleteSelected",
     importBtnId: "btnGcashRecImportExcel", exportBtnId: "btnGcashRecExportExcel", refreshBtnId: "btnGcashRecRefresh",
@@ -10188,8 +10265,8 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     dbDelete: function (id) { return DB.deleteGcashReceived(id); }
   });
 
-  initSimpleLedger({
-    name: "Gcash Expenses", fileTag: "GcashExpenses",
+  gcashExpLedger = initSimpleLedger({
+    name: "Gcash Expenses", fileTag: "GcashExpenses", onLoaded: refreshDailyReportIfOpen,
     tableId: "gcashExpenseTable", rowCountId: "gcashExpRowCount", selectedId: "gcashExpSelected",
     addBtnId: "btnGcashExpAddEntry", editBtnId: "btnGcashExpEditSelected", deleteBtnId: "btnGcashExpDeleteSelected",
     importBtnId: "btnGcashExpImportExcel", exportBtnId: "btnGcashExpExportExcel", refreshBtnId: "btnGcashExpRefresh",
