@@ -6882,6 +6882,7 @@ Cancel = Append`);
   const setCashBalance        = $("#setCashBalance");
   const setBankBalance        = $("#setBankBalance");
   const setPnbSavingsBalance  = $("#setPnbSavingsBalance");
+  const setGcashBalance       = $("#setGcashBalance");
   const setLandbankBalance    = $("#setLandbankBalance");
   const setSibuyanBalance     = $("#setSibuyanBalance");
   const setRomblonBalance     = $("#setRomblonBalance");
@@ -6903,6 +6904,7 @@ Cancel = Append`);
       if(setCashBalance)        setCashBalance.value        = Number(data.cash_balance        || 0).toFixed(2);
       if(setBankBalance)        setBankBalance.value        = Number(data.bank_balance        || 0).toFixed(2);
       if(setPnbSavingsBalance)  setPnbSavingsBalance.value  = Number(data.pnb_savings_balance || 0).toFixed(2);
+      if(setGcashBalance)       setGcashBalance.value       = Number(data.gcash_balance        || 0).toFixed(2);
       if(setLandbankBalance)    setLandbankBalance.value    = Number(data.landbank_balance     || 0).toFixed(2);
       if(setSibuyanBalance)     setSibuyanBalance.value     = Number(data.sibuyan_balance      || 0).toFixed(2);
       if(setRomblonBalance)     setRomblonBalance.value     = Number(data.romblon_balance      || 0).toFixed(2);
@@ -6918,6 +6920,7 @@ Cancel = Append`);
       cashBalance:        Number(setCashBalance?.value)        || 0,
       bankBalance:        Number(setBankBalance?.value)        || 0,
       pnbSavingsBalance:  Number(setPnbSavingsBalance?.value)  || 0,
+      gcashBalance:       Number(setGcashBalance?.value)       || 0,
       landbankBalance:    Number(setLandbankBalance?.value)     || 0,
       sibuyanBalance:     Number(setSibuyanBalance?.value)      || 0,
       romblonBalance:     Number(setRomblonBalance?.value)      || 0,
@@ -7029,7 +7032,7 @@ Cancel = Append`);
 
 
   // Wire all settings inputs — both "input" (while typing) and "change" (on blur/tab)
-  [setCashBalance, setBankBalance, setPnbSavingsBalance, setLandbankBalance,
+  [setCashBalance, setBankBalance, setPnbSavingsBalance, setGcashBalance, setLandbankBalance,
    setSibuyanBalance, setRomblonBalance, setSanJoseBalance,
    setSigFinanceClerk, setSigAccountant, setSigFinanceManager].forEach(el => {
     el?.addEventListener("input",  queueSaveSettings);

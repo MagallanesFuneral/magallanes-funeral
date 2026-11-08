@@ -396,6 +396,7 @@ window.DB = {
       cash_balance:         n(obj.cashBalance),
       bank_balance:         n(obj.bankBalance),
       pnb_savings_balance:  n(obj.pnbSavingsBalance),
+      gcash_balance:        n(obj.gcashBalance),
       landbank_balance:     n(obj.landbankBalance),
       sibuyan_balance:      n(obj.sibuyanBalance),
       romblon_balance:      n(obj.romblonBalance),
@@ -406,7 +407,23 @@ window.DB = {
       updated_at:           new Date().toISOString(),
     };
     if (!payload.id) delete payload.id;
-    const { error } = await _sb.from(TABLE.settings).upsert(payload, { onConflict: "id" });
+    let { error } = await _sb.from(TABLE.settings).upsert(payload, { onConflict: "id" });
+
+    // If the GCash column has not been created in Supabase yet, don't let that block every other
+    // setting from saving: retry without it, and (once per page load) tell the user what to run.
+    if (error && error.message && error.message.includes("gcash_balance")) {
+      console.error("saveSettings: gcash_balance column is missing", error);
+      const retry = { ...payload };
+      delete retry.gcash_balance;
+      ({ error } = await _sb.from(TABLE.settings).upsert(retry, { onConflict: "id" }));
+      if (!window.__gcashColumnWarned) {
+        window.__gcashColumnWarned = true;
+        alert("Your settings were saved, but the GCash Balance could not be saved yet because its database column does not exist.\n\n" +
+              "Run this once in the Supabase SQL Editor:\n\n" +
+              "alter table settings add column if not exists gcash_balance numeric default 0;");
+      }
+    }
+
     if (error) {
       console.error("saveSettings error:", error);
       // Surface the error so it's visible — missing columns are a common cause
