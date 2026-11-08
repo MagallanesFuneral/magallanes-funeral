@@ -6915,6 +6915,8 @@ Cancel = Append`);
       if(setSigFinanceClerk)   setSigFinanceClerk.value   = data.finance_clerk   || DEFAULT_SIG.financeClerk;
       if(setSigAccountant)     setSigAccountant.value     = data.accountant      || DEFAULT_SIG.accountant;
       if(setSigFinanceManager) setSigFinanceManager.value = data.finance_manager || DEFAULT_SIG.financeManager;
+      // Opening balances feed the Daily Report; if it is already on screen, redraw it with the loaded values.
+      refreshDailyReportIfOpen();
     }).catch(()=>{});
   }
 
@@ -7442,6 +7444,21 @@ const reportDatePicker = $("#reportDatePicker");
     return rows.filter(r => drParseYmd(r.date) === ymd);
   }
 
+  // GCash balance at the START of the selected day (its "Balance Forwarded"):
+  //   opening balance from Settings  +  all Gcash Received before that day  -  all Gcash Expenses before that day.
+  // Same convention as Cash On Hand / Cash in Bank: the opening balance is assumed to come before every entry.
+  function computeGcashBalanceBefore(ymd){
+    const opening = Number((document.querySelector("#setGcashBalance") || {}).value || 0);
+    const sumBefore = (ledger) => {
+      const rows = (ledger && typeof ledger.getRows === "function") ? ledger.getRows() : [];
+      return rows.reduce((a, r) => {
+        const d = drParseYmd(r.date);
+        return (d && d < ymd) ? a + (Number(r.amount) || 0) : a;
+      }, 0);
+    };
+    return (Number.isFinite(opening) ? opening : 0) + sumBefore(gcashRecLedger) - sumBefore(gcashExpLedger);
+  }
+
   // Re-draw the Daily Report only if it is the tab currently being viewed (used when Gcash data finishes loading).
   function refreshDailyReportIfOpen(){
     const panel = document.querySelector("#panel-dailyreport");
@@ -7518,6 +7535,7 @@ const reportDatePicker = $("#reportDatePicker");
     `).join("");
 
     // ---------------- Gcash Received / Gcash Expense ----------------
+    const gcashBF = computeGcashBalanceBefore(selectedYmd);
     const gcashRecRows = getGcashRowsForDay(gcashRecLedger, selectedYmd);
     const totalGcashReceived = gcashRecRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
     const gcashRecBody = gcashRecRows.map(r=>`
@@ -7660,6 +7678,11 @@ const reportDatePicker = $("#reportDatePicker");
             <col class="dr-col1"><col class="dr-col2"><col class="dr-col3"><col class="dr-col4"><col class="dr-col5">
           </colgroup>
           <tbody>
+            <tr>
+              <td colspan="3"></td>
+              <td style="text-align:right;font-weight:800;">Gcash Balance Forwarded :</td>
+              <td style="text-align:right;font-weight:800;">${fmtMoney(gcashBF)}</td>
+            </tr>
             <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
             ${gcashRecBody || `<tr><td colspan="5" class="dr-muted">(no matching Gcash Received entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td>Total Gcash Received</td><td></td><td style="text-align:right;">${fmtMoney(totalGcashReceived)}</td></tr>
@@ -8020,7 +8043,11 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
 
     const crRows = tableToRows(content.querySelector("#drCashReceivedTable"));
     const ceRows = tableToRows(content.querySelector("#drCashExpenseTable"));
-    const gcrRows = tableToRows(content.querySelector("#drGcashReceivedTable"));
+    // The balance row has a merged blank cell on screen, which reads back as 3 cells; spread it over the 5 PDF columns
+    // so the amount lines up with the Amount column.
+    const gcrRows = tableToRows(content.querySelector("#drGcashReceivedTable")).map(function(row){
+      return row.cells.length === 3 ? { cells: ["", "", "", row.cells[1], row.cells[2]], cls: row.cls } : row;
+    });
     const gceRows = tableToRows(content.querySelector("#drGcashExpenseTable"));
     const brRows = tableToRows(content.querySelector("#drBankReceivedTable"));
     const beRows = tableToRows(content.querySelector("#drBankExpenseTable"));
