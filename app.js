@@ -403,6 +403,11 @@ function escapeHtml(value){
     return a - d - p;
   }
 
+// Blank (or non-numeric) Min/Max filter boxes must mean "no limit", not 0.
+function filterNumOrNaN(v){
+  const t = String(v == null ? "" : v).trim();
+  return t === "" ? NaN : Number(t);
+}
 function fmtMoney(n) {
     return (Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
@@ -2498,8 +2503,8 @@ function fmtMoney(n) {
       return { category: "particular", value: v };
     }
     if (cat === "amount") {
-      const minv = Number($("#cashFilterMin")?.value || "");
-      const maxv = Number($("#cashFilterMax")?.value || "");
+      const minv = filterNumOrNaN($("#cashFilterMin")?.value);
+      const maxv = filterNumOrNaN($("#cashFilterMax")?.value);
       return {
         category: "amount",
         value: {
@@ -3191,8 +3196,8 @@ function fmtMoney(n) {
     if (cat === "date") return { category:"date", value: parseFilterDatePattern2($("#cashExpFilterDate")?.value || "") };
     if (cat === "particular") return { category:"particular", value: normalizeText($("#cashExpFilterParticular")?.value || "") };
     if (cat === "amount") {
-      const minv = Number($("#cashExpFilterMin")?.value || "");
-      const maxv = Number($("#cashExpFilterMax")?.value || "");
+      const minv = filterNumOrNaN($("#cashExpFilterMin")?.value);
+      const maxv = filterNumOrNaN($("#cashExpFilterMax")?.value);
       return { category:"amount", value:{ min: Number.isFinite(minv)?minv:null, max: Number.isFinite(maxv)?maxv:null } };
     }
     return { category:"", value:null };
@@ -3765,8 +3770,8 @@ function fmtMoney(n) {
     if (cat === "client") return { category:"client", value: normalizeText($("#bankFilterClient")?.value || "") };
     if (cat === "type") return { category:"type", value: normalizeBankType($("#bankFilterType")?.value || "") };
     if (cat === "amount") {
-      const minv = Number($("#bankFilterMin")?.value || "");
-      const maxv = Number($("#bankFilterMax")?.value || "");
+      const minv = filterNumOrNaN($("#bankFilterMin")?.value);
+      const maxv = filterNumOrNaN($("#bankFilterMax")?.value);
       return { category:"amount", value:{ min: Number.isFinite(minv)?minv:null, max: Number.isFinite(maxv)?maxv:null } };
     }
     return { category:"", value:null };
@@ -4385,8 +4390,8 @@ function fmtMoney(n) {
     if (cat === "check") return { category:"check", value: normalizeText($("#bankExpFilterCheck")?.value || "") };
     if (cat === "particular") return { category:"particular", value: normalizeText($("#bankExpFilterParticular")?.value || "") };
     if (cat === "withdraw") {
-      const minv = Number($("#bankExpFilterMin")?.value || "");
-      const maxv = Number($("#bankExpFilterMax")?.value || "");
+      const minv = filterNumOrNaN($("#bankExpFilterMin")?.value);
+      const maxv = filterNumOrNaN($("#bankExpFilterMax")?.value);
       return { category:"withdraw", value:{ min: Number.isFinite(minv)?minv:null, max: Number.isFinite(maxv)?maxv:null } };
     }
     return { category:"", value:null };
@@ -5000,8 +5005,8 @@ function fmtMoney(n) {
     if (!cat) return { category:"", value:null };
     if (cat === "date") return { category:"date", value: parseFilterDatePatternPD($("#pnbFilterDate")?.value || "") };
     if (cat === "amount") {
-      const minv = Number($("#pnbFilterMin")?.value || "");
-      const maxv = Number($("#pnbFilterMax")?.value || "");
+      const minv = filterNumOrNaN($("#pnbFilterMin")?.value);
+      const maxv = filterNumOrNaN($("#pnbFilterMax")?.value);
       return { category:"amount", value:{ min: Number.isFinite(minv)?minv:null, max: Number.isFinite(maxv)?maxv:null } };
     }
     return { category:"", value:null };
@@ -7193,12 +7198,20 @@ Cancel = Append`);
 
       // Restore settings if present
       if (data.settings) {
+        const st = data.settings;
+        const pick = (snake, camel) => st[snake] ?? st[camel] ?? 0;
         await DB.saveSettings({
-          cashBalance:    data.settings.cash_balance    || data.settings.cashBalance    || 0,
-          bankBalance:    data.settings.bank_balance    || data.settings.bankBalance    || 0,
-          financeClerk:   data.settings.finance_clerk   || data.settings.financeClerk   || "",
-          accountant:     data.settings.accountant      || "",
-          financeManager: data.settings.finance_manager || data.settings.financeManager || "",
+          cashBalance:       pick("cash_balance", "cashBalance"),
+          bankBalance:       pick("bank_balance", "bankBalance"),
+          pnbSavingsBalance: pick("pnb_savings_balance", "pnbSavingsBalance"),
+          gcashBalance:      pick("gcash_balance", "gcashBalance"),
+          landbankBalance:   pick("landbank_balance", "landbankBalance"),
+          sibuyanBalance:    pick("sibuyan_balance", "sibuyanBalance"),
+          romblonBalance:    pick("romblon_balance", "romblonBalance"),
+          sanJoseBalance:    pick("san_jose_balance", "sanJoseBalance"),
+          financeClerk:   st.finance_clerk   || st.financeClerk   || "",
+          accountant:     st.accountant      || "",
+          financeManager: st.finance_manager || st.financeManager || "",
         });
       }
 
@@ -8041,15 +8054,18 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const brTitle  = getSectionTitle("drBankReceivedTable")  || "Bank Received";
     const beTitle  = getSectionTitle("drBankExpenseTable")   || "Bank Expense";
 
-    const crRows = tableToRows(content.querySelector("#drCashReceivedTable"));
+    function spreadBalanceRow(rows){
+      return rows.map(function(row){
+        return row.cells.length === 3 ? { cells: ["", "", "", row.cells[1], row.cells[2]], cls: row.cls } : row;
+      });
+    }
+    const crRows = spreadBalanceRow(tableToRows(content.querySelector("#drCashReceivedTable")));
     const ceRows = tableToRows(content.querySelector("#drCashExpenseTable"));
     // The balance row has a merged blank cell on screen, which reads back as 3 cells; spread it over the 5 PDF columns
     // so the amount lines up with the Amount column.
-    const gcrRows = tableToRows(content.querySelector("#drGcashReceivedTable")).map(function(row){
-      return row.cells.length === 3 ? { cells: ["", "", "", row.cells[1], row.cells[2]], cls: row.cls } : row;
-    });
+    const gcrRows = spreadBalanceRow(tableToRows(content.querySelector("#drGcashReceivedTable")));
     const gceRows = tableToRows(content.querySelector("#drGcashExpenseTable"));
-    const brRows = tableToRows(content.querySelector("#drBankReceivedTable"));
+    const brRows = spreadBalanceRow(tableToRows(content.querySelector("#drBankReceivedTable")));
     const beRows = tableToRows(content.querySelector("#drBankExpenseTable"));
     const sumRows= tableToRows(content.querySelector("#drSummaryTable"));
 
