@@ -7551,14 +7551,18 @@ const reportDatePicker = $("#reportDatePicker");
     const gcashBF = computeGcashBalanceBefore(selectedYmd);
     const gcashRecRows = getGcashRowsForDay(gcashRecLedger, selectedYmd);
     const totalGcashReceived = gcashRecRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
-    const gcashRecBody = gcashRecRows.map(r=>`
+    const gcashRecBody = gcashRecRows.map(r=>{
+      const sd = formatServiceDate(r.deceaseDate || "");
+      const particularDisplay = r.particular && sd ? r.particular + " - " + sd : (r.particular ?? "");
+      return `
       <tr>
-        <td></td><td></td>
-        <td>${escapeHtml(r.particular ?? "")}</td>
-        <td></td>
+        <td>${escapeHtml(r.contract ?? "")}</td>
+        <td>${escapeHtml(r.receipt ?? "")}</td>
+        <td>${escapeHtml(r.client ?? "")}</td>
+        <td>${escapeHtml(particularDisplay)}</td>
         <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
       </tr>
-    `).join("");
+    `;}).join("");
 
     const gcashExpRows = getGcashRowsForDay(gcashExpLedger, selectedYmd);
     const totalGcashExpenses = gcashExpRows.reduce((a,r)=>a+(Number(r.amount)||0),0);
@@ -7696,7 +7700,7 @@ const reportDatePicker = $("#reportDatePicker");
               <td style="text-align:right;font-weight:800;">Gcash Balance Forwarded :</td>
               <td style="text-align:right;font-weight:800;">${fmtMoney(gcashBF)}</td>
             </tr>
-            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
+            <tr class="dr-header-row"><td>Contract #</td><td>Receipt #</td><td>Name of Client</td><td>Particular</td><td>Amount</td></tr>
             ${gcashRecBody || `<tr><td colspan="5" class="dr-muted">(no matching Gcash Received entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td>Total Gcash Received</td><td></td><td style="text-align:right;">${fmtMoney(totalGcashReceived)}</td></tr>
           </tbody>
@@ -9835,6 +9839,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     const tableEl = g(cfg.tableId);
     if (!tableEl) { console.warn("[" + cfg.name + "] table not found:", cfg.tableId); return null; }
 
+    // Columns shown in the table (default: Date | Particular | Amount). The Gcash Received tab passes the full Cash Received set.
+    const COLS = cfg.columns || [
+      { key: "date", label: "Date" }, { key: "particular", label: "Particular" }, { key: "amount", label: "Amount", num: true }
+    ];
+    const NCOL = COLS.length;
+    const EXTRA = cfg.extraFields || {};   // optional modal inputs: { contract, receipt, client, deceaseDate } -> element ids
+    const hasKey = function (k) { return COLS.some(function (c) { return c.key === k; }); };
+
     let store = [];
     let selectedKey = null;
     let activeFilter = { category: "", value: null };
@@ -9905,6 +9917,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         filterBox.appendChild(w);
       }
       if (cat === "date") mk("Date", "text", "MM/DD/YYYY or MM/YYYY or YYYY", "date");
+      else if (cat === "contract") mk("Contract #", "text", "contains...", "contract");
+      else if (cat === "receipt") mk("Receipt #", "text", "contains...", "receipt");
+      else if (cat === "client") mk("Client", "text", "contains...", "client");
       else if (cat === "particular") mk("Particular", "text", "contains...", "particular");
       else if (cat === "amount") { mk("Min", "number", "0.00", "min"); mk("Max", "number", "10000.00", "max"); }
     }
@@ -9913,7 +9928,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!cat || !filterBox) return { category: "", value: null };
       function val(k) { const el = filterBox.querySelector('[data-k="' + k + '"]'); return el ? el.value : ""; }
       if (cat === "date") return { category: "date", value: parseFilterDatePattern2(val("date")) };
-      if (cat === "particular") return { category: "particular", value: normalizeText(val("particular")) };
+      if (cat === "contract" || cat === "receipt" || cat === "client" || cat === "particular") {
+        return { category: cat, value: normalizeText(val(cat)) };
+      }
       if (cat === "amount") {
         const lo = String(val("min")).trim(), hi = String(val("max")).trim();
         return { category: "amount", value: {
@@ -9927,7 +9944,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const f = activeFilter;
       if (!f || !f.category) return true;
       if (f.category === "date") return rowMatchesDateFilter2(r.date, f.value);
-      if (f.category === "particular") return !f.value || normalizeText(r.particular).indexOf(f.value) !== -1;
+      if (f.category === "contract" || f.category === "receipt" || f.category === "client" || f.category === "particular") {
+        return !f.value || normalizeText(r[f.category]).indexOf(f.value) !== -1;
+      }
       if (f.category === "amount") {
         const a = Number(r.amount) || 0, v = f.value || {};
         if (v.min != null && a < v.min) return false;
@@ -9948,13 +9967,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     function spacerRow() {
       const tr = document.createElement("tr");
       tr.className = "spacer"; tr.setAttribute("data-row-type", "spacer");
-      const td = document.createElement("td"); td.colSpan = 3; tr.appendChild(td);
+      const td = document.createElement("td"); td.colSpan = NCOL; tr.appendChild(td);
       return tr;
     }
     function totalRow(cls, label, amount) {
       const tr = document.createElement("tr");
       tr.className = cls; tr.setAttribute("data-row-type", cls);
-      tr.appendChild(cell(""));
+      for (let i = 0; i < NCOL - 2; i++) tr.appendChild(cell(""));
       tr.appendChild(cell(label, "label"));
       tr.appendChild(cell(fmtMoney(amount), "num"));
       return tr;
@@ -9982,7 +10001,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       keys.forEach(function (key, gi) {
         const hdr = document.createElement("tr");
         hdr.className = "ledMonthHeader"; hdr.setAttribute("data-row-type", "monthHeader");
-        const hd = document.createElement("td"); hd.colSpan = 3;
+        const hd = document.createElement("td"); hd.colSpan = NCOL;
         hd.textContent = monthLabelFromKey(key).toUpperCase();
         hdr.appendChild(hd); tbody.appendChild(hdr);
 
@@ -9993,9 +10012,10 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           tr.setAttribute("data-row-type", "data");
           tr.setAttribute("data-key", keyFor(r));
           if (keyFor(r) === selectedKey) tr.classList.add("is-selected");
-          tr.appendChild(cell(r.date || ""));
-          tr.appendChild(cell(r.particular || ""));
-          tr.appendChild(cell(fmtMoney(r.amount), "num"));
+          COLS.forEach(function (c) {
+            if (c.key === "amount") tr.appendChild(cell(fmtMoney(r.amount), "num"));
+            else tr.appendChild(cell(r[c.key] || ""));
+          });
           tbody.appendChild(tr);
           monthTotal += Number(r.amount) || 0;
         });
@@ -10039,6 +10059,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         g(cfg.dateId).value = todayIso();
         g(cfg.particularId).value = "";
         g(cfg.amountId).value = "0.00";
+        Object.keys(EXTRA).forEach(function (k) { const el = g(EXTRA[k]); if (el) el.value = ""; });
       } else {
         const found = store.find(function (r) { return keyFor(r) === key; });
         if (!found) { alert("Could not find the selected entry."); return; }
@@ -10049,6 +10070,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         g(cfg.dateId).value = mmddyyyyToYyyyMMdd(found.date) || todayIso();
         g(cfg.particularId).value = found.particular || "";
         g(cfg.amountId).value = (Number(found.amount) || 0).toFixed(2);
+        Object.keys(EXTRA).forEach(function (k) {
+          const el = g(EXTRA[k]); if (!el) return;
+          if (k === "deceaseDate") {                       // stored MM/YYYY, the month picker wants YYYY-MM
+            const p = String(found.deceaseDate || "").split("/");
+            el.value = p.length === 2 ? p[1] + "-" + pad2(p[0]) : "";
+          } else el.value = found[k] || "";
+        });
       }
       overlay.classList.add("is-open");
       modal.classList.add("is-open");
@@ -10067,9 +10095,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const amount = parseMoney3(g(cfg.amountId).value);
       if (!date) { alert("Please enter a date."); return; }
       if (!particular) { alert("Particular is required."); return; }
+      const extra = {};
+      Object.keys(EXTRA).forEach(function (k) {
+        const el = g(EXTRA[k]); let v = el ? String(el.value || "").trim() : "";
+        if (k === "deceaseDate" && v) { const p = v.split("-"); v = p.length === 2 ? p[1] + "/" + p[0] : v; }   // YYYY-MM -> MM/YYYY
+        extra[k] = v;
+      });
 
       if (mode === "add") {
-        const entry = ensureId({ date: date, particular: particular, amount: amount });
+        const entry = ensureId(Object.assign({ date: date, particular: particular, amount: amount }, extra));
         store.push(entry);
         saveRow(entry).then(function (ok) { if (!ok) warnSaveFailed(1); });
         closeModal();
@@ -10081,6 +10115,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const row = store.find(function (r) { return keyFor(r) === editingKey; });
       if (!row) { closeModal(); return; }
       row.date = date; row.particular = particular; row.amount = amount;
+      Object.keys(extra).forEach(function (k) { row[k] = extra[k]; });
       saveRow(row).then(function (ok) { if (!ok) warnSaveFailed(1); });
       closeModal();
       selectedKey = keyFor(row);
@@ -10115,6 +10150,27 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
             (row.indexOf("particular") !== -1 || row.indexOf("description") !== -1) &&
             (row.indexOf("amount") !== -1 || row.indexOf("amt") !== -1)) headerIdx = r;
       }
+      // column positions: by header name when there is a header row, otherwise in the order the table shows them
+      const ALIASES = { date: ["date"], contract: ["contract #", "contract", "contract no", "contract no."], receipt: ["receipt #", "receipt", "receipt no", "receipt no."],
+        client: ["name of client", "client", "client name", "name"], particular: ["particular", "particulars", "description"],
+        deceaseDate: ["service date", "servicedate"], amount: ["amount", "amt"] };
+      const colAt = {};
+      COLS.forEach(function (c, i) { colAt[c.key] = i; });
+      if (headerIdx >= 0) {
+        const hdr = rows2d[headerIdx].map(function (x) { return String(x == null ? "" : x).trim().toLowerCase(); });
+        COLS.forEach(function (c) {
+          const at = hdr.findIndex(function (h) { return (ALIASES[c.key] || [c.key]).indexOf(h) !== -1; });
+          if (at !== -1) colAt[c.key] = at;
+          else if (hdr.length) colAt[c.key] = -1;           // header row exists but has no such column
+        });
+      }
+      const pick = function (row, key) { const i = colAt[key]; return i == null || i < 0 ? "" : row[i]; };
+      function normalizeServiceDate(v) {
+        if (v instanceof Date && !isNaN(v.getTime())) return pad2(v.getMonth() + 1) + "/" + v.getFullYear();
+        const t = String(v == null ? "" : v).trim();
+        const m = /^(\d{4})-(\d{2})/.exec(t);
+        return m ? m[2] + "/" + m[1] : t;
+      }
       let dataRows = headerIdx >= 0 ? rows2d.slice(headerIdx + 1) : rows2d;
       dataRows = dataRows.filter(function (r) { return r && r.some(function (v) { return String(v == null ? "" : v).trim() !== ""; }); });
       if (!dataRows.length) { alert("No data rows found."); return; }
@@ -10126,11 +10182,14 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const fresh = [];
       let skipped = 0;
       dataRows.forEach(function (row) {
-        const date = normalizeImportDate(row[0]);
-        const particular = String(row[1] == null ? "" : row[1]).trim();
-        const amount = parseMoney3(row[2] == null ? "" : row[2]);
+        const date = normalizeImportDate(pick(row, "date"));
+        const particular = String(pick(row, "particular") == null ? "" : pick(row, "particular")).trim();
+        const amount = parseMoney3(pick(row, "amount") === "" ? "" : pick(row, "amount"));
         if (!date || !particular) { skipped++; return; }
-        const entry = ensureId({ date: date, particular: particular, amount: amount });
+        const entry = { date: date, particular: particular, amount: amount };
+        ["contract", "receipt", "client"].forEach(function (k) { if (hasKey(k)) entry[k] = String(pick(row, k) == null ? "" : pick(row, k)).trim(); });
+        if (hasKey("deceaseDate")) entry.deceaseDate = normalizeServiceDate(pick(row, "deceaseDate"));
+        ensureId(entry);
         store.push(entry); fresh.push(entry);
       });
       render();
@@ -10175,23 +10234,23 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       let grand = 0;
       keys.forEach(function (key, gi) {
         const grp = groups.get(key);
-        html += '<tr class="month-header"><td colspan="3" style="' + msoText + '">' + esc(monthLabelFromKey(key).toUpperCase()) + "</td></tr>";
-        html += "<tr><th>Date</th><th>Particular</th><th>Amount</th></tr>";
+        html += '<tr class="month-header"><td colspan="' + NCOL + '" style="' + msoText + '">' + esc(monthLabelFromKey(key).toUpperCase()) + "</td></tr>";
+        html += "<tr>" + COLS.map(function (c) { return "<th>" + esc(c.label) + "</th>"; }).join("") + "</tr>";
         let monthTotal = 0;
         grp.forEach(function (r) {
-          html += "<tr>" +
-            '<td style="' + msoText + '">' + esc(r.date) + "</td>" +
-            '<td style="' + msoText + '">' + esc(r.particular) + "</td>" +
-            '<td class="num" style="' + msoMoney + '">' + fmtMoney(r.amount) + "</td></tr>";
+          html += "<tr>" + COLS.map(function (c) {
+            return c.key === "amount" ? '<td class="num" style="' + msoMoney + '">' + fmtMoney(r.amount) + "</td>"
+                                      : '<td style="' + msoText + '">' + esc(r[c.key]) + "</td>";
+          }).join("") + "</tr>";
           monthTotal += Number(r.amount) || 0;
         });
-        html += '<tr class="month-total"><td></td><td class="label">TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(monthTotal) + "</td></tr>";
+        html += '<tr class="month-total">' + "<td></td>".repeat(NCOL - 2) + '<td class="label">TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(monthTotal) + "</td></tr>";
         grand += monthTotal;
-        if (gi < keys.length - 1) html += '<tr class="spacer"><td colspan="3"></td></tr>';
+        if (gi < keys.length - 1) html += '<tr class="spacer"><td colspan="' + NCOL + '"></td></tr>';
       });
       if (rows.length) {
-        html += '<tr class="spacer"><td colspan="3"></td></tr>';
-        html += '<tr class="grand-total"><td></td><td class="label">GRAND TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(grand) + "</td></tr>";
+        html += '<tr class="spacer"><td colspan="' + NCOL + '"></td></tr>';
+        html += '<tr class="grand-total">' + "<td></td>".repeat(NCOL - 2) + '<td class="label">GRAND TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(grand) + "</td></tr>";
       }
       html += "</tbody></table></body></html>";
 
@@ -10305,6 +10364,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     overlayId: "gcashRecOverlay", modalId: "gcashRecModal", titleId: "gcashRecTitle", subtitleId: "gcashRecSubtitle",
     closeBtnId: "btnCloseGcashRec", formId: "gcashRecForm", cancelBtnId: "btnCancelGcashRec", submitBtnId: "btnSubmitGcashRec",
     dateId: "grDate", particularId: "grParticular", amountId: "grAmount",
+    // same columns as the Cash Received tab
+    columns: [
+      { key: "date", label: "Date" }, { key: "contract", label: "Contract #" }, { key: "receipt", label: "Receipt #" },
+      { key: "client", label: "Name of Client" }, { key: "particular", label: "Particular" },
+      { key: "deceaseDate", label: "Service Date" }, { key: "amount", label: "Amount", num: true }
+    ],
+    extraFields: { contract: "grContract", receipt: "grReceipt", client: "grClient", deceaseDate: "grDeceaseDate" },
     dbGet: function () { return DB.getGcashReceived(); },
     dbSave: function (r) { return DB.saveGcashReceived(r); },
     dbDelete: function (id) { return DB.deleteGcashReceived(id); }

@@ -88,6 +88,21 @@ function gcashToDb(r) {
   return { id: r.id || undefined, date: r.date || null,
     particular: r.particular || null, amount: isFinite(amt) ? amt : 0 };
 }
+// Gcash Received carries the same columns as Cash Received (contract, receipt, client, service date)
+function gcashRecToDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id || undefined, date: r.date || null,
+    contract: r.contract || null, receipt: r.receipt || null, client: r.client || null,
+    particular: r.particular || null, decease_date: r.deceaseDate || null,
+    amount: isFinite(amt) ? amt : 0 };
+}
+function gcashRecFromDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id, date: r.date || "",
+    contract: r.contract || "", receipt: r.receipt || "", client: r.client || "",
+    particular: r.particular || "", deceaseDate: r.decease_date || "",
+    amount: isFinite(amt) ? amt : 0 };
+}
 function gcashFromDb(r) {
   const amt = Number(r.amount);
   return { id: r.id, date: r.date || "",
@@ -348,8 +363,27 @@ window.DB = {
   async deleteCashExpense(id)   { return dbDelete(TABLE.cashExpense, id); },
 
   // Gcash ledgers
-  async getGcashReceived()       { return dbGetAll(TABLE.gcashReceived, gcashFromDb); },
-  async saveGcashReceived(r)     { return dbUpsert(TABLE.gcashReceived, r, gcashToDb); },
+  async getGcashReceived()       { return dbGetAll(TABLE.gcashReceived, gcashRecFromDb); },
+  async saveGcashReceived(r)     {
+    // If the new columns have not been added to the table yet, save the basic fields anyway and tell the user once.
+    const payload = gcashRecToDb(r);
+    if (!payload.id) delete payload.id;
+    let { data, error } = await _sb.from(TABLE.gcashReceived).upsert(payload, { onConflict: "id" }).select().single();
+    if (error && /contract|receipt|client|decease_date/i.test(error.message || "")) {
+      console.error("saveGcashReceived: new columns are missing", error);
+      const basic = { id: payload.id, date: payload.date, particular: payload.particular, amount: payload.amount };
+      if (!basic.id) delete basic.id;
+      ({ data, error } = await _sb.from(TABLE.gcashReceived).upsert(basic, { onConflict: "id" }).select().single());
+      if (!window.__gcashRecColsWarned) {
+        window.__gcashRecColsWarned = true;
+        alert("The entry was saved, but its Contract #, Receipt #, Name of Client and Service Date could not be saved yet because those database columns do not exist.\n\n" +
+              "Run this once in the Supabase SQL Editor:\n\n" +
+              "alter table gcash_received add column if not exists contract text, add column if not exists receipt text, add column if not exists client text, add column if not exists decease_date text;");
+      }
+    }
+    if (error) { console.error("dbUpsert", TABLE.gcashReceived, error); return null; }
+    return data;
+  },
   async deleteGcashReceived(id)  { return dbDelete(TABLE.gcashReceived, id); },
   async getGcashExpense()        { return dbGetAll(TABLE.gcashExpense, gcashFromDb); },
   async saveGcashExpense(r)      { return dbUpsert(TABLE.gcashExpense, r, gcashToDb); },

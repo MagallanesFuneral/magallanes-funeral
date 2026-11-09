@@ -503,6 +503,9 @@
         <select class="select" id="gcashRecFilterCategory">
           <option value="">(none)</option>
           <option value="date">Date</option>
+          <option value="contract">Contract #</option>
+          <option value="receipt">Receipt #</option>
+          <option value="client">Name of Client</option>
           <option value="particular">Particular</option>
           <option value="amount">Amount Range</option>
         </select>
@@ -521,7 +524,11 @@
         <thead>
           <tr>
             <th>Date</th>
+            <th>Contract #</th>
+            <th>Receipt #</th>
+            <th>Name of Client</th>
             <th>Particular</th>
+            <th>Service Date</th>
             <th class="num">Amount</th>
           </tr>
         </thead>
@@ -2013,9 +2020,27 @@
           <input class="input" id="grDate" type="date" required />
         </label>
 
+        <label class="field">
+          <span>Contract #</span>
+          <input class="input" id="grContract" type="text" placeholder="e.g., 13566" />
+        </label>
+        <label class="field">
+          <span>Receipt #</span>
+          <input class="input" id="grReceipt" type="text" placeholder="e.g., R-0001 (optional)" />
+        </label>
+        <label class="field">
+          <span>Name of Client</span>
+          <input class="input" id="grClient" type="text" placeholder="Client name" />
+        </label>
+
         <label class="field" style="grid-column: 1 / -1;">
           <span>Particular</span>
           <input class="input" id="grParticular" type="text" placeholder="Description" required />
+        </label>
+
+        <label class="field">
+          <span>Service Date</span>
+          <input class="input" id="grDeceaseDate" type="month" placeholder="MM/YYYY" />
         </label>
 
         <label class="field">
