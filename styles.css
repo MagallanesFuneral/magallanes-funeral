@@ -1668,3 +1668,20 @@ table.ledger-simple tbody tr.spacer td{ border:none; height:10px; }
 #gcashRecFilterRow, #gcashExpFilterRow{ padding-left: 12px; padding-right: 12px; }
 #gcashRecFilterRow .filter-inputs, #gcashExpFilterRow .filter-inputs{ display:flex; gap:10px; align-items:end; flex-wrap:wrap; }
 #gcashRecFilterRow .field.inline, #gcashExpFilterRow .field.inline{ display:flex; gap:10px; align-items:center; }
+
+/* Gcash tabs: column headers exactly like Cash Expense (centered, bold, sticky) */
+table.ledger-simple thead th{
+  text-align: center;
+  font-weight: 800;
+  background: color-mix(in oklab, var(--panel2) 85%, transparent);
+  border: 1px solid var(--line2);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+#gcashRecFilterRow .field.inline span, #gcashExpFilterRow .field.inline span{ min-width: 70px; }
+#gcashRecModal.modal, #gcashExpModal.modal{ padding:18px 18px 14px 18px; }
+#gcashRecModal .form-grid, #gcashExpModal .form-grid{ gap:14px; }
+#gcashRecModal .field span, #gcashExpModal .field span{ margin-bottom:6px; }
+#gcashRecModal .input, #gcashExpModal .input{ padding:10px 12px; }
+#gcashRecModal .modal-actions, #gcashExpModal .modal-actions{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
