@@ -6990,8 +6990,8 @@ Cancel = Append`);
           <td>${r.email}</td>
           <td style="text-align:center;">
             <span style="display:inline-block;padding:2px 12px;border-radius:20px;font-size:11px;font-weight:700;
-              background:${r.role === "admin" ? "#4f8ef7" : "#666"};color:#fff;">
-              ${r.role === "admin" ? "Admin" : "Viewer"}</span>
+              background:${r.role === "admin" ? "#4f8ef7" : r.role === "encoder" ? "#2fa67a" : "#666"};color:#fff;">
+              ${r.role === "admin" ? "Admin" : r.role === "encoder" ? "Encoder" : "Viewer"}</span>
           </td>
           <td style="text-align:center;">
             <button type="button" class="btn btn-danger" style="padding:2px 10px;font-size:11px;"

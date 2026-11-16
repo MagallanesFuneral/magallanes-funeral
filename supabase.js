@@ -529,7 +529,9 @@ async function fetchUserRole(email) {
       .eq("email", (email || "").toLowerCase().trim())
       .maybeSingle();
     if (error || !data) return "viewer";
-    return data.role === "admin" ? "admin" : "viewer";
+    if (data.role === "admin") return "admin";
+    if (data.role === "encoder") return "encoder";   // full data entry/editing, but no Settings tab
+    return "viewer";
   } catch (e) {
     return "viewer";
   }
@@ -562,8 +564,8 @@ function applyRole(user) {
   // Show role badge next to email
   const roleBadge = document.getElementById("userRoleBadge");
   if (roleBadge) {
-    roleBadge.textContent  = role === "admin" ? "Admin" : "Viewer";
-    roleBadge.style.background = role === "admin" ? "#4f8ef7" : "#888";
+    roleBadge.textContent  = role === "admin" ? "Admin" : role === "encoder" ? "Encoder" : "Viewer";
+    roleBadge.style.background = role === "admin" ? "#4f8ef7" : role === "encoder" ? "#2fa67a" : "#888";
   }
 
   // Hide/show action buttons based on role
@@ -594,15 +596,15 @@ function applyRole(user) {
     "#settingsForm button[type='submit']",
   ];
 
-  // Settings sub-tab (balances, roles, backup/restore, fresh restart) is for admins only
+  // Settings sub-tab (balances, roles, backup/restore, fresh restart) is for admins only (Encoders and Viewers never see it)
   const settingsBtn   = document.querySelector('[data-subtab="settings"]');
   const settingsPanel = document.getElementById("subpanel-settings");
   // Fail closed: Settings is hidden by CSS unless <body> has class "mf-admin" (set only for a confirmed admin)
   document.body.classList.toggle("mf-admin", role === "admin");
-  if (role === "viewer") {
+  if (role !== "admin") {
     if (settingsBtn) settingsBtn.style.display = "none";
     if (settingsPanel) {
-      // if the page opened on Settings (remembered from an earlier visit), move the viewer to another sub-tab
+      // if the page opened on Settings (remembered from an earlier visit), move the user to another sub-tab
       if (settingsPanel.classList.contains("is-active")) {
         const fallback = document.querySelector('[data-subtab="cashReceived"]');
         if (fallback) fallback.click();
