@@ -1685,3 +1685,7 @@ table.ledger-simple thead th{
 #gcashRecModal .field span, #gcashExpModal .field span{ margin-bottom:6px; }
 #gcashRecModal .input, #gcashExpModal .input{ padding:10px 12px; }
 #gcashRecModal .modal-actions, #gcashExpModal .modal-actions{ margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+
+/* Settings tab is admin-only: hidden unless the signed-in user is a confirmed admin (body.mf-admin) */
+body:not(.mf-admin) [data-subtab="settings"],
+body:not(.mf-admin) #subpanel-settings{ display:none !important; }

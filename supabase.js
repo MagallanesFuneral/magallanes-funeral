@@ -594,6 +594,26 @@ function applyRole(user) {
     "#settingsForm button[type='submit']",
   ];
 
+  // Settings sub-tab (balances, roles, backup/restore, fresh restart) is for admins only
+  const settingsBtn   = document.querySelector('[data-subtab="settings"]');
+  const settingsPanel = document.getElementById("subpanel-settings");
+  // Fail closed: Settings is hidden by CSS unless <body> has class "mf-admin" (set only for a confirmed admin)
+  document.body.classList.toggle("mf-admin", role === "admin");
+  if (role === "viewer") {
+    if (settingsBtn) settingsBtn.style.display = "none";
+    if (settingsPanel) {
+      // if the page opened on Settings (remembered from an earlier visit), move the viewer to another sub-tab
+      if (settingsPanel.classList.contains("is-active")) {
+        const fallback = document.querySelector('[data-subtab="cashReceived"]');
+        if (fallback) fallback.click();
+      }
+      settingsPanel.style.display = "none";
+    }
+  } else {
+    if (settingsBtn) settingsBtn.style.display = "";
+    if (settingsPanel) settingsPanel.style.display = "";
+  }
+
   if (role === "viewer") {
     // Hide all action buttons — viewers can only read and export
     ACTION_SELECTORS.forEach(sel => {
@@ -640,6 +660,7 @@ function showLogin() {
   loginOverlay.style.display = "flex";
   userBadge.style.display    = "none";
   window.MF_ROLE = "viewer";
+  document.body.classList.remove("mf-admin");
 }
 
 // Handle login button
