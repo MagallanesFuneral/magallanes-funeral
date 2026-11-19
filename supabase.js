@@ -111,11 +111,11 @@ function gcashFromDb(r) {
 
 function cashExpToDb(r) {
   return { id: r.id || undefined, date: r.date || null,
-    particular: r.particular || null, amount: Number(r.amount) || 0 };
+    particular: r.particular || null, cv: r.cv || null, amount: Number(r.amount) || 0 };
 }
 function cashExpFromDb(r) {
   return { id: r.id, date: r.date,
-    particular: r.particular, amount: Number(r.amount) || 0 };
+    particular: r.particular, cv: r.cv || "", amount: Number(r.amount) || 0 };
 }
 
 function bankToDb(r) {
@@ -359,7 +359,25 @@ window.DB = {
 
   // Cash Expense
   async getCashExpense()        { return dbGetAll(TABLE.cashExpense, cashExpFromDb); },
-  async saveCashExpense(r)      { return dbUpsert(TABLE.cashExpense, r, cashExpToDb); },
+  async saveCashExpense(r)      {
+    // If the "cv" column has not been added to the table yet, still save the entry and tell the user once.
+    const payload = cashExpToDb(r);
+    if (!payload.id) delete payload.id;
+    let { data, error } = await _sb.from(TABLE.cashExpense).upsert(payload, { onConflict: "id" }).select().single();
+    if (error && /\bcv\b/i.test(error.message || "")) {
+      console.error("saveCashExpense: cv column is missing", error);
+      const basic = Object.assign({}, payload); delete basic.cv;
+      ({ data, error } = await _sb.from(TABLE.cashExpense).upsert(basic, { onConflict: "id" }).select().single());
+      if (!window.__cashExpCvWarned) {
+        window.__cashExpCvWarned = true;
+        alert("The entry was saved, but its CV could not be saved yet because the database column does not exist.\n\n" +
+              "Run this once in the Supabase SQL Editor:\n\n" +
+              "alter table cash_expense add column if not exists cv text;");
+      }
+    }
+    if (error) { console.error("dbUpsert", TABLE.cashExpense, error); return null; }
+    return data;
+  },
   async deleteCashExpense(id)   { return dbDelete(TABLE.cashExpense, id); },
 
   // Gcash ledgers

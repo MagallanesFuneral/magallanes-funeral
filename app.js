@@ -3096,6 +3096,7 @@ function fmtMoney(n) {
 
   const ceDate = $("#ceDate");
   const ceParticular = $("#ceParticular");
+  const ceCv = $("#ceCv");
   const ceAmount = $("#ceAmount");
 
   const CASH_EXP_STORE_KEY = "mf_cash_expense_store_v33";
@@ -3157,6 +3158,7 @@ function fmtMoney(n) {
     if (!category) return;
     if (category === "date") return makeText("cashExpFilterDate", "Date", "MM/DD/YYYY or MM/YYYY or YYYY");
     if (category === "particular") return makeText("cashExpFilterParticular", "Particular", "contains...");
+    if (category === "cv") return makeText("cashExpFilterCv", "CV", "contains...");
     if (category === "amount") { makeNumber("cashExpFilterMin","Min","0.00"); makeNumber("cashExpFilterMax","Max","10000.00"); }
   }
   cashExpFilterCategory?.addEventListener("change", () => setCashExpFilterInputs(cashExpFilterCategory.value));
@@ -3195,6 +3197,7 @@ function fmtMoney(n) {
     if (!cat) return { category:"", value:null };
     if (cat === "date") return { category:"date", value: parseFilterDatePattern2($("#cashExpFilterDate")?.value || "") };
     if (cat === "particular") return { category:"particular", value: normalizeText($("#cashExpFilterParticular")?.value || "") };
+    if (cat === "cv") return { category:"cv", value: normalizeText($("#cashExpFilterCv")?.value || "") };
     if (cat === "amount") {
       const minv = filterNumOrNaN($("#cashExpFilterMin")?.value);
       const maxv = filterNumOrNaN($("#cashExpFilterMax")?.value);
@@ -3206,6 +3209,7 @@ function fmtMoney(n) {
     if (!f || !f.category) return true;
     if (f.category === "date") return rowMatchesDateFilter2(r.date, f.value);
     if (f.category === "particular") return !f.value || normalizeText(r.particular).includes(f.value);
+    if (f.category === "cv") return !f.value || normalizeText(r.cv).includes(f.value);
     if (f.category === "amount") {
       const a = Number(r.amount)||0;
       const minv = f.value?.min; const maxv = f.value?.max;
@@ -3234,6 +3238,7 @@ function fmtMoney(n) {
       btnSubmitCashExp.textContent = "Add Entry";
       ceDate.value = new Date().toISOString().slice(0,10);
       ceParticular.value = "";
+      ceCv.value = "";
       ceAmount.value = "0.00";
     } else {
       cashExpTitle.textContent = "Edit Entry";
@@ -3245,6 +3250,7 @@ function fmtMoney(n) {
       cashExpEditingKey = key;
       ceDate.value = cashExpMMDDYYYYToYyyyMMdd(found.date) || new Date().toISOString().slice(0,10);
       ceParticular.value = found.particular || "";
+      ceCv.value = found.cv || "";
       ceAmount.value = (Number(found.amount)||0).toFixed(2);
     }
     cashExpOverlay.classList.add("is-open");
@@ -3268,7 +3274,7 @@ function fmtMoney(n) {
     tr.classList.add("cashExpMonthHeader");
     tr.dataset.rowType = "cashExpMonthHeader";
     const td = document.createElement("td");
-    td.colSpan = 3;
+    td.colSpan = 4;
     td.textContent = String(label||"").toUpperCase();
     tr.appendChild(td);
     return tr;
@@ -3279,8 +3285,9 @@ function fmtMoney(n) {
     tr.dataset.rowType = "cashExpMonthTotal";
     const td1 = document.createElement("td"); td1.textContent="";
     const td2 = document.createElement("td"); td2.textContent="TOTAL"; td2.classList.add("label");
+    const tdCv = document.createElement("td"); tdCv.textContent="";
     const td3 = document.createElement("td"); td3.textContent=fmtMoney(total); td3.classList.add("num");
-    tr.append(td1, td2, td3);
+    tr.append(td1, td2, tdCv, td3);
     return tr;
   }
   function cashExpGrandTotalRow(total) {
@@ -3289,15 +3296,16 @@ function fmtMoney(n) {
     tr.dataset.rowType = "cashExpGrandTotal";
     const td1 = document.createElement("td"); td1.textContent="";
     const td2 = document.createElement("td"); td2.textContent="GRAND TOTAL"; td2.classList.add("label");
+    const tdCv = document.createElement("td"); tdCv.textContent="";
     const td3 = document.createElement("td"); td3.textContent=fmtMoney(total); td3.classList.add("num");
-    tr.append(td1, td2, td3);
+    tr.append(td1, td2, tdCv, td3);
     return tr;
   }
   function cashExpSpacerRow() {
     const tr = document.createElement("tr");
     tr.classList.add("spacer");
     tr.dataset.rowType = "spacer";
-    const td = document.createElement("td"); td.colSpan=3; td.textContent="";
+    const td = document.createElement("td"); td.colSpan=4; td.textContent="";
     tr.appendChild(td);
     return tr;
   }
@@ -3349,9 +3357,10 @@ function fmtMoney(n) {
 
         const tdDate = document.createElement("td"); tdDate.textContent=r.date;
         const tdPart = document.createElement("td"); tdPart.textContent=r.particular;
+        const tdCv = document.createElement("td"); tdCv.textContent=r.cv || "";
         const tdAmt = document.createElement("td"); tdAmt.textContent=fmtMoney(r.amount); tdAmt.classList.add("num");
 
-        tr.append(tdDate, tdPart, tdAmt);
+        tr.append(tdDate, tdPart, tdCv, tdAmt);
         cashExpTable.tBodies[0].appendChild(tr);
         monthTotal += Number(r.amount)||0;
       }
@@ -3406,11 +3415,12 @@ function fmtMoney(n) {
     e.preventDefault();
     const date = cashExpYyyyMMddToMMDDYYYY(ceDate.value) || "";
     const particular = String(ceParticular.value||"").trim();
+    const cv = String(ceCv.value||"").trim();
     const amount = parseMoney3(ceAmount.value);
     if (!particular) return alert("Particular is required.");
 
     if (cashExpMode === "add") {
-      const entry = ensureCashExpId({ date, particular, amount });
+      const entry = ensureCashExpId({ date, particular, cv, amount });
       DB.saveCashExpense(entry).then(saved => { if (saved) entry.id = saved.id; });
       cashExpStore.push(entry);
       closeCashExpModal();
@@ -3424,7 +3434,7 @@ function fmtMoney(n) {
     const idx = cashExpStore.findIndex(x => cashExpKeyFor(x) === key);
     if (idx < 0) return;
 
-    const updatedCE = ensureCashExpId({ date, particular, amount, _id: cashExpStore[idx]._id, id: cashExpStore[idx].id });
+    const updatedCE = ensureCashExpId({ date, particular, cv, amount, _id: cashExpStore[idx]._id, id: cashExpStore[idx].id });
     cashExpStore[idx] = updatedCE;
     DB.saveCashExpense(updatedCE);
     closeCashExpModal();
@@ -3457,6 +3467,20 @@ function fmtMoney(n) {
     let dataRows = rows2d;
     if (headerRowIndex >= 0) dataRows = rows2d.slice(headerRowIndex+1);
 
+    // Column positions: by header name when there is a header row (CV optional, so old Date/Particular/Amount files still work);
+    // without a header, 4+ columns are read as Date, Particular, CV, Amount and 3 columns as the old Date, Particular, Amount.
+    let colDate = 0, colPart = 1, colCv = -1, colAmt = 2;
+    if (headerRowIndex >= 0) {
+      const hdr = rows2d[headerRowIndex].map(x=>String(x??"").trim().toLowerCase());
+      const at = (names) => hdr.findIndex(h => names.includes(h));
+      colDate = at(["date"]);
+      colPart = at(["particular","particulars","description"]);
+      colCv   = at(["cv","cv #","cv#","cv no","cv no.","cv number"]);
+      colAmt  = at(["amount","amt"]);
+    } else if (rows2d.some(r => r && r.length >= 4)) {
+      colCv = 2; colAmt = 3;
+    }
+
     dataRows = dataRows.filter(r => r && r.some(v => String(v ?? "").trim() !== ""));
     if (!dataRows.length) { alert("No data rows found."); return; }
 
@@ -3465,15 +3489,16 @@ function fmtMoney(n) {
 
     let added=0, skipped=0;
     for (const row of dataRows) {
-      const d = String(row[0] ?? "").trim();
+      const d = String(row[colDate] ?? "").trim();
       let date = d;
       if (/^\d{4}-\d{2}-\d{2}$/.test(d)) date = yyyyMMddToMMDDYYYY(d);
       if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(d)) date = `${pad2(d.split("/")[0])}/${pad2(d.split("/")[1])}/${d.split("/")[2]}`;
 
-      const particular = String(row[1] ?? "").trim();
-      const amount = parseMoney3(row[2] ?? "");
+      const particular = String(row[colPart] ?? "").trim();
+      const cv = colCv >= 0 ? String(row[colCv] ?? "").trim() : "";
+      const amount = parseMoney3(row[colAmt] ?? "");
       if (!particular) { skipped++; continue; }
-      cashExpStore.push(ensureCashExpId({ date, particular, amount }));
+      cashExpStore.push(ensureCashExpId({ date, particular, cv, amount }));
       added++;
     }
     saveCashExpStore();
@@ -3560,27 +3585,28 @@ function fmtMoney(n) {
       const grp = groups.get(key) || [];
       if (!grp.length) continue;
 
-      html += `<tr class="month-header"><td colspan="3" style="${msoText}">${esc(monthLabelFromKey(key).toUpperCase())}</td></tr>`;
-      html += `<tr><th>Date</th><th>Particular</th><th>Amount</th></tr>`;
+      html += `<tr class="month-header"><td colspan="4" style="${msoText}">${esc(monthLabelFromKey(key).toUpperCase())}</td></tr>`;
+      html += `<tr><th>Date</th><th>Particular</th><th>CV</th><th>Amount</th></tr>`;
 
       let monthTotal=0;
       for (const r of grp) {
         html += `<tr>`;
         html += `<td style="${msoText}">${esc(r.date)}</td>`;
         html += `<td style="${msoText}">${esc(r.particular)}</td>`;
+        html += `<td style="${msoText}">${esc(r.cv || "")}</td>`;
         html += `<td class="num" style="${msoMoney}">${fmtMoney(r.amount)}</td>`;
         html += `</tr>`;
         monthTotal += Number(r.amount)||0;
       }
 
-      html += `<tr class="month-total"><td></td><td class="label">TOTAL</td><td class="num" style="${msoMoney}">${fmtMoney(monthTotal)}</td></tr>`;
+      html += `<tr class="month-total"><td></td><td class="label">TOTAL</td><td></td><td class="num" style="${msoMoney}">${fmtMoney(monthTotal)}</td></tr>`;
       grand += monthTotal;
-      if (gi < keys.length - 1) html += `<tr class="spacer"><td colspan="3"></td></tr>`;
+      if (gi < keys.length - 1) html += `<tr class="spacer"><td colspan="4"></td></tr>`;
     }
 
     if (rows.length) {
-      html += `<tr class="spacer"><td colspan="3"></td></tr>`;
-      html += `<tr class="grand-total"><td></td><td class="label">GRAND TOTAL</td><td class="num" style="${msoMoney}">${fmtMoney(grand)}</td></tr>`;
+      html += `<tr class="spacer"><td colspan="4"></td></tr>`;
+      html += `<tr class="grand-total"><td></td><td class="label">GRAND TOTAL</td><td></td><td class="num" style="${msoMoney}">${fmtMoney(grand)}</td></tr>`;
     }
 
     html += `</tbody></table></body></html>`;
@@ -3603,7 +3629,8 @@ function fmtMoney(n) {
     return trs.map(tr => ensureCashExpId({
       date: String(tr.cells[0]?.innerText||"").trim(),
       particular: String(tr.cells[1]?.innerText||"").trim(),
-      amount: parseMoney3(String(tr.cells[2]?.innerText||""))
+      cv: String(tr.cells[2]?.innerText||"").trim(),
+      amount: parseMoney3(String(tr.cells[3]?.innerText||""))
     })).filter(r => r.particular || r.date);
   }
 
@@ -7542,7 +7569,7 @@ const reportDatePicker = $("#reportDatePicker");
       <tr>
         <td></td><td></td>
         <td>${escapeHtml(r.particular ?? "")}</td>
-        <td></td>
+        <td>${escapeHtml(r.cv ?? "")}</td>
         <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
       </tr>
     `).join("");
@@ -7680,7 +7707,7 @@ const reportDatePicker = $("#reportDatePicker");
             <col class="dr-col1"><col class="dr-col2"><col class="dr-col3"><col class="dr-col4"><col class="dr-col5">
           </colgroup>
           <tbody>
-            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
+            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td>CV</td><td>Amount</td></tr>
             ${cashExpBody || `<tr><td colspan="5" class="dr-muted">(no matching Cash Expense entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td>Total Cash Expenses</td><td></td><td style="text-align:right;">${fmtMoney(totalCashExpenses)}</td></tr>
           </tbody>
