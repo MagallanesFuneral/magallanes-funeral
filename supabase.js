@@ -88,6 +88,17 @@ function gcashToDb(r) {
   return { id: r.id || undefined, date: r.date || null,
     particular: r.particular || null, amount: isFinite(amt) ? amt : 0 };
 }
+// Gcash Expense: Date | Particular | CV | Amount
+function gcashExpToDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id || undefined, date: r.date || null,
+    particular: r.particular || null, cv: r.cv || null, amount: isFinite(amt) ? amt : 0 };
+}
+function gcashExpFromDb(r) {
+  const amt = Number(r.amount);
+  return { id: r.id, date: r.date || "",
+    particular: r.particular || "", cv: r.cv || "", amount: isFinite(amt) ? amt : 0 };
+}
 // Gcash Received carries the same columns as Cash Received (contract, receipt, client, service date)
 function gcashRecToDb(r) {
   const amt = Number(r.amount);
@@ -403,8 +414,26 @@ window.DB = {
     return data;
   },
   async deleteGcashReceived(id)  { return dbDelete(TABLE.gcashReceived, id); },
-  async getGcashExpense()        { return dbGetAll(TABLE.gcashExpense, gcashFromDb); },
-  async saveGcashExpense(r)      { return dbUpsert(TABLE.gcashExpense, r, gcashToDb); },
+  async getGcashExpense()        { return dbGetAll(TABLE.gcashExpense, gcashExpFromDb); },
+  async saveGcashExpense(r)      {
+    // If the "cv" column has not been added to the table yet, still save the entry and tell the user once.
+    const payload = gcashExpToDb(r);
+    if (!payload.id) delete payload.id;
+    let { data, error } = await _sb.from(TABLE.gcashExpense).upsert(payload, { onConflict: "id" }).select().single();
+    if (error && /\bcv\b/i.test(error.message || "")) {
+      console.error("saveGcashExpense: cv column is missing", error);
+      const basic = Object.assign({}, payload); delete basic.cv;
+      ({ data, error } = await _sb.from(TABLE.gcashExpense).upsert(basic, { onConflict: "id" }).select().single());
+      if (!window.__gcashExpCvWarned) {
+        window.__gcashExpCvWarned = true;
+        alert("The entry was saved, but its CV could not be saved yet because the database column does not exist.\n\n" +
+              "Run this once in the Supabase SQL Editor:\n\n" +
+              "alter table gcash_expense add column if not exists cv text;");
+      }
+    }
+    if (error) { console.error("dbUpsert", TABLE.gcashExpense, error); return null; }
+    return data;
+  },
   async deleteGcashExpense(id)   { return dbDelete(TABLE.gcashExpense, id); },
 
   // Bank Received

@@ -7597,7 +7597,7 @@ const reportDatePicker = $("#reportDatePicker");
       <tr>
         <td></td><td></td>
         <td>${escapeHtml(r.particular ?? "")}</td>
-        <td></td>
+        <td>${escapeHtml(r.cv ?? "")}</td>
         <td style="text-align:right;">${fmtMoney(Number(r.amount)||0)}</td>
       </tr>
     `).join("");
@@ -7742,7 +7742,7 @@ const reportDatePicker = $("#reportDatePicker");
             <col class="dr-col1"><col class="dr-col2"><col class="dr-col3"><col class="dr-col4"><col class="dr-col5">
           </colgroup>
           <tbody>
-            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td></td><td>Amount</td></tr>
+            <tr class="dr-header-row"><td></td><td></td><td>Particular</td><td>CV</td><td>Amount</td></tr>
             ${gcashExpBody || `<tr><td colspan="5" class="dr-muted">(no matching Gcash Expense entries)</td></tr>`}
             <tr class="dr-grand-row"><td></td><td></td><td>Total Gcash Expenses</td><td></td><td style="text-align:right;">${fmtMoney(totalGcashExpenses)}</td></tr>
           </tbody>
@@ -9871,6 +9871,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       { key: "date", label: "Date" }, { key: "particular", label: "Particular" }, { key: "amount", label: "Amount", num: true }
     ];
     const NCOL = COLS.length;
+    const LABEL_AT = cfg.totalLabelCol != null ? cfg.totalLabelCol : NCOL - 2;   // column that holds the TOTAL / GRAND TOTAL label
     const EXTRA = cfg.extraFields || {};   // optional modal inputs: { contract, receipt, client, deceaseDate } -> element ids
     const hasKey = function (k) { return COLS.some(function (c) { return c.key === k; }); };
 
@@ -9944,6 +9945,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         filterBox.appendChild(w);
       }
       if (cat === "date") mk("Date", "text", "MM/DD/YYYY or MM/YYYY or YYYY", "date");
+      else if (cat === "cv") mk("CV", "text", "contains...", "cv");
       else if (cat === "contract") mk("Contract #", "text", "contains...", "contract");
       else if (cat === "receipt") mk("Receipt #", "text", "contains...", "receipt");
       else if (cat === "client") mk("Client", "text", "contains...", "client");
@@ -9955,7 +9957,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       if (!cat || !filterBox) return { category: "", value: null };
       function val(k) { const el = filterBox.querySelector('[data-k="' + k + '"]'); return el ? el.value : ""; }
       if (cat === "date") return { category: "date", value: parseFilterDatePattern2(val("date")) };
-      if (cat === "contract" || cat === "receipt" || cat === "client" || cat === "particular") {
+      if (cat === "contract" || cat === "receipt" || cat === "client" || cat === "particular" || cat === "cv") {
         return { category: cat, value: normalizeText(val(cat)) };
       }
       if (cat === "amount") {
@@ -9971,7 +9973,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       const f = activeFilter;
       if (!f || !f.category) return true;
       if (f.category === "date") return rowMatchesDateFilter2(r.date, f.value);
-      if (f.category === "contract" || f.category === "receipt" || f.category === "client" || f.category === "particular") {
+      if (f.category === "contract" || f.category === "receipt" || f.category === "client" || f.category === "particular" || f.category === "cv") {
         return !f.value || normalizeText(r[f.category]).indexOf(f.value) !== -1;
       }
       if (f.category === "amount") {
@@ -10000,8 +10002,9 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     function totalRow(cls, label, amount) {
       const tr = document.createElement("tr");
       tr.className = cls; tr.setAttribute("data-row-type", cls);
-      for (let i = 0; i < NCOL - 2; i++) tr.appendChild(cell(""));
+      for (let i = 0; i < LABEL_AT; i++) tr.appendChild(cell(""));
       tr.appendChild(cell(label, "label"));
+      for (let i = LABEL_AT + 1; i < NCOL - 1; i++) tr.appendChild(cell(""));
       tr.appendChild(cell(fmtMoney(amount), "num"));
       return tr;
     }
@@ -10179,10 +10182,15 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
       }
       // column positions: by header name when there is a header row, otherwise in the order the table shows them
       const ALIASES = { date: ["date"], contract: ["contract #", "contract", "contract no", "contract no."], receipt: ["receipt #", "receipt", "receipt no", "receipt no."],
-        client: ["name of client", "client", "client name", "name"], particular: ["particular", "particulars", "description"],
+        cv: ["cv", "cv #", "cv#", "cv no", "cv no.", "cv number"], client: ["name of client", "client", "client name", "name"], particular: ["particular", "particulars", "description"],
         deceaseDate: ["service date", "servicedate"], amount: ["amount", "amt"] };
       const colAt = {};
       COLS.forEach(function (c, i) { colAt[c.key] = i; });
+      if (headerIdx < 0 && rows2d.every(function (r) { return !r || r.length <= 3; })) {
+        // old headerless Date | Particular | Amount file
+        colAt.date = 0; colAt.particular = 1; colAt.amount = 2;
+        COLS.forEach(function (c) { if (["date","particular","amount"].indexOf(c.key) === -1) colAt[c.key] = -1; });
+      }
       if (headerIdx >= 0) {
         const hdr = rows2d[headerIdx].map(function (x) { return String(x == null ? "" : x).trim().toLowerCase(); });
         COLS.forEach(function (c) {
@@ -10214,7 +10222,7 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
         const amount = parseMoney3(pick(row, "amount") === "" ? "" : pick(row, "amount"));
         if (!date || !particular) { skipped++; return; }
         const entry = { date: date, particular: particular, amount: amount };
-        ["contract", "receipt", "client"].forEach(function (k) { if (hasKey(k)) entry[k] = String(pick(row, k) == null ? "" : pick(row, k)).trim(); });
+        ["contract", "receipt", "client", "cv"].forEach(function (k) { if (hasKey(k)) entry[k] = String(pick(row, k) == null ? "" : pick(row, k)).trim(); });
         if (hasKey("deceaseDate")) entry.deceaseDate = normalizeServiceDate(pick(row, "deceaseDate"));
         ensureId(entry);
         store.push(entry); fresh.push(entry);
@@ -10271,13 +10279,13 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
           }).join("") + "</tr>";
           monthTotal += Number(r.amount) || 0;
         });
-        html += '<tr class="month-total">' + "<td></td>".repeat(NCOL - 2) + '<td class="label">TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(monthTotal) + "</td></tr>";
+        html += '<tr class="month-total">' + "<td></td>".repeat(LABEL_AT) + '<td class="label">TOTAL</td>' + "<td></td>".repeat(NCOL - 2 - LABEL_AT) + '<td class="num" style="' + msoMoney + '">' + fmtMoney(monthTotal) + "</td></tr>";
         grand += monthTotal;
         if (gi < keys.length - 1) html += '<tr class="spacer"><td colspan="' + NCOL + '"></td></tr>';
       });
       if (rows.length) {
         html += '<tr class="spacer"><td colspan="' + NCOL + '"></td></tr>';
-        html += '<tr class="grand-total">' + "<td></td>".repeat(NCOL - 2) + '<td class="label">GRAND TOTAL</td><td class="num" style="' + msoMoney + '">' + fmtMoney(grand) + "</td></tr>";
+        html += '<tr class="grand-total">' + "<td></td>".repeat(LABEL_AT) + '<td class="label">GRAND TOTAL</td>' + "<td></td>".repeat(NCOL - 2 - LABEL_AT) + '<td class="num" style="' + msoMoney + '">' + fmtMoney(grand) + "</td></tr>";
       }
       html += "</tbody></table></body></html>";
 
@@ -10414,6 +10422,12 @@ setTimeout(()=>{ try{ dr_recomputeDailyBalances(); }catch{} }, 0);
     overlayId: "gcashExpOverlay", modalId: "gcashExpModal", titleId: "gcashExpTitle", subtitleId: "gcashExpSubtitle",
     closeBtnId: "btnCloseGcashExp", formId: "gcashExpForm", cancelBtnId: "btnCancelGcashExp", submitBtnId: "btnSubmitGcashExp",
     dateId: "geDate", particularId: "geParticular", amountId: "geAmount",
+    columns: [
+      { key: "date", label: "Date" }, { key: "particular", label: "Particular" },
+      { key: "cv", label: "CV" }, { key: "amount", label: "Amount", num: true }
+    ],
+    extraFields: { cv: "geCv" },
+    totalLabelCol: 1,   // TOTAL label under Particular, like Cash Expense
     dbGet: function () { return DB.getGcashExpense(); },
     dbSave: function (r) { return DB.saveGcashExpense(r); },
     dbDelete: function (id) { return DB.deleteGcashExpense(id); }
