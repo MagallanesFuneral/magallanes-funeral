@@ -1707,18 +1707,18 @@ body:not(.mf-admin) #subpanel-auditLog{ display:none !important; }
 #auditTable_grid .audit-old{ color:#e67e73; } #auditTable_grid .audit-new{ color:#5edb8a; }
 #auditTable_grid button.audit-toggle{ padding:1px 10px; font-size:11px; }
 
-/* View-only accounts never see data-entry windows (shown only for admin/encoder: body.mf-writer) */
-body:not(.mf-writer) #baiModal,
-body:not(.mf-writer) #dswdModal,
-body:not(.mf-writer) #cashModal,
-body:not(.mf-writer) #gcashRecModal,
-body:not(.mf-writer) #gcashExpModal,
-body:not(.mf-writer) #cashExpModal,
-body:not(.mf-writer) #bankModal,
-body:not(.mf-writer) #bankExpModal,
-body:not(.mf-writer) #pnbModal,
-body:not(.mf-writer) #pnbSavingsModal,
-body:not(.mf-writer) #landbankModal,
-body:not(.mf-writer) #sibuyanModal,
-body:not(.mf-writer) #romblonModal,
-body:not(.mf-writer) #sanJoseModal{ display:none !important; }
+/* View-only accounts never see data-entry windows (body.mf-viewer is set by supabase.js for view-only accounts) */
+body.mf-viewer #baiModal,
+body.mf-viewer #dswdModal,
+body.mf-viewer #cashModal,
+body.mf-viewer #gcashRecModal,
+body.mf-viewer #gcashExpModal,
+body.mf-viewer #cashExpModal,
+body.mf-viewer #bankModal,
+body.mf-viewer #bankExpModal,
+body.mf-viewer #pnbModal,
+body.mf-viewer #pnbSavingsModal,
+body.mf-viewer #landbankModal,
+body.mf-viewer #sibuyanModal,
+body.mf-viewer #romblonModal,
+body.mf-viewer #sanJoseModal{ display:none !important; }

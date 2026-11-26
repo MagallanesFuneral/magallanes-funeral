@@ -604,6 +604,26 @@ function hideLoginError() {
   loginError.style.display = "none";
 }
 
+// Viewers are read-only: block double-click-to-edit everywhere.
+// Capture phase on document runs before any table's own handler; fails closed (only admin/encoder may edit).
+document.addEventListener("dblclick", function (e) {
+  const r = window.MF_ROLE;
+  if (r === "admin" || r === "encoder") return;
+  if (e.target && e.target.closest && e.target.closest("#loginOverlay")) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+}, true);
+
+// Second safety net: a viewer can never submit any data-entry form, even if a window were somehow opened.
+document.addEventListener("submit", function (e) {
+  const r = window.MF_ROLE;
+  if (r === "admin" || r === "encoder") return;
+  if (e.target && e.target.closest && e.target.closest("#loginOverlay")) return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  alert("Your account is View Only. You cannot add or change data.");
+}, true);
+
 function applyRole(user) {
   const role = user._role || "viewer";
   window.MF_ROLE = role;
@@ -646,6 +666,7 @@ function applyRole(user) {
   // Settings and Audit Log sub-tabs are for admins only (Encoders and Viewers never see them)
   // Fail closed: they are hidden by CSS unless <body> has class "mf-admin" (set only for a confirmed admin)
   document.body.classList.toggle("mf-admin", role === "admin");
+  document.body.classList.toggle("mf-viewer", !(role === "admin" || role === "encoder"));   // view-only: data-entry windows hidden
   ["settings", "auditLog"].forEach(function (name) {
     const btn   = document.querySelector('[data-subtab="' + name + '"]');
     const panel = document.getElementById("subpanel-" + name);
@@ -723,6 +744,7 @@ function showLogin() {
   userBadge.style.display    = "none";
   window.MF_ROLE = "viewer";
   document.body.classList.remove("mf-admin");
+  document.body.classList.add("mf-viewer");
 }
 
 // Handle login button
