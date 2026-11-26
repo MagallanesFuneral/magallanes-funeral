@@ -1688,4 +1688,21 @@ table.ledger-simple thead th{
 
 /* Settings tab is admin-only: hidden unless the signed-in user is a confirmed admin (body.mf-admin) */
 body:not(.mf-admin) [data-subtab="settings"],
-body:not(.mf-admin) #subpanel-settings{ display:none !important; }
+body:not(.mf-admin) #subpanel-settings,
+body:not(.mf-admin) [data-subtab="auditLog"],
+body:not(.mf-admin) #subpanel-auditLog{ display:none !important; }
+
+/* Audit Log page */
+#auditTable_grid th, #auditTable_grid td{ border:1px solid var(--line2); padding:6px 10px; vertical-align:top; }
+#auditTable_grid thead th{ text-align:center; font-weight:800; }
+#auditTable_grid td.audit-when{ white-space:nowrap; width:170px; }
+#auditTable_grid td.audit-who{ width:210px; word-break:break-all; }
+.audit-badge{ display:inline-block; padding:1px 10px; border-radius:20px; font-size:11px; font-weight:700; color:#fff; }
+.audit-badge.add{ background:#2fa67a; } .audit-badge.edit{ background:#c9922c; } .audit-badge.del{ background:#c0463f; }
+.audit-badge.in{ background:#4f8ef7; } .audit-badge.out{ background:#777; }
+#auditTable_grid tr.audit-detail td{ background: color-mix(in oklab, var(--panel2) 85%, transparent); }
+#auditTable_grid table.audit-diff{ border-collapse:collapse; width:100%; margin:2px 0; }
+#auditTable_grid table.audit-diff td, #auditTable_grid table.audit-diff th{ border:1px solid var(--line2); padding:3px 8px; font-size:12px; }
+#auditTable_grid table.audit-diff th{ text-align:left; opacity:.75; }
+#auditTable_grid .audit-old{ color:#e67e73; } #auditTable_grid .audit-new{ color:#5edb8a; }
+#auditTable_grid button.audit-toggle{ padding:1px 10px; font-size:11px; }

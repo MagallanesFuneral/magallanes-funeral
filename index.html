@@ -336,6 +336,7 @@
     <button class="subtab" role="tab" aria-selected="false" data-subtab="branchRomblon">Romblon</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="branchSanJose">San Jose</button>
     <button class="subtab" role="tab" aria-selected="false" data-subtab="settings">Settings</button>
+    <button class="subtab" role="tab" aria-selected="false" data-subtab="auditLog">Audit Log</button>
   </nav>
 
   
@@ -1200,6 +1201,48 @@
   </div>
 </div>
 
+<div class="subpanel" id="subpanel-auditLog" role="tabpanel">
+  <div class="panel-toolbar">
+    <div class="toolbar-left">
+      <h3>Audit Log</h3>
+      <span class="hint">Who added, edited or deleted data, and who logged in. Read-only, admins only.</span>
+    </div>
+    <div class="toolbar-right"><span class="kpi" id="auditCount">&mdash;</span></div>
+  </div>
+
+  <div class="actions-row" id="auditFilters" style="flex-wrap:wrap; gap:8px; align-items:flex-end;">
+    <label class="field inline"><span>Show</span>
+      <select class="input" id="auditMode">
+        <option value="data">Data changes</option>
+        <option value="logins">Logins</option>
+      </select></label>
+    <label class="field inline"><span>From</span><input class="input" id="auditFrom" type="date" /></label>
+    <label class="field inline"><span>To</span><input class="input" id="auditTo" type="date" /></label>
+    <label class="field inline"><span>User</span>
+      <select class="input" id="auditUser"><option value="">(everyone)</option></select></label>
+    <label class="field inline" id="auditTableWrap"><span>Table</span>
+      <select class="input" id="auditTable"><option value="">(all)</option></select></label>
+    <label class="field inline"><span>Action</span>
+      <select class="input" id="auditAction"></select></label>
+    <button type="button" class="btn" id="btnAuditSearch">Search</button>
+    <button type="button" class="btn btn-secondary" id="btnAuditClear">Clear</button>
+    <button type="button" class="btn btn-secondary" id="btnAuditExport">Export CSV</button>
+  </div>
+  <div id="auditMsg" style="font-size:12px; min-height:18px; margin:6px 2px;"></div>
+
+  <div class="grid-wrap">
+    <div class="grid-scroller">
+      <table class="grid" id="auditTable_grid">
+        <thead id="auditHead"></thead>
+        <tbody id="auditBody"><tr><td style="text-align:center; opacity:0.5; padding:14px;">Open this tab to load the log.</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div style="text-align:center; margin:12px 0;">
+    <button type="button" class="btn btn-secondary" id="btnAuditMore" style="display:none;">Load more</button>
+  </div>
+</div>
+
 <div class="subpanel" id="subpanel-settings" role="tabpanel">
   <div class="panel-toolbar">
     <div class="toolbar-left">
@@ -1319,6 +1362,48 @@
           </table>
         </div>
       </div>
+
+      <!-- ── Encoders (data-entry staff) ── -->
+      <div style="margin:24px 0 8px; padding-top:20px; border-top:1px solid var(--border,#333);
+        font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; opacity:0.7;">
+        Encoders (Data-Entry Staff)
+      </div>
+      <p class="hint" style="margin-bottom:14px;">
+        Encoders can add, edit and delete data but cannot see Settings or the Audit Log.
+        Everything they enter is recorded in the <strong>Audit Log</strong>.
+      </p>
+      <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px;">
+        <label class="field" style="flex:1; min-width:200px;">
+          <span>Encoder Email</span>
+          <input class="input" id="encoderEmailInput" type="email" placeholder="name@example.com" autocomplete="off" />
+        </label>
+        <div style="padding-bottom:1px;">
+          <button type="button" class="btn" id="btnAddEncoder">Add Encoder</button>
+        </div>
+      </div>
+      <div id="encoderMsg" style="font-size:12px; margin-bottom:10px; min-height:18px;"></div>
+      <div class="grid-wrap" style="max-height:200px; margin-bottom:10px;">
+        <div class="grid-scroller">
+          <table class="grid" id="encodersTable">
+            <thead>
+              <tr>
+                <th>Encoder Email</th>
+                <th style="width:90px; text-align:center;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="encodersTableBody">
+              <tr><td colspan="2" style="text-align:center; opacity:0.5; padding:12px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="hint" style="margin-bottom:20px; line-height:1.5;">
+        <strong>Adding</strong> gives the email the Encoder role. The person also needs a login:
+        create it once in Supabase under <em>Authentication &rarr; Users &rarr; Add user</em> (tick <em>Auto Confirm User</em>),
+        then give them the email and password.<br>
+        <strong>Removing</strong> takes away the Encoder role (the person becomes a read-only Viewer).
+        To block their login completely, also delete or ban the user in Supabase Authentication.
+      </p>
 
       <div class="modal-actions">
         <button type="submit" class="btn">Save Settings</button>

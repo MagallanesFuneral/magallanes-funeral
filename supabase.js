@@ -643,25 +643,27 @@ function applyRole(user) {
     "#settingsForm button[type='submit']",
   ];
 
-  // Settings sub-tab (balances, roles, backup/restore, fresh restart) is for admins only (Encoders and Viewers never see it)
-  const settingsBtn   = document.querySelector('[data-subtab="settings"]');
-  const settingsPanel = document.getElementById("subpanel-settings");
-  // Fail closed: Settings is hidden by CSS unless <body> has class "mf-admin" (set only for a confirmed admin)
+  // Settings and Audit Log sub-tabs are for admins only (Encoders and Viewers never see them)
+  // Fail closed: they are hidden by CSS unless <body> has class "mf-admin" (set only for a confirmed admin)
   document.body.classList.toggle("mf-admin", role === "admin");
-  if (role !== "admin") {
-    if (settingsBtn) settingsBtn.style.display = "none";
-    if (settingsPanel) {
-      // if the page opened on Settings (remembered from an earlier visit), move the user to another sub-tab
-      if (settingsPanel.classList.contains("is-active")) {
-        const fallback = document.querySelector('[data-subtab="cashReceived"]');
-        if (fallback) fallback.click();
+  ["settings", "auditLog"].forEach(function (name) {
+    const btn   = document.querySelector('[data-subtab="' + name + '"]');
+    const panel = document.getElementById("subpanel-" + name);
+    if (role !== "admin") {
+      if (btn) btn.style.display = "none";
+      if (panel) {
+        // if the page opened on this tab (remembered from an earlier visit), move the user to another sub-tab
+        if (panel.classList.contains("is-active")) {
+          const fallback = document.querySelector('[data-subtab="cashReceived"]');
+          if (fallback) fallback.click();
+        }
+        panel.style.display = "none";
       }
-      settingsPanel.style.display = "none";
+    } else {
+      if (btn) btn.style.display = "";
+      if (panel) panel.style.display = "";
     }
-  } else {
-    if (settingsBtn) settingsBtn.style.display = "";
-    if (settingsPanel) settingsPanel.style.display = "";
-  }
+  });
 
   if (role === "viewer") {
     // Hide all action buttons — viewers can only read and export
@@ -692,6 +694,17 @@ function applyRole(user) {
     const notice = document.getElementById("viewerNotice");
     if (notice) notice.style.display = "none";
   }
+}
+
+// Record logins / logouts in login_log (admins read it in the Audit Log). Never blocks or breaks login if it fails.
+async function logAuthEvent(email, event) {
+  try {
+    if (!email) return;
+    const { error } = await _sb.from("login_log").insert({
+      user_email: String(email).toLowerCase(), event: event, user_agent: (navigator.userAgent || "").slice(0, 250)
+    });
+    if (error) console.warn("login_log:", error.message);
+  } catch (e) { console.warn("login_log:", e); }
 }
 
 async function showApp(user) {
@@ -728,6 +741,7 @@ async function doLogin() {
   loginSpinner.style.display = "none";
 
   if (error) { showLoginError(error.message); return; }
+  logAuthEvent(data.user && data.user.email, "login");
   showApp(data.user);
 }
 
@@ -739,6 +753,7 @@ loginEmail?.addEventListener("keydown",    e => { if (e.key === "Enter") loginPa
 
 // Sign out
 btnSignOut?.addEventListener("click", async () => {
+  try { await logAuthEvent(userEmailEl && userEmailEl.textContent, "logout"); } catch (e) {}   // must happen before the session ends
   await _sb.auth.signOut();
   showLogin();
   loginEmail.value    = "";

@@ -7067,6 +7067,284 @@ Cancel = Append`);
   });
   setTimeout(loadRoles, 600);
 
+  // ── Encoders (data-entry staff): add / remove ─────────────────────────────
+  function showEncoderMsg(msg, isError) {
+    const el = document.getElementById("encoderMsg");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = isError ? "#e74c3c" : "#27ae60";
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.textContent = ""; }, 5000);
+  }
+
+  async function loadEncoders() {
+    const tbody = document.getElementById("encodersTableBody");
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;opacity:0.5;padding:12px;">Loading...</td></tr>';
+    try {
+      const { data, error } = await window._sb.from("user_roles").select("id,email,role").eq("role", "encoder").order("email");
+      if (error) throw error;
+      tbody.innerHTML = "";
+      if (!data || !data.length) {
+        tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;opacity:0.5;padding:12px;">No encoders yet. Add one above.</td></tr>';
+        return;
+      }
+      data.forEach(r => {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = r.email;
+        const td2 = document.createElement("td"); td2.style.textAlign = "center";
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "btn btn-danger"; b.style.cssText = "padding:2px 10px;font-size:11px;";
+        b.textContent = "Remove";
+        b.addEventListener("click", async () => {
+          if (!confirm("Remove encoder " + r.email + "?\nThey will become a read-only Viewer.")) return;
+          const res = await window._sb.from("user_roles").delete().eq("id", r.id).eq("role", "encoder");
+          if (res.error) return showEncoderMsg("Error: " + res.error.message, true);
+          showEncoderMsg("✓ " + r.email + " removed as an encoder.");
+          loadEncoders();
+          if (typeof loadRoles === "function") loadRoles();
+        });
+        td2.appendChild(b); tr.append(td1, td2); tbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.error("loadEncoders:", e);
+      tbody.innerHTML = '<tr><td colspan="2" style="text-align:center;color:#e74c3c;padding:12px;">Could not load encoders — check console.</td></tr>';
+    }
+  }
+
+  async function doAddEncoder() {
+    const input = document.getElementById("encoderEmailInput");
+    const email = (input?.value || "").trim().toLowerCase();
+    if (!email) return showEncoderMsg("Please enter the encoder's email address.", true);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showEncoderMsg("Please enter a valid email address.", true);
+    try {
+      const cur = await window._sb.from("user_roles").select("id,role").eq("email", email).maybeSingle();
+      if (cur.error) throw cur.error;
+      if (cur.data && cur.data.role === "admin") return showEncoderMsg(email + " is an Admin already (change that in the User Role Manager above).", true);
+      if (cur.data && cur.data.role === "encoder") return showEncoderMsg(email + " is already an encoder.", true);
+      const { error } = await window._sb.from("user_roles").upsert({ email, role: "encoder" }, { onConflict: "email" });
+      if (error) throw error;
+      if (input) input.value = "";
+      showEncoderMsg("✓ " + email + " added as an encoder.");
+      loadEncoders();
+      if (typeof loadRoles === "function") loadRoles();
+    } catch (e) {
+      console.error("addEncoder:", e);
+      showEncoderMsg("Error: " + (e.message || e), true);
+    }
+  }
+  document.getElementById("btnAddEncoder")?.addEventListener("click", doAddEncoder);
+  document.getElementById("encoderEmailInput")?.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); doAddEncoder(); } });
+  document.querySelectorAll("[data-subtab='settings']").forEach(btn => btn.addEventListener("click", () => setTimeout(loadEncoders, 150)));
+  setTimeout(loadEncoders, 700);
+
+  // ── Audit Log page (admins only) ──────────────────────────────────────────
+  (function initAuditLog() {
+    const $a = (id) => document.getElementById(id);
+    const body = $a("auditBody"), head = $a("auditHead");
+    if (!body || !head) return;
+    const PAGE = 100;
+    const TABLE_NAMES = {
+      contracts: "Contracts", cash_received: "Cash Received", cash_expense: "Cash Expense",
+      gcash_received: "Gcash Received", gcash_expense: "Gcash Expenses", bank_received: "Bank Received",
+      bank_expense: "Bank Expense", pnb_deposit: "PNB Checking", pnb_savings: "PNB Savings", landbank: "Landbank",
+      dswd: "DSWD", bai: "BAI", settings: "Settings", contract_forms: "Contract Form", refund_log: "Refund Log",
+      branch_sibuyan: "Sibuyan", branch_romblon: "Romblon", branch_san_jose: "San Jose", user_roles: "User Roles"
+    };
+    const ACTIONS = { INSERT: ["Added", "add"], UPDATE: ["Edited", "edit"], DELETE: ["Deleted", "del"] };
+    const SKIP = { id: 1, created_at: 1, updated_at: 1 };
+    let mode = "data", offset = 0, loaded = [], loading = false, userListReady = false;
+
+    const tname = (t) => TABLE_NAMES[t] || t;
+    const label = (k) => String(k).replace(/_/g, " ").replace(/\b\w/g, (m) => m.toUpperCase());
+    const show = (v) => (v === null || v === undefined || v === "") ? "—" : (typeof v === "object" ? JSON.stringify(v) : String(v));
+    const money = (n) => (Number(n) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function recordSummary(r) {
+      const d = r.new_data || r.old_data || {};
+      const parts = [];
+      ["date", "contract", "deceased", "client", "particular", "cv", "receipt", "email", "role"].forEach((k) => {
+        if (d[k] !== undefined && d[k] !== null && String(d[k]).trim() !== "") parts.push(String(d[k]));
+      });
+      if (d.amount !== undefined && d.amount !== null && d.amount !== "") parts.push(money(d.amount));
+      let s = parts.join(" · ");
+      if (!s) s = r.table_name === "settings" ? "Opening balances / signatories" : "(record " + (r.row_id || "?") + ")";
+      return s.length > 160 ? s.slice(0, 157) + "…" : s;
+    }
+    function changes(r) {   // [{field, before, after}]
+      const o = r.old_data || {}, n = r.new_data || {}, out = [];
+      const keys = Array.from(new Set(Object.keys(o).concat(Object.keys(n)))).filter((k) => !SKIP[k]);
+      keys.forEach((k) => {
+        const a = o[k], b = n[k];
+        if (r.action === "UPDATE") { if (JSON.stringify(a) !== JSON.stringify(b)) out.push({ field: label(k), before: a, after: b }); }
+        else if ((r.action === "INSERT" ? b : a) !== null && (r.action === "INSERT" ? b : a) !== undefined && (r.action === "INSERT" ? b : a) !== "") {
+          out.push({ field: label(k), before: r.action === "DELETE" ? a : undefined, after: r.action === "INSERT" ? b : undefined });
+        }
+      });
+      return out;
+    }
+
+    function setHead(cols) {
+      head.innerHTML = "";
+      const tr = document.createElement("tr");
+      cols.forEach((c) => { const th = document.createElement("th"); th.textContent = c; tr.appendChild(th); });
+      head.appendChild(tr);
+    }
+    function msg(text, isErr) { const el = $a("auditMsg"); el.textContent = text || ""; el.style.color = isErr ? "#e74c3c" : ""; }
+    function td(text, cls) { const c = document.createElement("td"); if (cls) c.className = cls; c.textContent = text; return c; }
+    function badge(text, cls) { const s = document.createElement("span"); s.className = "audit-badge " + cls; s.textContent = text; return s; }
+    const when = (at) => { const d = new Date(at); return isNaN(d.getTime()) ? String(at || "") : d.toLocaleString(); };
+
+    function setModeUi() {
+      mode = $a("auditMode").value;
+      $a("auditTableWrap").style.display = mode === "data" ? "" : "none";
+      const sel = $a("auditAction");
+      sel.innerHTML = "";
+      (mode === "data" ? [["", "(all)"], ["INSERT", "Added"], ["UPDATE", "Edited"], ["DELETE", "Deleted"]]
+                       : [["", "(all)"], ["login", "Login"], ["logout", "Logout"]])
+        .forEach((p) => { const o = document.createElement("option"); o.value = p[0]; o.textContent = p[1]; sel.appendChild(o); });
+      setHead(mode === "data" ? ["When", "Who", "Action", "Table", "Record", ""] : ["When", "Who", "Event", "Device"]);
+    }
+    function fillUsers(extra) {
+      const sel = $a("auditUser"), keep = sel.value;
+      const set = new Set(Array.from(sel.options).map((o) => o.value).filter(Boolean));
+      (extra || []).forEach((e) => { if (e) set.add(String(e).toLowerCase()); });
+      sel.innerHTML = '<option value="">(everyone)</option>';
+      Array.from(set).sort().forEach((e) => { const o = document.createElement("option"); o.value = e; o.textContent = e; sel.appendChild(o); });
+      sel.value = keep;
+    }
+    async function loadUserList() {
+      if (userListReady) return;
+      try {
+        const { data } = await window._sb.from("user_roles").select("email").order("email");
+        fillUsers((data || []).map((r) => r.email));
+        userListReady = true;
+      } catch (e) { /* the list also fills from results */ }
+    }
+    (function fillTables() {
+      const sel = $a("auditTable");
+      Object.keys(TABLE_NAMES).sort((a, b) => TABLE_NAMES[a].localeCompare(TABLE_NAMES[b])).forEach((k) => {
+        const o = document.createElement("option"); o.value = k; o.textContent = TABLE_NAMES[k]; sel.appendChild(o);
+      });
+    })();
+
+    function buildQuery(from) {
+      let q = window._sb.from(mode === "data" ? "audit_log" : "login_log").select("*")
+        .order("at", { ascending: false }).order("id", { ascending: false }).range(from, from + PAGE - 1);
+      const f = $a("auditFrom").value, t = $a("auditTo").value, u = $a("auditUser").value, a = $a("auditAction").value;
+      if (f) q = q.gte("at", new Date(f + "T00:00:00").toISOString());
+      if (t) q = q.lte("at", new Date(t + "T23:59:59.999").toISOString());
+      if (u) q = q.ilike("user_email", u.replace(/[\\%_]/g, "\\$&"));
+      if (mode === "data") { const tb = $a("auditTable").value; if (tb) q = q.eq("table_name", tb); if (a) q = q.eq("action", a); }
+      else if (a) q = q.eq("event", a);
+      return q;
+    }
+
+    function renderRows(rows) {
+      rows.forEach((r) => {
+        const tr = document.createElement("tr");
+        tr.appendChild(td(when(r.at), "audit-when"));
+        tr.appendChild(td(r.user_email || "—", "audit-who"));
+        if (mode === "data") {
+          const a = ACTIONS[r.action] || [r.action, ""];
+          const ta = document.createElement("td"); ta.appendChild(badge(a[0], a[1])); tr.appendChild(ta);
+          tr.appendChild(td(tname(r.table_name)));
+          tr.appendChild(td(recordSummary(r)));
+          const tb = document.createElement("td"); tb.style.textAlign = "center";
+          const btn = document.createElement("button");
+          btn.type = "button"; btn.className = "btn btn-secondary audit-toggle"; btn.textContent = "Details";
+          let detail = null;
+          btn.addEventListener("click", () => {
+            if (detail) { detail.remove(); detail = null; btn.textContent = "Details"; return; }
+            detail = document.createElement("tr"); detail.className = "audit-detail";
+            const dc = document.createElement("td"); dc.colSpan = 6;
+            const ch = changes(r);
+            if (!ch.length) dc.textContent = "No field changes recorded.";
+            else {
+              const tbl = document.createElement("table"); tbl.className = "audit-diff";
+              const hr = document.createElement("tr");
+              ["Field", r.action === "INSERT" ? "" : "Before", r.action === "DELETE" ? "" : "After"].forEach((x) => { const th = document.createElement("th"); th.textContent = x; hr.appendChild(th); });
+              tbl.appendChild(hr);
+              ch.forEach((c) => {
+                const row = document.createElement("tr");
+                row.appendChild(td(c.field));
+                row.appendChild(td(c.before === undefined ? "" : show(c.before), "audit-old"));
+                row.appendChild(td(c.after === undefined ? "" : show(c.after), "audit-new"));
+                tbl.appendChild(row);
+              });
+              dc.appendChild(tbl);
+            }
+            detail.appendChild(dc); tr.after(detail); btn.textContent = "Hide";
+          });
+          tb.appendChild(btn); tr.appendChild(tb);
+        } else {
+          const ev = document.createElement("td"); ev.appendChild(badge(r.event === "login" ? "Login" : r.event === "logout" ? "Logout" : String(r.event), r.event === "login" ? "in" : "out")); tr.appendChild(ev);
+          tr.appendChild(td(String(r.user_agent || "").slice(0, 90)));
+        }
+        body.appendChild(tr);
+      });
+    }
+
+    async function load(append) {
+      if (loading) return;
+      loading = true;
+      if (!append) { offset = 0; loaded = []; body.innerHTML = ""; }
+      msg("Loading…");
+      try {
+        const { data, error } = await buildQuery(offset);
+        if (error) throw error;
+        const rows = data || [];
+        loaded = loaded.concat(rows); offset += rows.length;
+        renderRows(rows);
+        fillUsers(rows.map((r) => r.user_email));
+        if (!loaded.length) {
+          const tr = document.createElement("tr"); const c = td("Nothing recorded for this search.", ""); c.colSpan = 6; c.style.cssText = "text-align:center;opacity:.6;padding:14px;"; tr.appendChild(c); body.appendChild(tr);
+        }
+        $a("auditCount").textContent = loaded.length + (rows.length === PAGE ? "+" : "") + " entries shown";
+        $a("btnAuditMore").style.display = rows.length === PAGE ? "" : "none";
+        msg("");
+      } catch (e) {
+        console.error("audit load:", e);
+        $a("btnAuditMore").style.display = "none";
+        msg("Could not load the log: " + (e.message || e) + ". Has the audit SQL been run in Supabase, and are you an Admin?", true);
+      } finally { loading = false; }
+    }
+
+    function csvCell(v) {
+      let s = v === null || v === undefined ? "" : String(v);
+      if (/^[=+\-@]/.test(s)) s = "'" + s;
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    function exportCsv() {
+      if (!loaded.length) return msg("Nothing to export yet — search first.", true);
+      const lines = [];
+      if (mode === "data") {
+        lines.push(["When", "Who", "Action", "Table", "Record", "Changes"].map(csvCell).join(","));
+        loaded.forEach((r) => lines.push([when(r.at), r.user_email, (ACTIONS[r.action] || [r.action])[0], tname(r.table_name), recordSummary(r),
+          changes(r).map((c) => c.field + ": " + (r.action === "INSERT" ? show(c.after) : r.action === "DELETE" ? show(c.before) : show(c.before) + " -> " + show(c.after))).join("; ")].map(csvCell).join(",")));
+      } else {
+        lines.push(["When", "Who", "Event", "Device"].map(csvCell).join(","));
+        loaded.forEach((r) => lines.push([when(r.at), r.user_email, r.event, r.user_agent].map(csvCell).join(",")));
+      }
+      const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "Magallanes_" + (mode === "data" ? "AuditLog" : "LoginLog") + "_" + new Date().toISOString().slice(0, 10) + ".csv";
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    $a("auditMode").addEventListener("change", () => { setModeUi(); load(false); });
+    $a("btnAuditSearch").addEventListener("click", () => load(false));
+    $a("btnAuditMore").addEventListener("click", () => load(true));
+    $a("btnAuditExport").addEventListener("click", exportCsv);
+    $a("btnAuditClear").addEventListener("click", () => {
+      ["auditFrom", "auditTo", "auditUser", "auditTable", "auditAction"].forEach((id) => { $a(id).value = ""; });
+      load(false);
+    });
+    document.querySelectorAll("[data-subtab='auditLog']").forEach((btn) => btn.addEventListener("click", () => { loadUserList(); load(false); }));
+    setModeUi();
+  })();
+
 
   // Wire all settings inputs — both "input" (while typing) and "change" (on blur/tab)
   [setCashBalance, setBankBalance, setPnbSavingsBalance, setGcashBalance, setLandbankBalance,
